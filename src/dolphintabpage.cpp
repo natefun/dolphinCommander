@@ -49,16 +49,14 @@ DolphinTabPage::DolphinTabPage(const QUrl &primaryUrl, const QUrl &secondaryUrl,
     m_splitter->addWidget(m_primaryViewContainer);
     m_primaryViewContainer->show();
 
-    if (secondaryUrl.isValid() || GeneralSettings::splitView()) {
-        // Provide a secondary view, if the given secondary url is valid or if the
-        // startup settings are set this way (use the url of the primary view).
-        m_splitViewEnabled = true;
-        const QUrl &url = secondaryUrl.isValid() ? secondaryUrl : primaryUrl;
-        m_secondaryViewContainer = createViewContainer(url);
-        connect(m_secondaryViewContainer->view(), &DolphinView::redirection, this, &DolphinTabPage::slotViewUrlRedirection);
-        m_splitter->addWidget(m_secondaryViewContainer);
-        m_secondaryViewContainer->show();
-    }
+    // dolphinCommander always shows two panes. The secondary pane starts at the
+    // given secondary url, or at the url of the primary view.
+    m_splitViewEnabled = true;
+    const QUrl &url = secondaryUrl.isValid() ? secondaryUrl : primaryUrl;
+    m_secondaryViewContainer = createViewContainer(url);
+    connect(m_secondaryViewContainer->view(), &DolphinView::redirection, this, &DolphinTabPage::slotViewUrlRedirection);
+    m_splitter->addWidget(m_secondaryViewContainer);
+    m_secondaryViewContainer->show();
 
     m_primaryViewContainer->setActive(true);
 }
@@ -80,7 +78,8 @@ void DolphinTabPage::splitterMoved(int pos)
 
 void DolphinTabPage::setSplitViewEnabled(bool enabled, Animated animated, const QUrl &secondaryUrl)
 {
-    if (m_splitViewEnabled == enabled) {
+    // dolphinCommander keeps both panes open, so closing the secondary pane is not allowed.
+    if (m_splitViewEnabled == enabled || !enabled) {
         return;
     }
 

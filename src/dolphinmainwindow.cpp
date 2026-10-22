@@ -144,7 +144,7 @@ DolphinMainWindow::DolphinMainWindow()
 #ifndef Q_OS_WIN
     setWindowFlags(Qt::WindowContextHelpButtonHint);
 #endif
-    setComponentName(QStringLiteral("dolphin"), QGuiApplication::applicationDisplayName());
+    setComponentName(QStringLiteral("dolphincommander"), QGuiApplication::applicationDisplayName());
     setObjectName(QStringLiteral("Dolphin#"));
 
     setStateConfigGroup("State");
@@ -211,7 +211,7 @@ DolphinMainWindow::DolphinMainWindow()
     setupFileItemActions();
 
     const bool usePhoneUi{KRuntimePlatform::runtimePlatform().contains(QLatin1String("phone"))};
-    setupGUI(Save | Create | ToolBar, usePhoneUi ? QStringLiteral("dolphinuiforphones.rc") : QString() /* load the default dolphinui.rc file */);
+    setupGUI(Save | Create | ToolBar, usePhoneUi ? QStringLiteral("dolphinuiforphones.rc") : QString() /* load the default dolphincommanderui.rc file */);
     stateChanged(QStringLiteral("new_file"));
 
     QClipboard *clipboard = QApplication::clipboard();
@@ -757,7 +757,7 @@ void DolphinMainWindow::slotSaveSession()
         m_sessionSaveScheduled = true;
     } else if (!m_sessionSaveTimer->isActive()) {
         // No point in saving the session if the timer is running (since it will save the session again when it times out).
-        KConfigGui::setSessionConfig(QStringLiteral("dolphin"), QStringLiteral("dolphin"));
+        KConfigGui::setSessionConfig(QStringLiteral("dolphincommander"), QStringLiteral("dolphincommander"));
         KConfig *config = KConfigGui::sessionConfig();
         saveGlobalProperties(config);
         savePropertiesInternal(config, 1);
@@ -1914,7 +1914,7 @@ void DolphinMainWindow::setupActions()
                                                "(Only available while in Split View mode.)"));
     copyToOtherViewAction->setIcon(QIcon::fromTheme(QStringLiteral("edit-copy")));
     copyToOtherViewAction->setIconText(i18nc("@action:inmenu Edit", "Copy to Other View"));
-    actionCollection()->setDefaultShortcut(copyToOtherViewAction, Qt::SHIFT | Qt::Key_F5);
+    actionCollection()->setDefaultShortcut(copyToOtherViewAction, Qt::Key_F5);
     connect(copyToOtherViewAction, &QAction::triggered, this, &DolphinMainWindow::copyToInactiveSplitView);
 
     QAction *moveToOtherViewAction = actionCollection()->addAction(QStringLiteral("move_to_inactive_split_view"));
@@ -1926,7 +1926,7 @@ void DolphinMainWindow::setupActions()
                                                "(Only available while in Split View mode.)"));
     moveToOtherViewAction->setIcon(QIcon::fromTheme(QStringLiteral("edit-cut")));
     moveToOtherViewAction->setIconText(i18nc("@action:inmenu Edit", "Move to Other View"));
-    actionCollection()->setDefaultShortcut(moveToOtherViewAction, Qt::SHIFT | Qt::Key_F6);
+    actionCollection()->setDefaultShortcut(moveToOtherViewAction, Qt::Key_F6);
     connect(moveToOtherViewAction, &QAction::triggered, this, &DolphinMainWindow::moveToInactiveSplitView);
 
     QAction *focusOtherViewAction = actionCollection()->addAction(QStringLiteral("focus_inactive_split_view"));
@@ -2084,6 +2084,7 @@ void DolphinMainWindow::setupActions()
 
     QAction *redisplay = KStandardAction::redisplay(this, &DolphinMainWindow::reloadView, actionCollection());
     redisplay->setAutoRepeat(false);
+    actionCollection()->setDefaultShortcut(redisplay, Qt::CTRL | Qt::Key_R);
     redisplay->setToolTip(i18nc("@info:tooltip", "Refresh view"));
     redisplay->setWhatsThis(xi18nc("@info:whatsthis refresh",
                                    "<para>This refreshes "
@@ -2106,7 +2107,7 @@ void DolphinMainWindow::setupActions()
                                           "editable so you can directly enter a location you want to go to.<nl/>"
                                           "You can also switch to editing by clicking to the right of the "
                                           "location and switch back by confirming the edited location."));
-    actionCollection()->setDefaultShortcut(editableLocation, Qt::Key_F6);
+    actionCollection()->setDefaultShortcut(editableLocation, QKeySequence());
     connect(editableLocation, &KToggleAction::triggered, this, &DolphinMainWindow::toggleEditLocation);
 
     QAction *replaceLocation = actionCollection()->addAction(QStringLiteral("replace_location"));
@@ -2938,8 +2939,9 @@ void DolphinMainWindow::updateSplitActions()
         default:
             Q_UNREACHABLE();
         }
-        moveToTabsAction->setEnabled(true);
-        popoutSplitAction->setEnabled(true);
+        // dolphinCommander always has two panes, so a pane cannot be moved out.
+        moveToTabsAction->setEnabled(false);
+        popoutSplitAction->setEnabled(false);
 
         if (!m_splitViewAction->menu()) {
             setActionPopupMode(m_splitViewAction, QToolButton::MenuButtonPopup);

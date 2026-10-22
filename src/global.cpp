@@ -153,7 +153,7 @@ QVector<QPair<QSharedPointer<OrgKdeDolphinMainWindowInterface>, QStringList>> Do
     QDBusConnectionInterface *sessionInterface = QDBusConnection::sessionBus().interface();
     const QStringList dbusServices = sessionInterface ? sessionInterface->registeredServiceNames().value() : QStringList();
     // Don't match the service without trailing "-" (unique instance)
-    const QString pattern = QStringLiteral("org.kde.dolphin-");
+    const QString pattern = QStringLiteral("org.kde.dolphincommander-");
     // Don't match the pid without leading "-"
     const QString myPid = QLatin1Char('-') + QString::number(QCoreApplication::applicationPid());
     for (const QString &service : dbusServices) {

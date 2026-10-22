@@ -57,6 +57,14 @@ DolphinUrlNavigator::DolphinUrlNavigator(const QUrl &url, QWidget *parent)
     readOnlyBadge->setToolTip(i18nc("@info:tooltip of a 'locked' symbol in url navigator", "This folder is not writable for you."));
     readOnlyBadge->hide();
     setBadgeWidget(readOnlyBadge);
+
+    // OneCommander-style path bar: always the full path, in a larger and bolder font.
+    setShowFullPath(true);
+    QFont pathFont = font();
+    pathFont.setPointSizeF(pathFont.pointSizeF() * 1.2);
+    pathFont.setBold(true);
+    setFont(pathFont);
+    setMinimumHeight(fontMetrics().height() + 12);
 }
 
 DolphinUrlNavigator::~DolphinUrlNavigator()

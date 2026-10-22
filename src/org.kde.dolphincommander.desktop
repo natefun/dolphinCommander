@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=dolphinCommander
+Exec=dolphincommander %u
+Icon=org.kde.dolphin
+Type=Application
+Categories=Qt;KDE;System;FileTools;FileManager;
+GenericName=Dual-pane File Manager
+Comment=Manage your files with two panes
+MimeType=inode/directory;
+InitialPreference=5
+Keywords=files;file management;file browsing;two pane;dual pane;commander;
+X-DBUS-ServiceName=org.kde.dolphincommander
+StartupWMClass=dolphincommander

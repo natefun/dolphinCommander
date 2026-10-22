@@ -552,6 +552,7 @@ generate_and_install_dbus_interface(
     OPTIONS -a
 )
 
+set_target_properties(dolphin PROPERTIES OUTPUT_NAME dolphincommander)
 install(TARGETS dolphin ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
 
 ##########################################
@@ -607,7 +608,7 @@ if(NOT WIN32)
     target_link_libraries(kcm_dolphinviewmodes dolphinprivate)
     target_link_libraries(kcm_dolphingeneral dolphinprivate)
 
-    install( FILES org.kde.dolphin.appdata.xml DESTINATION ${KDE_INSTALL_METAINFODIR} )
+    install( FILES org.kde.dolphincommander.appdata.xml DESTINATION ${KDE_INSTALL_METAINFODIR} )
 
     install(TARGETS kcm_dolphinviewmodes DESTINATION ${KDE_INSTALL_PLUGINDIR}/dolphin/kcms )
     install(TARGETS kcm_dolphingeneral DESTINATION ${KDE_INSTALL_PLUGINDIR}/dolphin/kcms )
@@ -620,12 +621,12 @@ endif()
 
 ########### install files ###############
 
-install( PROGRAMS org.kde.dolphin.desktop DESTINATION ${KDE_INSTALL_APPDIR} )
+install( PROGRAMS org.kde.dolphincommander.desktop DESTINATION ${KDE_INSTALL_APPDIR} )
 
 install( DIRECTORY DESTINATION "${KDE_INSTALL_FULL_DATAROOTDIR}/kglobalaccel" )
 
 install(
-    CODE "execute_process(COMMAND \"${CMAKE_COMMAND}\" -E create_symlink \"${KDE_INSTALL_FULL_APPDIR}/org.kde.dolphin.desktop\" \"\$ENV{DESTDIR}${KDE_INSTALL_FULL_DATAROOTDIR}/kglobalaccel/org.kde.dolphin.desktop\")"
+    CODE "execute_process(COMMAND \"${CMAKE_COMMAND}\" -E create_symlink \"${KDE_INSTALL_FULL_APPDIR}/org.kde.dolphincommander.desktop\" \"\$ENV{DESTDIR}${KDE_INSTALL_FULL_DATAROOTDIR}/kglobalaccel/org.kde.dolphincommander.desktop\")"
 )
 
 install( FILES settings/dolphin_directoryviewpropertysettings.kcfg
@@ -637,40 +638,7 @@ install( FILES settings/dolphin_directoryviewpropertysettings.kcfg
                settings/dolphin_versioncontrolsettings.kcfg
          DESTINATION ${KDE_INSTALL_KCFGDIR} )
 
-install( FILES settings/dolphin_detailsmodesettings.upd
-               settings/dolphin_statusandlocationbarssettings.upd
-               settings/dolphin_replace_view_mode_with_view_settings_in_toolbar.upd
-               settings/dolphin_replace_view_mode_with_view_settings_in_toolbar.py
-               settings/dolphin_tab_key_shortcut_for_focus_other_view.upd
-               settings/dolphin_tab_key_shortcut_for_focus_other_view.py
-         DESTINATION ${KDE_INSTALL_KCONFUPDATEDIR} )
-
-# install KF6 kconfig updater C++ scripts to kconf_update_bin
-add_executable(dolphin_25.04_update_statusandlocationbarssettings "settings/dolphin_25.04_update_statusandlocationbarssettings.cpp")
-target_link_libraries(dolphin_25.04_update_statusandlocationbarssettings
-    KF6::ConfigCore
-    KF6::XmlGui
-)
-
-install(
-    TARGETS
-        dolphin_25.04_update_statusandlocationbarssettings
-    DESTINATION ${KDE_INSTALL_LIBDIR}/kconf_update_bin
-)
-
-add_executable(
-    dolphin_update_splitviewsettings
-    "settings/dolphin_update_splitviewsettings.cpp"
-)
-target_link_libraries(dolphin_update_splitviewsettings
-    KF6::ConfigCore
-    KF6::XmlGui
-)
-install(
-    TARGETS
-        dolphin_update_splitviewsettings
-    DESTINATION ${KDE_INSTALL_LIBDIR}/kconf_update_bin
-)
+# dolphinCommander does not install Dolphin's kconf_update scripts: they migrate stock dolphinrc.
 
 if(BUILD_TESTING)
     target_compile_definitions(dolphin PRIVATE BUILD_TESTING)

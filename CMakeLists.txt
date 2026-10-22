@@ -202,24 +202,7 @@ install(FILES
     COMPONENT Devel
 )
 
-if(FLATPAK)
-    ecm_generate_dbus_service_file(
-        NAME org.freedesktop.FileManager1
-        EXECUTABLE "${KDE_INSTALL_FULL_BINDIR}/dolphin --daemon"
-        SYSTEMD_SERVICE plasma-dolphin.service
-        DESTINATION ${KDE_INSTALL_DBUSSERVICEDIR}
-    )
-else()
-    ecm_generate_dbus_service_file(
-        NAME org.freedesktop.FileManager1
-        EXECUTABLE "${KDE_INSTALL_FULL_BINDIR}/dolphin --daemon"
-        SYSTEMD_SERVICE plasma-dolphin.service
-        DESTINATION ${KDE_INSTALL_DBUSSERVICEDIR}
-        RENAME org.kde.dolphin.FileManager1.service
-    )
-endif()
-
-ecm_install_configured_files(INPUT plasma-dolphin.service.in DESTINATION ${KDE_INSTALL_SYSTEMDUSERUNITDIR})
+# dolphinCommander does not claim org.freedesktop.FileManager1 and ships no daemon/systemd unit.
 
 ecm_qt_install_logging_categories(
         EXPORT DOLPHIN
@@ -232,7 +215,6 @@ if(KF6DocTools_FOUND)
     kdoctools_install(po)
 endif()
 
-install(FILES completions/dolphin.zsh RENAME _dolphin DESTINATION ${KDE_INSTALL_ZSHAUTOCOMPLETEDIR})
 
 feature_summary(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES)
 

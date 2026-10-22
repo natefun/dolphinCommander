@@ -6,7 +6,7 @@
       http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
     <include>kiconloader.h</include>
     <include>QFontDatabase</include>
-    <kcfgfile name="dolphinrc"/>
+    <kcfgfile name="dolphincommanderrc"/>
     <group name="DetailsMode">
         <entry name="ViewFont" type="Font">
             <default code="true">QFont()</default>

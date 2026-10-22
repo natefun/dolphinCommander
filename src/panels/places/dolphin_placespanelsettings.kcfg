@@ -5,7 +5,7 @@
       xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
       http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
     <include>kiconloader.h</include>
-    <kcfgfile name="dolphinrc"/>
+    <kcfgfile name="dolphincommanderrc"/>
     <group name="PlacesPanel">
         <entry name="IconSize" type="Int">
             <label>Size of icons in the Places Panel (-1 means "automatic")</label>

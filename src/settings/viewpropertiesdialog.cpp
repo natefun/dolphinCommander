@@ -209,7 +209,7 @@ ViewPropertiesDialog::ViewPropertiesDialog(DolphinView *dolphinView)
     });
 
     // clean up old window geometry settings
-    KSharedConfig::openConfig(QStringLiteral("dolphinrc"))->deleteGroup(QStringLiteral("ViewPropertiesDialog"));
+    KSharedConfig::openConfig(QStringLiteral("dolphincommanderrc"))->deleteGroup(QStringLiteral("ViewPropertiesDialog"));
 
     loadSettings();
 }

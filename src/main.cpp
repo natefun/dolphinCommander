@@ -129,8 +129,8 @@ int main(int argc, char **argv)
     KLocalizedString::setApplicationDomain(dolphinTranslationDomain);
 
     KAboutData aboutData(
-        QStringLiteral("dolphin"),
-        i18n("Dolphin"),
+        QStringLiteral("dolphincommander"),
+        i18n("dolphinCommander"),
         QStringLiteral(DOLPHIN_VERSION_STRING),
         i18nc("@title", "File Manager"),
         KAboutLicense::GPL,
@@ -272,7 +272,7 @@ int main(int argc, char **argv)
     DBusInterface interface;
 
     if (!app.isSessionRestored()) {
-        KConfigGui::setSessionConfig(QStringLiteral("dolphin"), QStringLiteral("dolphin"));
+        KConfigGui::setSessionConfig(QStringLiteral("dolphincommander"), QStringLiteral("dolphincommander"));
     }
 
     // Only restore session if:
@@ -283,7 +283,7 @@ int main(int argc, char **argv)
     // 3. There is a session available to restore
     if (app.isSessionRestored() || GeneralSettings::rememberOpenedTabs()) {
         // Get saved state data for the last-closed Dolphin instance
-        const QString serviceName = QStringLiteral("org.kde.dolphin-%1").arg(QCoreApplication::applicationPid());
+        const QString serviceName = QStringLiteral("org.kde.dolphincommander-%1").arg(QCoreApplication::applicationPid());
         const auto instancesCount = Dolphin::dolphinGuiInstances(serviceName).size();
         if (instancesCount == 1 || (app.isSessionRestored() && instancesCount > 0)) {
             const QString className = KXmlGuiWindow::classNameOfToplevel(1);
