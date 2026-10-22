@@ -7,15 +7,17 @@
 #include <KLocalizedString>
 
 #include <QIcon>
+#include <QPaintEvent>
+#include <QPainter>
 #include <QSplitterHandle>
 #include <QToolButton>
 #include <QVBoxLayout>
 
 namespace
 {
-constexpr int HandleWidth = 26;
-constexpr int ArrowSize = 18;
-constexpr int ButtonHeight = 44;
+constexpr int HandleWidth = 20;
+constexpr int ArrowSize = 14;
+constexpr int ButtonHeight = 36;
 
 class SidesSplitterHandle : public QSplitterHandle
 {
@@ -38,6 +40,18 @@ public:
             updateButtons();
         });
         updateButtons();
+    }
+
+protected:
+    /** The colors come from the palette at the time of painting, so they follow the theme. */
+    void paintEvent(QPaintEvent *event) override
+    {
+        Q_UNUSED(event)
+        QPainter painter(this);
+        painter.fillRect(rect(), palette().color(QPalette::Window));
+        painter.setPen(palette().color(QPalette::Mid));
+        painter.drawLine(0, 0, 0, height() - 1);
+        painter.drawLine(width() - 1, 0, width() - 1, height() - 1);
     }
 
 private:
