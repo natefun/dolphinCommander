@@ -94,6 +94,12 @@ Q_SIGNALS:
      */
     void activeViewChanged(DolphinViewContainer *viewContainer);
 
+    /** Is emitted when the user activates the view of the current tab, even if it was already active. */
+    void paneActivated();
+
+    /** Is emitted when closing the last tab of this widget is requested. */
+    void lastTabCloseRequested();
+
     /**
      * Is emitted when the number of open tabs has changed (e.g. by opening or
      * closing a tab)

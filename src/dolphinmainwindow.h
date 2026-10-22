@@ -39,7 +39,9 @@ class DolphinViewActionHandler;
 class DolphinSettingsDialog;
 class DolphinViewContainer;
 class DolphinRemoteEncoding;
+class DolphinNavigatorsWidgetAction;
 class DolphinTabWidget;
+class SidesSplitter;
 class KFileItem;
 class KFileItemList;
 class KJob;
@@ -135,7 +137,6 @@ public:
      */
     void setSessionAutoSaveEnabled(bool enable);
 
-    bool isFoldersPanelEnabled() const;
     bool isInformationPanelEnabled() const;
     bool isSplitViewEnabledInCurrentTab() const;
 
@@ -612,6 +613,17 @@ private Q_SLOTS:
      */
     void tabCountChanged(int count);
 
+    /** Makes @p side the active one and gives it the keyboard focus. */
+    void activateSide(DolphinTabWidget *side);
+    /** Only switches which side is regarded as active, without changing the focus. */
+    void setActiveSide(DolphinTabWidget *side);
+    void ensureTabOnEachSide();
+    void slotLastTabCloseRequested();
+    void closeCurrentTab();
+    void activateLastTab();
+    void activateNextTab();
+    void activatePrevTab();
+
     /**
      * Updates the Window Title with the caption from the active view container
      */
@@ -781,7 +793,17 @@ private:
     };
 
     KNewFileMenu *m_newFileMenu;
+    DolphinTabWidget *inactiveTabWidget() const;
+    DolphinViewContainer *inactiveViewContainer() const;
+    DolphinNavigatorsWidgetAction *activeNavigators() const;
+
+    /** The tab widget of the side that is currently active. It is always either #m_leftTabs or #m_rightTabs. */
     DolphinTabWidget *m_tabWidget;
+    SidesSplitter *m_sidesSplitter = nullptr;
+    DolphinTabWidget *m_leftTabs = nullptr;
+    DolphinTabWidget *m_rightTabs = nullptr;
+    DolphinNavigatorsWidgetAction *m_leftNavigators = nullptr;
+    DolphinNavigatorsWidgetAction *m_rightNavigators = nullptr;
     DolphinViewContainer *m_activeViewContainer;
 
     DolphinViewActionHandler *m_actionHandler;

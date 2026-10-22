@@ -154,6 +154,9 @@ public:
 
 Q_SIGNALS:
     void activeViewChanged(DolphinViewContainer *viewContainer);
+
+    /** Emitted whenever the user activates a view of this tab page, even if it was already the active one. */
+    void paneActivated();
     void activeViewUrlChanged(const QUrl &url);
 
 private Q_SLOTS:

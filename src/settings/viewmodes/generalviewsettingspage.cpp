@@ -106,7 +106,6 @@ GeneralViewSettingsPage::GeneralViewSettingsPage(const QUrl &url, QWidget *paren
                                "file_new",
                                "show_places_panel",
                                "show_information_panel",
-                               "show_folders_panel",
                                "show_terminal_panel",
                                "open_terminal",
                                "go_up",

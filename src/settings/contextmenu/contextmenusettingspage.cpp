@@ -21,7 +21,6 @@
 #include <kservice_export.h>
 #include <kwidgetsaddons_version.h>
 
-#include <KNSWidgets/Button>
 #include <KStandardAction>
 #include <QtGlobal>
 
@@ -62,18 +61,6 @@ ContextMenuSettingsPage::ContextMenuSettingsPage(QWidget *parent, const KActionC
         m_sortModel->setFilterFixedString(filter);
     });
     searchLayout->addWidget(m_searchLineEdit);
-
-#ifndef Q_OS_WIN
-    using NewStuffButton = KNSWidgets::Button;
-    auto *downloadButton = new NewStuffButton(i18nc("@action:button", "Download Services…"), QStringLiteral("servicemenu.knsrc"), this);
-    connect(downloadButton, &NewStuffButton::dialogFinished, this, [this](const auto &changedEntries) {
-        if (!changedEntries.isEmpty()) {
-            m_serviceModel->clear();
-            loadServices();
-        }
-    });
-    searchLayout->addWidget(downloadButton);
-#endif // Q_OS_WIN
 
 #if KIO_VERSION >= QT_VERSION_CHECK(6, 24, 0)
     auto *shortcutsButton = new QPushButton(QIcon::fromTheme(QStringLiteral("configure-shortcuts")), i18nc("@action:button", "Shortcuts…"), this);

@@ -14,9 +14,6 @@
 #include "dolphindebug.h"
 #include "dolphinmainwindow.h"
 #include "global.h"
-#if HAVE_KUSERFEEDBACK
-#include "userfeedback/dolphinfeedbackprovider.h"
-#endif
 
 #include <KAboutData>
 #include <KConfigGui>
@@ -135,7 +132,8 @@ int main(int argc, char **argv)
         i18nc("@title", "File Manager"),
         KAboutLicense::GPL,
         i18nc("@info:credit", "© 2006–%1 The Dolphin Developers", QStringLiteral("2026"))); // years term not localized, pass as string, not int
-    aboutData.setHomepage(QStringLiteral("https://apps.kde.org/dolphin"));
+    // Nothing in this application points to KDE: no homepage, and no address that crash reports could be sent to.
+    aboutData.setBugAddress(QByteArray());
     aboutData.addAuthor(i18nc("@info:credit", "Felix Ernst"),
                         i18nc("@info:credit", "Maintainer (since 2021) and developer"),
                         QStringLiteral("felixernst@kde.org"));
@@ -321,11 +319,6 @@ int main(int argc, char **argv)
     if (adminWorkerInfoWanted) {
         Admin::guideUserTowardsUsingAdminWorker();
     }
-
-#if HAVE_KUSERFEEDBACK
-    auto feedbackProvider = DolphinFeedbackProvider::instance();
-    Q_UNUSED(feedbackProvider)
-#endif
 
 #ifdef BUILD_TESTING
     if (parser.isSet(QStringLiteral("self-test"))) {

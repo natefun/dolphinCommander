@@ -5,6 +5,7 @@
  */
 
 #include "dolphinviewcontainer.h"
+#include "views/columnsstrip.h"
 
 #include "admin/bar.h"
 #include "admin/workerintegration.h"
@@ -60,10 +61,11 @@ struct LayoutStructure {
     int adminBar = 1;
     int messageWidget = 2;
     int selectionModeTopBar = 3;
-    int view = 4;
-    int selectionModeBottomBar = 5;
-    int filterBar = 6;
-    int statusBar = 7;
+    int columnsStrip = 4;
+    int view = 5;
+    int selectionModeBottomBar = 6;
+    int filterBar = 7;
+    int statusBar = 8;
 };
 constexpr LayoutStructure positionFor;
 
@@ -177,6 +179,14 @@ DolphinViewContainer::DolphinViewContainer(const QUrl &url, QWidget *parent)
     connect(undoManager, &KIO::FileUndoManager::jobRecordingFinished, this, &DolphinViewContainer::delayedStatusBarUpdate);
 
     m_topLayout->addWidget(m_messageWidget, positionFor.messageWidget, 0);
+    // Miller columns above the regular view.
+    m_columnsStrip = new ColumnsStrip(this);
+    m_columnsStrip->setUrl(m_view->url());
+    m_columnsStrip->setShowHiddenFiles(m_view->hiddenFilesShown());
+    connect(m_view, &DolphinView::urlChanged, m_columnsStrip, &ColumnsStrip::setUrl);
+    connect(m_view, &DolphinView::hiddenFilesShownChanged, m_columnsStrip, &ColumnsStrip::setShowHiddenFiles);
+    connect(m_columnsStrip, &ColumnsStrip::urlRequested, m_view, &DolphinView::setUrl);
+    m_topLayout->addWidget(m_columnsStrip, positionFor.columnsStrip, 0);
     m_topLayout->addWidget(m_view, positionFor.view, 0);
     m_topLayout->addWidget(m_filterBar, positionFor.filterBar, 0);
     if (GeneralSettings::showStatusBar() == GeneralSettings::EnumShowStatusBar::FullWidth) {

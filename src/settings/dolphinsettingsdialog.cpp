@@ -13,10 +13,6 @@
 #include "interface/interfacesettingspage.h"
 #include "trash/trashsettingspage.h"
 #include "viewmodes/viewsettingspage.h"
-#if HAVE_KUSERFEEDBACK
-#include "userfeedback/dolphinfeedbackprovider.h"
-#include "userfeedback/userfeedbacksettingspage.h"
-#endif
 
 #include <KAuthorized>
 #include <KLocalizedString>
@@ -82,28 +78,12 @@ DolphinSettingsDialog::DolphinSettingsDialog(const QUrl &url, QWidget *parent, K
         connect(trashSettingsPage, &TrashSettingsPage::changed, this, &DolphinSettingsDialog::enableApply);
     }
 
-#if HAVE_KUSERFEEDBACK
-    // User Feedback
-    UserFeedbackSettingsPage *feedbackSettingsPage = nullptr;
-    if (DolphinFeedbackProvider::instance()->isEnabled()) {
-        feedbackSettingsPage = new UserFeedbackSettingsPage(this);
-        auto feedbackSettingsFrame = addPage(feedbackSettingsPage, i18nc("@title:group", "User Feedback"));
-        feedbackSettingsFrame->setIcon(QIcon::fromTheme(QStringLiteral("preferences-desktop-locale")));
-        connect(feedbackSettingsPage, &UserFeedbackSettingsPage::changed, this, &DolphinSettingsDialog::enableApply);
-    }
-#endif
-
     m_pages.append(interfaceSettingsPage);
     m_pages.append(viewSettingsPage);
     m_pages.append(contextMenuSettingsPage);
     if (trashSettingsPage) {
         m_pages.append(trashSettingsPage);
     }
-#if HAVE_KUSERFEEDBACK
-    if (feedbackSettingsPage) {
-        m_pages.append(feedbackSettingsPage);
-    }
-#endif
 
     // Create the buttons last so they are also last in the keyboard Tab focus order.
     QDialogButtonBox *box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Apply | QDialogButtonBox::Cancel | QDialogButtonBox::RestoreDefaults);

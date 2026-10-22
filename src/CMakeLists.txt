@@ -112,6 +112,7 @@ target_sources(dolphinprivate PRIVATE
     views/dolphinfileitemlistwidget.cpp
     views/dolphinitemlistview.cpp
     views/dolphinnewfilemenuobserver.cpp
+    views/columnsstrip.cpp
     views/dolphinremoteencoding.cpp
     views/dolphinview.cpp
     views/dolphinviewactionhandler.cpp
@@ -229,7 +230,6 @@ target_link_libraries(
     KF6::Completion
     KF6::TextWidgets
     KF6::ConfigCore
-    KF6::NewStuffWidgets    # KNSWidgets::Button
     KF6::Parts
     KF6::WindowSystem
     KF6::WidgetsAddons
@@ -291,6 +291,10 @@ target_sources(dolphinstatic PRIVATE
     dolphinbookmarkhandler.cpp
     dolphindockwidget.cpp
     dolphinmainwindow.cpp
+    ribbonbar.cpp
+    ribbonbar.h
+    sidessplitter.cpp
+    sidessplitter.h
     dolphinviewcontainer.cpp
     dolphincontextmenu.cpp
     dolphinnavigatorswidgetaction.cpp
@@ -307,9 +311,6 @@ target_sources(dolphinstatic PRIVATE
     kitemviews/kfileitemlisttostring.cpp
     panels/places/placespanel.cpp
     panels/panel.cpp
-    panels/folders/foldersitemlistwidget.cpp
-    panels/folders/treeviewcontextmenu.cpp
-    panels/folders/folderspanel.cpp
     panels/terminal/terminalpanel.cpp
     search/bar.cpp
     search/barsecondrowflowlayout.cpp
@@ -377,9 +378,6 @@ target_sources(dolphinstatic PRIVATE
     kitemviews/kfileitemlisttostring.h
     panels/places/placespanel.h
     panels/panel.h
-    panels/folders/foldersitemlistwidget.h
-    panels/folders/treeviewcontextmenu.h
-    panels/folders/folderspanel.h
     panels/terminal/terminalpanel.h
     search/bar.h
     search/barsecondrowflowlayout.h
@@ -447,19 +445,6 @@ if(HAVE_BALOO)
     )
 endif()
 
-if(HAVE_KUSERFEEDBACK)
-    target_sources(dolphinstatic PRIVATE
-        userfeedback/dolphinfeedbackprovider.cpp
-        userfeedback/settingsdatasource.cpp
-        userfeedback/placesdatasource.cpp
-        settings/userfeedback/userfeedbacksettingspage.cpp
-        userfeedback/dolphinfeedbackprovider.h
-        userfeedback/settingsdatasource.h
-        userfeedback/placesdatasource.h
-        settings/userfeedback/userfeedbacksettingspage.h
-    )
-endif()
-
 if(KF6KIO_VERSION VERSION_GREATER_EQUAL "6.24.0")
     target_sources(dolphinstatic PRIVATE
         servicemenushortcutmanager.cpp
@@ -468,7 +453,6 @@ if(KF6KIO_VERSION VERSION_GREATER_EQUAL "6.24.0")
 endif()
 
 kconfig_add_kcfg_files(dolphinstatic
-    panels/folders/dolphin_folderspanelsettings.kcfgc
     panels/places/dolphin_placespanelsettings.kcfgc
     search/dolphin_searchsettings.kcfgc
 )
@@ -496,14 +480,6 @@ if(HAVE_PACKAGEKIT)
     target_link_libraries(
         dolphinstatic
         PK::packagekitqt6
-    )
-endif()
-
-if (HAVE_KUSERFEEDBACK)
-    target_link_libraries(
-        dolphinstatic
-        KF6::UserFeedbackCore
-        KF6::UserFeedbackWidgets
     )
 endif()
 
@@ -616,7 +592,6 @@ endif()
 
 if(NOT WIN32)
     add_subdirectory(settings/contextmenu/servicemenuinstaller)
-    install( FILES settings/contextmenu/servicemenu.knsrc DESTINATION ${KDE_INSTALL_KNSRCDIR} )
 endif()
 
 ########### install files ###############

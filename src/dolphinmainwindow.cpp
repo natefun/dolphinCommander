@@ -7,6 +7,8 @@
  */
 
 #include "dolphinmainwindow.h"
+#include "ribbonbar.h"
+#include "sidessplitter.h"
 
 #include "admin/workerintegration.h"
 #include "dolphin_generalsettings.h"
@@ -23,7 +25,6 @@
 #include "dolphinviewcontainer.h"
 #include "global.h"
 #include "middleclickactioneventfilter.h"
-#include "panels/folders/folderspanel.h"
 #include "panels/places/placespanel.h"
 #include "panels/terminal/terminalpanel.h"
 #include "search/dolphinquery.h"
@@ -89,9 +90,11 @@
 #include <QScopeGuard>
 #include <QSharedPointer>
 #include <QShowEvent>
+#include <QSplitter>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QToolButton>
+#include <QVBoxLayout>
 #include <QtConcurrentRun>
 #include <dolphindebug.h>
 
@@ -170,14 +173,47 @@ DolphinMainWindow::DolphinMainWindow()
 
     setAcceptDrops(true);
 
-    auto *navigatorsWidgetAction = new DolphinNavigatorsWidgetAction(this);
-    actionCollection()->addAction(QStringLiteral("url_navigators"), navigatorsWidgetAction);
-    m_tabWidget = new DolphinTabWidget(navigatorsWidgetAction, this);
-    m_tabWidget->setObjectName("tabWidget");
-    connect(m_tabWidget, &DolphinTabWidget::activeViewChanged, this, &DolphinMainWindow::activeViewChanged);
-    connect(m_tabWidget, &DolphinTabWidget::tabCountChanged, this, &DolphinMainWindow::tabCountChanged);
-    connect(m_tabWidget, &DolphinTabWidget::currentUrlChanged, this, &DolphinMainWindow::updateWindowTitle);
-    setCentralWidget(m_tabWidget);
+    // Each side of the window has its own tabs and its own path bar.
+    m_leftNavigators = new DolphinNavigatorsWidgetAction(this);
+    m_rightNavigators = new DolphinNavigatorsWidgetAction(this);
+    m_leftTabs = new DolphinTabWidget(m_leftNavigators, this);
+    m_leftTabs->setObjectName("tabWidget");
+    m_rightTabs = new DolphinTabWidget(m_rightNavigators, this);
+    m_rightTabs->setObjectName("rightTabWidget");
+    m_tabWidget = m_leftTabs;
+    for (DolphinTabWidget *tabs : {m_leftTabs, m_rightTabs}) {
+        connect(tabs, &DolphinTabWidget::activeViewChanged, this, [this, tabs](DolphinViewContainer *viewContainer) {
+            setActiveSide(tabs);
+            activeViewChanged(viewContainer);
+        });
+        connect(tabs, &DolphinTabWidget::paneActivated, this, [this, tabs]() {
+            if (tabs != m_tabWidget) {
+                activateSide(tabs);
+            }
+        });
+        connect(tabs, &DolphinTabWidget::lastTabCloseRequested, this, &DolphinMainWindow::slotLastTabCloseRequested);
+        connect(tabs, &DolphinTabWidget::tabCountChanged, this, &DolphinMainWindow::tabCountChanged);
+        connect(tabs, &DolphinTabWidget::currentUrlChanged, this, &DolphinMainWindow::updateWindowTitle);
+    }
+    m_sidesSplitter = new SidesSplitter(this);
+    m_sidesSplitter->addWidget(m_leftTabs);
+    m_sidesSplitter->addWidget(m_rightTabs);
+    m_sidesSplitter->setStretchFactor(0, 1);
+    m_sidesSplitter->setStretchFactor(1, 1);
+    // The active side must always be one that can be seen.
+    connect(m_sidesSplitter, &SidesSplitter::hiddenSidesChanged, this, [this]() {
+        const int activeIndex = m_tabWidget == m_leftTabs ? 0 : 1;
+        if (m_sidesSplitter->isSideHidden(activeIndex)) {
+            activateSide(inactiveTabWidget());
+        }
+    });
+    // The ribbon is inserted above the two sides once the menus exist (see setupGUI() below).
+    auto *centralContainer = new QWidget(this);
+    auto *centralLayout = new QVBoxLayout(centralContainer);
+    centralLayout->setContentsMargins(0, 0, 0, 0);
+    centralLayout->setSpacing(0);
+    centralLayout->addWidget(m_sidesSplitter);
+    setCentralWidget(centralContainer);
 
     m_actionTextHelper = new SelectionMode::ActionTextHelper(this);
     setupActions();
@@ -211,8 +247,51 @@ DolphinMainWindow::DolphinMainWindow()
     setupFileItemActions();
 
     const bool usePhoneUi{KRuntimePlatform::runtimePlatform().contains(QLatin1String("phone"))};
-    setupGUI(Save | Create | ToolBar, usePhoneUi ? QStringLiteral("dolphinuiforphones.rc") : QString() /* load the default dolphincommanderui.rc file */);
+    setupGUI(Save | Create, usePhoneUi ? QStringLiteral("dolphinuiforphones.rc") : QString() /* load the default dolphincommanderui.rc file */);
     stateChanged(QStringLiteral("new_file"));
+
+    // Entries that lead to KDE's websites are not wanted.
+    for (const KStandardAction::StandardAction standardAction : {KStandardAction::AboutKDE, KStandardAction::ReportBug, KStandardAction::Donate}) {
+        if (QAction *action = actionCollection()->action(KStandardAction::name(standardAction))) {
+            action->setVisible(false);
+            action->setEnabled(false);
+        }
+    }
+
+    // The ribbon replaces the toolbar, so there is nothing to show or to configure anymore.
+    for (const KStandardAction::StandardAction standardAction : {KStandardAction::ShowToolbar, KStandardAction::ConfigureToolbars}) {
+        if (QAction *action = actionCollection()->action(KStandardAction::name(standardAction))) {
+            action->setVisible(false);
+            action->setEnabled(false);
+        }
+    }
+
+    // A ribbon with the content of all menus replaces the hamburger menu.
+    auto *ribbon = new RibbonBar(menuBar(), this->centralWidget());
+    static_cast<QVBoxLayout *>(this->centralWidget()->layout())->insertWidget(0, ribbon);
+    // The buttons of the toolbar share the row of the ribbon tabs, so the toolbar itself is not needed.
+    QList<QAction *> ribbonLeadingActions;
+    for (const char *name : {"go_back", "go_forward", "go_up", "toggle_search"}) {
+        if (QAction *action = actionCollection()->action(QLatin1String(name))) {
+            ribbonLeadingActions << action;
+        }
+    }
+    ribbon->setLeadingActions(ribbonLeadingActions);
+    toolBar()->hide();
+    // Saved window settings must not bring the toolbar back.
+    connect(toolBar(), &QToolBar::visibilityChanged, toolBar(), [this](bool visible) {
+        if (visible) {
+            QTimer::singleShot(0, toolBar(), &QWidget::hide);
+        }
+    });
+
+    // Both sides are always shown, so there is nothing to split, pop out or move to a tab.
+    for (const char *name : {"split_view", "split_view_menu", "split_stash", "popout_split_view", "move_to_tabs_split_view"}) {
+        if (QAction *action = actionCollection()->action(QLatin1String(name))) {
+            action->setEnabled(false);
+            action->setVisible(false);
+        }
+    }
 
     QClipboard *clipboard = QApplication::clipboard();
     connect(clipboard, &QClipboard::dataChanged, this, &DolphinMainWindow::updatePasteAction);
@@ -244,9 +323,7 @@ DolphinMainWindow::DolphinMainWindow()
     hamburgerMenu->setShowMenuBarAction(showMenuBarAction);
     connect(hamburgerMenu, &KHamburgerMenu::aboutToShowMenu, this, &DolphinMainWindow::updateHamburgerMenu);
     hamburgerMenu->hideActionsOf(toolBar());
-    if (GeneralSettings::version() < 201 && !toolBar()->actions().contains(hamburgerMenu)) {
-        addHamburgerMenuToToolbar();
-    }
+    // The ribbon replaces the hamburger menu, so it is not added to the toolbar.
 
     updateAllowedToolbarAreas();
     updateNavigatorsBackground();
@@ -289,12 +366,14 @@ QVector<DolphinViewContainer *> DolphinMainWindow::viewContainers() const
 {
     QVector<DolphinViewContainer *> viewContainers;
 
-    for (int i = 0; i < m_tabWidget->count(); ++i) {
-        DolphinTabPage *tabPage = m_tabWidget->tabPageAt(i);
+    for (const DolphinTabWidget *tabs : {m_leftTabs, m_rightTabs}) {
+        for (int i = 0; i < tabs->count(); ++i) {
+            DolphinTabPage *tabPage = tabs->tabPageAt(i);
 
-        viewContainers << tabPage->primaryViewContainer();
-        if (tabPage->splitViewEnabled()) {
-            viewContainers << tabPage->secondaryViewContainer();
+            viewContainers << tabPage->primaryViewContainer();
+            if (tabPage->splitViewEnabled()) {
+                viewContainers << tabPage->secondaryViewContainer();
+            }
         }
     }
     return viewContainers;
@@ -302,7 +381,16 @@ QVector<DolphinViewContainer *> DolphinMainWindow::viewContainers() const
 
 void DolphinMainWindow::openDirectories(const QList<QUrl> &dirs, bool splitView)
 {
-    m_tabWidget->openDirectories(dirs, splitView);
+    DolphinTabWidget *const activeSide = m_tabWidget;
+    if (splitView && dirs.size() == 2) {
+        // Two directories with the split view requested: one for each side.
+        m_leftTabs->openDirectories({dirs.at(0)}, false);
+        m_rightTabs->openDirectories({dirs.at(1)}, false);
+    } else {
+        activeSide->openDirectories(dirs, false);
+    }
+    ensureTabOnEachSide();
+    activateSide(activeSide);
 }
 
 void DolphinMainWindow::openDirectories(const QStringList &dirs, bool splitView)
@@ -312,12 +400,90 @@ void DolphinMainWindow::openDirectories(const QStringList &dirs, bool splitView)
 
 void DolphinMainWindow::openFiles(const QList<QUrl> &files, bool splitView)
 {
-    m_tabWidget->openFiles(files, splitView);
+    Q_UNUSED(splitView)
+    DolphinTabWidget *const activeSide = m_tabWidget;
+    activeSide->openFiles(files, false);
+    ensureTabOnEachSide();
+    activateSide(activeSide);
 }
 
-bool DolphinMainWindow::isFoldersPanelEnabled() const
+void DolphinMainWindow::ensureTabOnEachSide()
 {
-    return actionCollection()->action(QStringLiteral("show_folders_panel"))->isChecked();
+    // Both sides always show at least one tab. An empty side starts at the folder of the other one.
+    if (m_leftTabs->count() == 0 && m_rightTabs->count() > 0) {
+        m_leftTabs->openNewActivatedTab(m_rightTabs->currentTabPage()->activeViewContainer()->url());
+    } else if (m_rightTabs->count() == 0 && m_leftTabs->count() > 0) {
+        m_rightTabs->openNewActivatedTab(m_leftTabs->currentTabPage()->activeViewContainer()->url());
+    }
+}
+
+DolphinTabWidget *DolphinMainWindow::inactiveTabWidget() const
+{
+    return m_tabWidget == m_leftTabs ? m_rightTabs : m_leftTabs;
+}
+
+DolphinViewContainer *DolphinMainWindow::inactiveViewContainer() const
+{
+    return inactiveTabWidget()->currentTabPage()->activeViewContainer();
+}
+
+DolphinNavigatorsWidgetAction *DolphinMainWindow::activeNavigators() const
+{
+    return m_tabWidget == m_leftTabs ? m_leftNavigators : m_rightNavigators;
+}
+
+void DolphinMainWindow::setActiveSide(DolphinTabWidget *side)
+{
+    if (side == m_tabWidget) {
+        return;
+    }
+    DolphinViewContainer *oldViewContainer = m_activeViewContainer;
+    m_tabWidget = side;
+    if (oldViewContainer) {
+        oldViewContainer->setActive(false);
+    }
+}
+
+void DolphinMainWindow::activateSide(DolphinTabWidget *side)
+{
+    DolphinTabPage *tabPage = side->currentTabPage();
+    if (!tabPage) {
+        return;
+    }
+    DolphinViewContainer *viewContainer = tabPage->activeViewContainer();
+    setActiveSide(side);
+    if (m_activeViewContainer != viewContainer) {
+        activeViewChanged(viewContainer);
+    }
+    viewContainer->setActive(true);
+}
+
+void DolphinMainWindow::slotLastTabCloseRequested()
+{
+    // A side keeps its last tab. Only if no side has another one, the window is closed.
+    if (m_leftTabs->count() < 2 && m_rightTabs->count() < 2) {
+        close();
+    }
+}
+
+void DolphinMainWindow::closeCurrentTab()
+{
+    m_tabWidget->closeTab();
+}
+
+void DolphinMainWindow::activateLastTab()
+{
+    m_tabWidget->activateLastTab();
+}
+
+void DolphinMainWindow::activateNextTab()
+{
+    m_tabWidget->activateNextTab();
+}
+
+void DolphinMainWindow::activatePrevTab()
+{
+    m_tabWidget->activatePrevTab();
 }
 
 bool DolphinMainWindow::isInformationPanelEnabled() const
@@ -510,14 +676,16 @@ void DolphinMainWindow::openNewWindow(const QUrl &url)
 
 void DolphinMainWindow::slotSplitViewChanged()
 {
-    m_tabWidget->currentTabPage()->setSplitViewEnabled(GeneralSettings::splitView(), WithAnimation);
+    // The two sides are always shown, so the setting has no effect.
     updateSplitActions();
 }
 
 void DolphinMainWindow::slotTabBarChanged()
 {
-    m_tabWidget->setTabBarAutoHide(!GeneralSettings::alwaysShowTabBar());
-    m_tabWidget->tabBar()->setTabsClosable(GeneralSettings::showCloseButtonOnTabs());
+    for (DolphinTabWidget *tabs : {m_leftTabs, m_rightTabs}) {
+        tabs->setTabBarAutoHide(false);
+        tabs->tabBar()->setTabsClosable(GeneralSettings::showCloseButtonOnTabs());
+    }
 }
 
 void DolphinMainWindow::openInNewTab()
@@ -573,14 +741,11 @@ void DolphinMainWindow::openInSplitView(const QUrl &url)
         return;
     }
 
-    DolphinTabPage *tabPage = m_tabWidget->currentTabPage();
-    if (tabPage->splitViewEnabled()) {
-        tabPage->switchActiveView();
-        tabPage->activeViewContainer()->setUrl(newSplitViewUrl);
-    } else {
-        tabPage->setSplitViewEnabled(true, WithAnimation, newSplitViewUrl);
-        updateViewActions();
-    }
+    // Open the folder in the other pane and move to it.
+    m_sidesSplitter->showBothSides();
+    DolphinTabWidget *other = inactiveTabWidget();
+    other->currentTabPage()->activeViewContainer()->setUrl(newSplitViewUrl);
+    activateSide(other);
 }
 
 void DolphinMainWindow::showTarget()
@@ -632,7 +797,8 @@ void DolphinMainWindow::closeEvent(QCloseEvent *event)
         closedByUser = false;
     }
 
-    if (m_tabWidget->count() > 1 && GeneralSettings::confirmClosingMultipleTabs() && !GeneralSettings::rememberOpenedTabs() && closedByUser) {
+    if (m_leftTabs->count() + m_rightTabs->count() > 2 && GeneralSettings::confirmClosingMultipleTabs() && !GeneralSettings::rememberOpenedTabs()
+        && closedByUser) {
         // Ask the user if he really wants to quit and close all tabs.
         // Open a confirmation dialog with 3 buttons:
         // QDialogButtonBox::Yes    -> Quit
@@ -775,11 +941,7 @@ void DolphinMainWindow::slotSaveSession()
 
 void DolphinMainWindow::slotClickViewBackground()
 {
-    auto navigators = static_cast<DolphinNavigatorsWidgetAction *>(actionCollection()->action(QStringLiteral("url_navigators")));
-    // clang-format off
-    KUrlNavigator *navigator =
-        m_tabWidget->currentTabPage()->primaryViewActive() ? navigators->primaryUrlNavigator() : navigators->secondaryUrlNavigator();
-    // clang-format on
+    KUrlNavigator *navigator = activeNavigators()->primaryUrlNavigator();
 
     if (navigator->isUrlEditable() && !GeneralSettings::editableUrl()) {
         navigator->setUrlEditable(false);
@@ -798,9 +960,11 @@ void DolphinMainWindow::setSessionAutoSaveEnabled(bool enable)
             connect(m_sessionSaveTimer, &QTimer::timeout, this, &DolphinMainWindow::slotSaveSession);
         }
 
-        connect(m_tabWidget, &DolphinTabWidget::urlChanged, m_sessionSaveTimer, qOverload<>(&QTimer::start), Qt::UniqueConnection);
-        connect(m_tabWidget, &DolphinTabWidget::tabCountChanged, m_sessionSaveTimer, qOverload<>(&QTimer::start), Qt::UniqueConnection);
-        connect(m_tabWidget, &DolphinTabWidget::activeViewChanged, m_sessionSaveTimer, qOverload<>(&QTimer::start), Qt::UniqueConnection);
+        for (DolphinTabWidget *tabs : {m_leftTabs, m_rightTabs}) {
+            connect(tabs, &DolphinTabWidget::urlChanged, m_sessionSaveTimer, qOverload<>(&QTimer::start), Qt::UniqueConnection);
+            connect(tabs, &DolphinTabWidget::tabCountChanged, m_sessionSaveTimer, qOverload<>(&QTimer::start), Qt::UniqueConnection);
+            connect(tabs, &DolphinTabWidget::activeViewChanged, m_sessionSaveTimer, qOverload<>(&QTimer::start), Qt::UniqueConnection);
+        }
     } else if (m_sessionSaveTimer) {
         m_sessionSaveTimer->stop();
         m_sessionSaveWatcher->disconnect();
@@ -817,12 +981,19 @@ void DolphinMainWindow::setSessionAutoSaveEnabled(bool enable)
 
 void DolphinMainWindow::saveProperties(KConfigGroup &group)
 {
-    m_tabWidget->saveProperties(group);
+    KConfigGroup leftGroup = group.group(QStringLiteral("Left Side"));
+    m_leftTabs->saveProperties(leftGroup);
+    KConfigGroup rightGroup = group.group(QStringLiteral("Right Side"));
+    m_rightTabs->saveProperties(rightGroup);
+    group.writeEntry("Active Side", m_tabWidget == m_rightTabs ? 1 : 0);
 }
 
 void DolphinMainWindow::readProperties(const KConfigGroup &group)
 {
-    m_tabWidget->readProperties(group);
+    m_leftTabs->readProperties(group.group(QStringLiteral("Left Side")));
+    m_rightTabs->readProperties(group.group(QStringLiteral("Right Side")));
+    ensureTabOnEachSide();
+    activateSide(group.readEntry("Active Side", 0) == 1 ? m_rightTabs : m_leftTabs);
 }
 
 void DolphinMainWindow::updateNewMenu()
@@ -1147,7 +1318,8 @@ void DolphinMainWindow::copyToInactiveSplitView()
     if (m_activeViewContainer->view()->selectedItems().isEmpty()) {
         m_activeViewContainer->setSelectionModeEnabled(true, actionCollection(), SelectionMode::BottomBar::Contents::CopyToOtherViewContents);
     } else {
-        m_tabWidget->copyToInactiveSplitView();
+        DolphinView *const inactiveView = inactiveViewContainer()->view();
+        inactiveView->copySelectedItems(m_activeViewContainer->view()->selectedItems(), inactiveView->url());
         m_activeViewContainer->setSelectionModeEnabled(false);
     }
 }
@@ -1157,7 +1329,8 @@ void DolphinMainWindow::moveToInactiveSplitView()
     if (m_activeViewContainer->view()->selectedItems().isEmpty()) {
         m_activeViewContainer->setSelectionModeEnabled(true, actionCollection(), SelectionMode::BottomBar::Contents::MoveToOtherViewContents);
     } else {
-        m_tabWidget->moveToInactiveSplitView();
+        DolphinView *const inactiveView = inactiveViewContainer()->view();
+        inactiveView->moveSelectedItems(m_activeViewContainer->view()->selectedItems(), inactiveView->url());
         m_activeViewContainer->setSelectionModeEnabled(false);
     }
 }
@@ -1645,7 +1818,6 @@ void DolphinMainWindow::updateHamburgerMenu()
     configureMenu->addSeparator();
     configureMenu->addAction(ac->action(KStandardAction::name(KStandardAction::SwitchApplicationLanguage)));
     configureMenu->addAction(ac->action(KStandardAction::name(KStandardAction::KeyBindings)));
-    configureMenu->addAction(ac->action(KStandardAction::name(KStandardAction::ConfigureToolbars)));
     configureMenu->addAction(ac->action(KStandardAction::name(KStandardAction::Preferences)));
     hamburgerMenu->hideActionsOf(configureMenu);
 }
@@ -1687,11 +1859,8 @@ void DolphinMainWindow::activeViewChanged(DolphinViewContainer *viewContainer)
         oldViewContainer->disconnect(this);
         oldViewContainer->view()->disconnect(this);
         oldViewContainer->urlNavigatorInternalWithHistory()->disconnect(this);
-        auto navigators = static_cast<DolphinNavigatorsWidgetAction *>(actionCollection()->action(QStringLiteral("url_navigators")));
-        navigators->primaryUrlNavigator()->disconnect(this);
-        if (auto secondaryUrlNavigator = navigators->secondaryUrlNavigator()) {
-            secondaryUrlNavigator->disconnect(this);
-        }
+        m_leftNavigators->primaryUrlNavigator()->disconnect(this);
+        m_rightNavigators->primaryUrlNavigator()->disconnect(this);
         oldViewContainer->disconnect(m_diskSpaceUsageMenu);
 
         // except the requestItemInfo so that on hover the information panel can still be updated
@@ -1851,7 +2020,7 @@ void DolphinMainWindow::setupActions()
                                      "to the Places panel."));
     connect(addToPlaces, &QAction::triggered, this, &DolphinMainWindow::addToPlaces);
 
-    QAction *closeTab = KStandardAction::close(m_tabWidget, QOverload<>::of(&DolphinTabWidget::closeTab), actionCollection());
+    QAction *closeTab = KStandardAction::close(this, &DolphinMainWindow::closeCurrentTab, actionCollection());
     closeTab->setIcon(QIcon::fromTheme(QStringLiteral("tab-close")));
     closeTab->setText(i18nc("@action:inmenu File", "Close Tab"));
     closeTab->setToolTip(i18nc("@info", "Close Tab"));
@@ -1934,7 +2103,10 @@ void DolphinMainWindow::setupActions()
     focusOtherViewAction->setToolTip(i18nc("@info:tooltip", "Move keyboard focus to the inactive view."));
     focusOtherViewAction->setIcon(QIcon::fromTheme(QStringLiteral("swap-panels")));
     actionCollection()->setDefaultShortcut(focusOtherViewAction, Qt::CTRL | Qt::Key_F3);
-    connect(focusOtherViewAction, &QAction::triggered, m_tabWidget, &DolphinTabWidget::focusInactiveSplitView);
+    connect(focusOtherViewAction, &QAction::triggered, this, [this]() {
+        m_sidesSplitter->showBothSides();
+        activateSide(inactiveTabWidget());
+    });
 
     QAction *showFilterBar = actionCollection()->addAction(QStringLiteral("show_filter_bar"));
     showFilterBar->setText(i18nc("@action:inmenu Tools", "Filter…"));
@@ -2141,8 +2313,11 @@ void DolphinMainWindow::setupActions()
 
     DolphinRecentTabsMenu *recentTabsMenu = new DolphinRecentTabsMenu(this);
     actionCollection()->addAction(QStringLiteral("closed_tabs"), recentTabsMenu);
-    connect(m_tabWidget, &DolphinTabWidget::rememberClosedTab, recentTabsMenu, &DolphinRecentTabsMenu::rememberClosedTab);
-    connect(recentTabsMenu, &DolphinRecentTabsMenu::restoreClosedTab, m_tabWidget, &DolphinTabWidget::restoreClosedTab);
+    connect(m_leftTabs, &DolphinTabWidget::rememberClosedTab, recentTabsMenu, &DolphinRecentTabsMenu::rememberClosedTab);
+    connect(m_rightTabs, &DolphinTabWidget::rememberClosedTab, recentTabsMenu, &DolphinRecentTabsMenu::rememberClosedTab);
+    connect(recentTabsMenu, &DolphinRecentTabsMenu::restoreClosedTab, this, [this](const QByteArray &state) {
+        m_tabWidget->restoreClosedTab(state);
+    });
     connect(recentTabsMenu, &DolphinRecentTabsMenu::closedTabsCountChanged, this, &DolphinMainWindow::closedTabsCountChanged);
 
     QAction *undoCloseTab = actionCollection()->addAction(QStringLiteral("undo_close_tab"));
@@ -2300,21 +2475,21 @@ void DolphinMainWindow::setupActions()
     activateLastTab->setIconText(i18nc("@action:inmenu", "Last Tab"));
     activateLastTab->setText(i18nc("@action:inmenu", "Go to Last Tab"));
     activateLastTab->setEnabled(false);
-    connect(activateLastTab, &QAction::triggered, m_tabWidget, &DolphinTabWidget::activateLastTab);
+    connect(activateLastTab, &QAction::triggered, this, &DolphinMainWindow::activateLastTab);
     actionCollection()->setDefaultShortcut(activateLastTab, Qt::ALT | Qt::Key_0);
 
     QAction *activateNextTab = actionCollection()->addAction(QStringLiteral("activate_next_tab"));
     activateNextTab->setIconText(i18nc("@action:inmenu", "Next Tab"));
     activateNextTab->setText(i18nc("@action:inmenu", "Go to Next Tab"));
     activateNextTab->setEnabled(false);
-    connect(activateNextTab, &QAction::triggered, m_tabWidget, &DolphinTabWidget::activateNextTab);
+    connect(activateNextTab, &QAction::triggered, this, &DolphinMainWindow::activateNextTab);
     actionCollection()->setDefaultShortcuts(activateNextTab, nextTabKeys);
 
     QAction *activatePrevTab = actionCollection()->addAction(QStringLiteral("activate_prev_tab"));
     activatePrevTab->setIconText(i18nc("@action:inmenu", "Previous Tab"));
     activatePrevTab->setText(i18nc("@action:inmenu", "Go to Previous Tab"));
     activatePrevTab->setEnabled(false);
-    connect(activatePrevTab, &QAction::triggered, m_tabWidget, &DolphinTabWidget::activatePrevTab);
+    connect(activatePrevTab, &QAction::triggered, this, &DolphinMainWindow::activatePrevTab);
     actionCollection()->setDefaultShortcuts(activatePrevTab, prevTabKeys);
 
     // for context menu
@@ -2340,7 +2515,7 @@ void DolphinMainWindow::setupActions()
     connect(openInNewWindow, &QAction::triggered, this, &DolphinMainWindow::openInNewWindow);
 
     QAction *openInSplitViewAction = actionCollection()->addAction(QStringLiteral("open_in_split_view"));
-    openInSplitViewAction->setText(i18nc("@action:inmenu", "Open in Split View"));
+    openInSplitViewAction->setText(i18nc("@action:inmenu", "Open in Other Pane"));
     openInSplitViewAction->setIcon(QIcon::fromTheme(QStringLiteral("view-split-left-right")));
     connect(openInSplitViewAction, &QAction::triggered, this, [this]() {
         openInSplitView(QUrl());
@@ -2425,40 +2600,6 @@ void DolphinMainWindow::setupDockWidgets()
                                   "which and how details are given here by right-clicking.</para>")
                            + panelWhatsThis);
 
-    // Setup "Folders"
-    DolphinDockWidget *foldersDock = new DolphinDockWidget(i18nc("@title:window", "Folders"));
-    foldersDock->setLocked(lock);
-    foldersDock->setObjectName(QStringLiteral("foldersDock"));
-    foldersDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    FoldersPanel *foldersPanel = new FoldersPanel(foldersDock);
-    foldersPanel->setCustomContextMenuActions({lockLayoutAction});
-    foldersDock->setWidget(foldersPanel);
-
-    createPanelAction(QIcon::fromTheme(QStringLiteral("folder")), Qt::Key_F7, foldersDock, QStringLiteral("show_folders_panel"));
-
-    addDockWidget(Qt::LeftDockWidgetArea, foldersDock);
-    connect(this, &DolphinMainWindow::urlChanged, foldersPanel, &FoldersPanel::setUrl);
-    connect(foldersPanel, &FoldersPanel::folderActivated, this, &DolphinMainWindow::changeUrl);
-    connect(foldersPanel, &FoldersPanel::folderInNewTab, this, &DolphinMainWindow::openNewTab);
-    connect(foldersPanel, &FoldersPanel::folderInNewActiveTab, this, &DolphinMainWindow::openNewTabAndActivate);
-    connect(foldersPanel, &FoldersPanel::errorMessage, this, &DolphinMainWindow::showErrorMessage);
-    connect(this, &DolphinMainWindow::settingsChanged, foldersPanel, &FoldersPanel::readSettings);
-
-    actionCollection()
-        ->action(QStringLiteral("show_folders_panel"))
-        ->setWhatsThis(xi18nc("@info:whatsthis",
-                              "This toggles the "
-                              "<emphasis>folders</emphasis> panel at the left side of the window."
-                              "<nl/><nl/>It shows the folders of the <emphasis>file system"
-                              "</emphasis> in a <emphasis>tree view</emphasis>."));
-    foldersDock->setWhatsThis(xi18nc("@info:whatsthis",
-                                     "<para>This panel "
-                                     "shows the folders of the <emphasis>file system</emphasis> in a "
-                                     "<emphasis>tree view</emphasis>.</para><para>Click a folder to go "
-                                     "there. Click the arrow to the left of a folder to see its subfolders. "
-                                     "This allows quick switching between any folders.</para>")
-                              + panelWhatsThis);
-
     // Setup "Terminal"
 #if HAVE_TERMINAL
     if (KAuthorized::authorize(QStringLiteral("shell_access"))) {
@@ -2527,7 +2668,6 @@ void DolphinMainWindow::setupDockWidgets()
 
     if (GeneralSettings::version() < 200) {
         infoDock->hide();
-        foldersDock->hide();
     }
 
     // Setup "Places"
@@ -2612,7 +2752,6 @@ void DolphinMainWindow::setupDockWidgets()
 #if HAVE_BALOO
     panelsMenu->addAction(ac->action(QStringLiteral("show_information_panel")));
 #endif
-    panelsMenu->addAction(ac->action(QStringLiteral("show_folders_panel")));
     panelsMenu->addAction(ac->action(QStringLiteral("show_terminal_panel")));
     panelsMenu->addSeparator();
     panelsMenu->addAction(lockLayoutAction);
@@ -2718,26 +2857,13 @@ void DolphinMainWindow::updateFileAndEditActions()
         }
     }
 
-    if (!m_tabWidget->currentTabPage()->splitViewEnabled()) {
-        // No need to set the disabled reason here, as it's obvious to the user that the reason is the split view being disabled.
-        copyToOtherViewAction->setEnabled(false);
-        m_disabledActionNotifier->clearDisabledReason(copyToOtherViewAction);
-        moveToOtherViewAction->setEnabled(false);
-        m_disabledActionNotifier->clearDisabledReason(moveToOtherViewAction);
-    } else if (list.isEmpty()) {
+    if (list.isEmpty()) {
         copyToOtherViewAction->setEnabled(false);
         m_disabledActionNotifier->setDisabledReason(copyToOtherViewAction, i18nc("@info", "Cannot copy to other view: No files selected."));
         moveToOtherViewAction->setEnabled(false);
         m_disabledActionNotifier->setDisabledReason(moveToOtherViewAction, i18nc("@info", "Cannot move to other view: No files selected."));
     } else {
-        DolphinTabPage *tabPage = m_tabWidget->currentTabPage();
-        KFileItem capabilitiesDestination;
-
-        if (tabPage->primaryViewActive()) {
-            capabilitiesDestination = tabPage->secondaryViewContainer()->rootItem();
-        } else {
-            capabilitiesDestination = tabPage->primaryViewContainer()->rootItem();
-        }
+        const KFileItem capabilitiesDestination = inactiveViewContainer()->rootItem();
 
         const auto destUrl = capabilitiesDestination.url();
         const bool allNotTargetOrigin = std::all_of(list.cbegin(), list.cend(), [destUrl](const KFileItem &item) {
@@ -2804,7 +2930,8 @@ void DolphinMainWindow::updateGoActions()
 void DolphinMainWindow::refreshViews()
 {
     setupFileItemActions();
-    m_tabWidget->refreshViews();
+    m_leftTabs->refreshViews();
+    m_rightTabs->refreshViews();
 
     if (GeneralSettings::modifiedStartupSettings()) {
         updateWindowTitle();
@@ -2851,9 +2978,7 @@ void DolphinMainWindow::connectViewSignals(DolphinViewContainer *container)
     connect(container->urlNavigatorInternalWithHistory(), &KUrlNavigator::urlChanged, this, &DolphinMainWindow::changeUrl);
     connect(container->urlNavigatorInternalWithHistory(), &KUrlNavigator::historyChanged, this, &DolphinMainWindow::updateHistory);
 
-    auto navigators = static_cast<DolphinNavigatorsWidgetAction *>(actionCollection()->action(QStringLiteral("url_navigators")));
-    const KUrlNavigator *navigator =
-        m_tabWidget->currentTabPage()->primaryViewActive() ? navigators->primaryUrlNavigator() : navigators->secondaryUrlNavigator();
+    const KUrlNavigator *navigator = activeNavigators()->primaryUrlNavigator();
 
     QAction *editableLocactionAction = actionCollection()->action(QStringLiteral("editable_location"));
     editableLocactionAction->setChecked(navigator->isUrlEditable());
@@ -2973,21 +3098,15 @@ void DolphinMainWindow::updateSplitActions()
 
 void DolphinMainWindow::updateAllowedToolbarAreas()
 {
-    auto navigators = static_cast<DolphinNavigatorsWidgetAction *>(actionCollection()->action(QStringLiteral("url_navigators")));
-    if (toolBar()->actions().contains(navigators)) {
-        toolBar()->setAllowedAreas(Qt::TopToolBarArea | Qt::BottomToolBarArea);
-        if (toolBarArea(toolBar()) == Qt::LeftToolBarArea || toolBarArea(toolBar()) == Qt::RightToolBarArea) {
-            addToolBar(Qt::TopToolBarArea, toolBar());
-        }
-    } else {
-        toolBar()->setAllowedAreas(Qt::AllToolBarAreas);
-    }
+    // The path bars of both sides are part of the tab pages and never in the toolbar.
+    toolBar()->setAllowedAreas(Qt::AllToolBarAreas);
 }
 
 void DolphinMainWindow::updateNavigatorsBackground()
 {
-    auto navigators = static_cast<DolphinNavigatorsWidgetAction *>(actionCollection()->action(QStringLiteral("url_navigators")));
-    navigators->setBackgroundEnabled(navigators->isInToolbar());
+    for (DolphinNavigatorsWidgetAction *navigators : {m_leftNavigators, m_rightNavigators}) {
+        navigators->setBackgroundEnabled(navigators->isInToolbar());
+    }
 }
 
 bool DolphinMainWindow::isKompareInstalled() const
@@ -3056,10 +3175,6 @@ void DolphinMainWindow::setupWhatsThis()
         "There you can set up key combinations to trigger an action when "
         "they are pressed simultaneously. All commands in this application can "
         "be triggered this way.</para>"));
-    actionCollection()->action(KStandardAction::name(KStandardAction::ConfigureToolbars))
-        ->setWhatsThis(xi18nc("@info:whatsthis","<para>This opens a window in which "
-        "you can change which buttons appear on the <emphasis>Toolbar</emphasis>.</para>"
-        "<para>All items you see in the <interface>Menu</interface> can also be placed on the Toolbar.</para>"));
     actionCollection()->action(KStandardAction::name(KStandardAction::Preferences))
         ->setWhatsThis(xi18nc("@info:whatsthis","This opens a window where you can "
         "change a multitude of settings for this application. For an explanation "
@@ -3171,9 +3286,8 @@ void DolphinMainWindow::saveNewToolbarConfig()
     KXmlGuiWindow::saveNewToolbarConfig(); // Applies the new config. This has to be called first
                                            // because the rest of this method decides things
                                            // based on the new config.
-    auto navigators = static_cast<DolphinNavigatorsWidgetAction *>(actionCollection()->action(QStringLiteral("url_navigators")));
-
-    m_tabWidget->currentTabPage()->insertNavigatorsWidget(navigators);
+    m_leftTabs->currentTabPage()->insertNavigatorsWidget(m_leftNavigators);
+    m_rightTabs->currentTabPage()->insertNavigatorsWidget(m_rightNavigators);
 
     updateAllowedToolbarAreas();
     updateNavigatorsBackground();
@@ -3236,12 +3350,12 @@ void DolphinMainWindow::UndoUiInterface::jobError(KIO::Job *job)
 
 bool DolphinMainWindow::isUrlOpen(const QString &url)
 {
-    return m_tabWidget->isUrlOpen(QUrl::fromUserInput(url));
+    return m_leftTabs->isUrlOpen(QUrl::fromUserInput(url)) || m_rightTabs->isUrlOpen(QUrl::fromUserInput(url));
 }
 
 bool DolphinMainWindow::isItemVisibleInAnyView(const QString &urlOfItem)
 {
-    return m_tabWidget->isItemVisibleInAnyView(QUrl::fromUserInput(urlOfItem));
+    return m_leftTabs->isItemVisibleInAnyView(QUrl::fromUserInput(urlOfItem)) || m_rightTabs->isItemVisibleInAnyView(QUrl::fromUserInput(urlOfItem));
 }
 
 void DolphinMainWindow::slotDoubleClickViewBackground(Qt::MouseButton button)

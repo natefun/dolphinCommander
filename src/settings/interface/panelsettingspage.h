@@ -41,7 +41,6 @@ private:
     QCheckBox *m_showHovered;
     QRadioButton *m_dateFormatLong;
     QRadioButton *m_dateFormatShort;
-    QCheckBox *m_limitFoldersPanelToHome;
 };
 
 #endif

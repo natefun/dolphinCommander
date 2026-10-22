@@ -157,11 +157,6 @@ ecm_add_test(placespaneltest.cpp
     TEST_NAME placespaneltest
     LINK_LIBRARIES dolphinprivate dolphinstatic Qt6::Test)
 
-# FoldersPanelTest
-ecm_add_test(folderspaneltest.cpp testdir.cpp
-    TEST_NAME folderspaneltest
-    LINK_LIBRARIES dolphinprivate dolphinstatic Qt6::Test)
-
 # The information panel is built only where Baloo is, and so are the tests of it.
 if(HAVE_BALOO)
     # PixmapViewerTest

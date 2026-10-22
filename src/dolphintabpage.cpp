@@ -49,14 +49,16 @@ DolphinTabPage::DolphinTabPage(const QUrl &primaryUrl, const QUrl &secondaryUrl,
     m_splitter->addWidget(m_primaryViewContainer);
     m_primaryViewContainer->show();
 
-    // dolphinCommander always shows two panes. The secondary pane starts at the
-    // given secondary url, or at the url of the primary view.
-    m_splitViewEnabled = true;
-    const QUrl &url = secondaryUrl.isValid() ? secondaryUrl : primaryUrl;
-    m_secondaryViewContainer = createViewContainer(url);
-    connect(m_secondaryViewContainer->view(), &DolphinView::redirection, this, &DolphinTabPage::slotViewUrlRedirection);
-    m_splitter->addWidget(m_secondaryViewContainer);
-    m_secondaryViewContainer->show();
+    if (secondaryUrl.isValid()) {
+        // dolphinCommander shows one pane per tab, as each side of the window has its own tabs.
+        // A secondary view is only provided if explicitly asked for.
+        m_splitViewEnabled = true;
+        const QUrl &url = secondaryUrl.isValid() ? secondaryUrl : primaryUrl;
+        m_secondaryViewContainer = createViewContainer(url);
+        connect(m_secondaryViewContainer->view(), &DolphinView::redirection, this, &DolphinTabPage::slotViewUrlRedirection);
+        m_splitter->addWidget(m_secondaryViewContainer);
+        m_secondaryViewContainer->show();
+    }
 
     m_primaryViewContainer->setActive(true);
 }
@@ -78,8 +80,7 @@ void DolphinTabPage::splitterMoved(int pos)
 
 void DolphinTabPage::setSplitViewEnabled(bool enabled, Animated animated, const QUrl &secondaryUrl)
 {
-    // dolphinCommander keeps both panes open, so closing the secondary pane is not allowed.
-    if (m_splitViewEnabled == enabled || !enabled) {
+    if (m_splitViewEnabled == enabled) {
         return;
     }
 
@@ -480,6 +481,10 @@ void DolphinTabPage::slotAnimationValueChanged(const QVariant &value)
 
 void DolphinTabPage::slotViewActivated()
 {
+    if (m_active) {
+        Q_EMIT paneActivated();
+    }
+
     const DolphinView *oldActiveView = activeViewContainer()->view();
 
     // Set the view, which was active before, to inactive

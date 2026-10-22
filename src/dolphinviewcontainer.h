@@ -29,6 +29,7 @@ namespace Admin
 {
 class Bar;
 }
+class ColumnsStrip;
 class FilterBar;
 class QAction;
 class QGridLayout;
@@ -527,6 +528,7 @@ private:
     SelectionMode::TopBar *m_selectionModeTopBar;
 
     DolphinView *m_view;
+    ColumnsStrip *m_columnsStrip = nullptr;
 
     FilterBar *m_filterBar;
 

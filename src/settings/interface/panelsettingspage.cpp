@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "panelsettingspage.h"
-#include "dolphin_folderspanelsettings.h"
 #if HAVE_BALOO
 #include "dolphin_informationpanelsettings.h"
 #endif
@@ -27,7 +26,6 @@ PanelSettingsPage::PanelSettingsPage(QWidget *parent)
     , m_showHovered(nullptr)
     , m_dateFormatLong(nullptr)
     , m_dateFormatShort(nullptr)
-    , m_limitFoldersPanelToHome(nullptr)
 {
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->setVerticalSizeConstraint(QLayout::SetFixedSize);
@@ -61,9 +59,6 @@ PanelSettingsPage::PanelSettingsPage(QWidget *parent)
     topLayout->addItem(new QSpacerItem(0, Dolphin::VERTICAL_SPACER_HEIGHT, QSizePolicy::Fixed, QSizePolicy::Fixed));
 #endif
 
-    m_limitFoldersPanelToHome = new QCheckBox(i18nc("@option:check", "Limit to home directory when inside it"), this);
-    topLayout->addRow(i18nc("@label:checkbox", "Folders Panel:"), m_limitFoldersPanelToHome);
-
     QLabel *contextMenuHint =
         new QLabel(i18nc("@info", "Panel settings are also available through their context menu. Open it by pressing the right mouse button on a panel."),
                    this);
@@ -81,7 +76,6 @@ PanelSettingsPage::PanelSettingsPage(QWidget *parent)
     connect(m_dateFormatLong, &QRadioButton::toggled, this, &PanelSettingsPage::changed);
     connect(m_dateFormatShort, &QRadioButton::toggled, this, &PanelSettingsPage::changed);
 #endif
-    connect(m_limitFoldersPanelToHome, &QCheckBox::toggled, this, &PanelSettingsPage::changed);
 }
 
 PanelSettingsPage::~PanelSettingsPage()
@@ -98,10 +92,6 @@ void PanelSettingsPage::applySettings()
     settings->setDateFormat(m_dateFormatShort->isChecked());
     settings->save();
 #endif
-
-    FoldersPanelSettings *foldersPanelSettings = FoldersPanelSettings::self();
-    foldersPanelSettings->setLimitFoldersPanelToHome(m_limitFoldersPanelToHome->isChecked());
-    foldersPanelSettings->save();
 }
 
 void PanelSettingsPage::restoreDefaults()
@@ -110,10 +100,7 @@ void PanelSettingsPage::restoreDefaults()
     InformationPanelSettings *settings = InformationPanelSettings::self();
     settings->useDefaults(true);
 #endif
-    FoldersPanelSettings *foldersPanelSettings = FoldersPanelSettings::self();
-    foldersPanelSettings->useDefaults(true);
     loadSettings();
-    foldersPanelSettings->useDefaults(false);
 #if HAVE_BALOO
     settings->useDefaults(false);
 #endif
@@ -129,7 +116,6 @@ void PanelSettingsPage::loadSettings()
     m_dateFormatLong->setChecked(!InformationPanelSettings::dateFormat());
     m_dateFormatShort->setChecked(InformationPanelSettings::dateFormat());
 #endif
-    m_limitFoldersPanelToHome->setChecked(FoldersPanelSettings::limitFoldersPanelToHome());
 }
 
 #if HAVE_BALOO

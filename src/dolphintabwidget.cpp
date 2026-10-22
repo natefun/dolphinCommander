@@ -44,7 +44,8 @@ DolphinTabWidget::DolphinTabWidget(DolphinNavigatorsWidgetAction *navigatorsWidg
     setDocumentMode(true);
     setElideMode(Qt::ElideRight);
     setUsesScrollButtons(true);
-    setTabBarAutoHide(!GeneralSettings::alwaysShowTabBar());
+    // Each side always shows its tab bar so that a new tab can be added at any time.
+    setTabBarAutoHide(false);
     tabBar->setTabsClosable(GeneralSettings::showCloseButtonOnTabs());
     tabBar->setNewTabButtonVisible(true);
 
@@ -233,6 +234,7 @@ DolphinTabPage *DolphinTabWidget::openNewTab(const QUrl &primaryUrl, const QUrl 
     DolphinTabPage *tabPage = new DolphinTabPage(primaryUrl, secondaryUrl, this);
     tabPage->setActive(false);
     connect(tabPage, &DolphinTabPage::activeViewChanged, this, &DolphinTabWidget::activeViewChanged);
+    connect(tabPage, &DolphinTabPage::paneActivated, this, &DolphinTabWidget::paneActivated);
     connect(tabPage, &DolphinTabPage::activeViewUrlChanged, this, &DolphinTabWidget::tabUrlChanged);
     connect(tabPage->activeViewContainer(), &DolphinViewContainer::captionChanged, this, [this, tabPage]() {
         updateTabName(indexOf(tabPage));
@@ -383,8 +385,8 @@ void DolphinTabWidget::closeTab(const int index)
     Q_ASSERT(index < count());
 
     if (count() < 2) {
-        // Close Dolphin when closing the last tab.
-        parentWidget()->close();
+        // The last tab of a side is not closed. The window decides whether this closes it.
+        Q_EMIT lastTabCloseRequested();
         return;
     }
 

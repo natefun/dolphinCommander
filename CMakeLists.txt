@@ -72,7 +72,6 @@ endif()
 
 find_package(KF6 ${KF6_MIN_VERSION} REQUIRED COMPONENTS
     KCMUtils
-    NewStuff
     CoreAddons
     I18n
     DBusAddons
@@ -92,16 +91,6 @@ find_package(KF6 ${KF6_MIN_VERSION} REQUIRED COMPONENTS
     GuiAddons
     ColorScheme
 )
-
-find_package(KF6UserFeedback ${KF6_MIN_VERSION})
-set_package_properties(KF6UserFeedback
-        PROPERTIES TYPE OPTIONAL
-        PURPOSE "Used for submission of telemetry data"
-        )
-
-if(KF6UserFeedback_FOUND)
-    set(HAVE_KUSERFEEDBACK TRUE)
-endif()
 
 find_package(KF6 ${KF6_MIN_VERSION} OPTIONAL_COMPONENTS
     DocTools
