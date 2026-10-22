@@ -1,51 +1,53 @@
-# Dolphin
+# dolphinCommander
 
-Dolphin is KDE's file manager that lets you navigate and browse the contents of your hard drives, USB sticks, SD cards, and more. Creating, moving, or deleting files and folders is simple and fast. See more information [on Dolphin's homepage](https://apps.kde.org/dolphin/).
+dolphinCommander is a fork of [Dolphin](https://apps.kde.org/dolphin/), KDE's file manager, that works more like [OneCommander](https://onecommander.com/): two panes side by side, each with its own tabs, a path bar and Miller columns, and a ribbon instead of menus.
 
-![Screenshot](https://cdn.kde.org/screenshots/dolphin/dolphin.png)
+It is an independent project and is not affiliated with or endorsed by KDE.
 
-## User Documentation
+> **Status:** experimental and used by its author. It builds and runs, but it has not been tested widely and the unit tests have not been updated for the new window layout.
 
-See https://userbase.kde.org/Special:myLanguage/Dolphin.
+## What is different from Dolphin
 
-## Contributing
+- **Two panes, always.** The window is split into a left and a right side. Each side has its own tab bar and its own tabs, with a new-tab button that is always visible.
+- **Hide either side.** Two arrows in the middle of the divider hide the left or the right side. The divider then stays at the window edge and the same arrows bring the side back. Dragging the divider to an edge does the same.
+- **Copy and move between sides.** `F5` copies and `F6` moves the selection to the folder shown in the other side. `Ctrl+F3` moves the keyboard focus to the other side. "Open in Other Pane" is in the context menu.
+- **Path bar above each side.** Every side has a large breadcrumb path bar that always shows the full path.
+- **Miller columns.** Above each file list is a strip with one column for each parent folder of the current folder. You can resize the columns by dragging the dividers. They scale with the window, and the columns farthest back are hidden when there is not enough room, so the strip never scrolls sideways.
+- **A ribbon.** The hamburger menu and the toolbar are replaced by a ribbon with a tab for each of File, Edit, View, Tools and Settings. Back, forward, up and search are next to the tabs.
+- **No telemetry and no links to KDE.** KUserFeedback, the KDE Store download button, and the About KDE, Report Bug and Donate entries are removed. There is no address that crash reports are sent to.
+- **Removed from Dolphin:** the Folders panel, the toolbar, and the toggle for split view, since there are always two sides.
 
-Like other projects in the KDE ecosystem, contributions are welcome from all. This repository is managed in [KDE Invent](https://invent.kde.org/system/dolphin), our GitLab instance.
+It can be installed next to Dolphin. It uses its own program name (`dolphincommander`), its own settings file (`~/.config/dolphincommanderrc`) and its own D-Bus name, and it does not take over the file manager D-Bus service.
 
-* Want to contribute code? See the [GitLab wiki page](https://community.kde.org/Infrastructure/GitLab) for a tutorial on how to send a merge request.
-* Reporting a bug? Please submit it on the [KDE Bugtracking System](https://bugs.kde.org/enter_bug.cgi?format=guided&product=dolphin). Please do not use the Issues
-tab to report bugs.
-* Is there a part of Dolphin that's not translated? See the [Getting Involved in Translation wiki page](https://community.kde.org/Get_Involved/translation) to see how
-you can help translate!
+## Building
 
-If you get stuck or need help with anything at all, head over to the [KDE New Contributors room](https://go.kde.org/matrix/#/#kde-welcome:kde.org) on Matrix. For questions about Dolphin, please ask in the [KDE File Management room](https://go.kde.org/matrix/#/#kde-fm:kde.org). See [Matrix](https://community.kde.org/Matrix) for more details.
+dolphinCommander is based on the development version of Dolphin (KDE Gear 26.11), so it needs recent Qt 6 and KDE Frameworks 6 (6.23 or newer) with their development files.
 
-## Development Philosophy
+```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX=$HOME/.local
+cmake --build build
+cmake --install build
+```
 
-Dolphin is a file manager focusing on usability. When reading the term Usability people often assume that the focus is on newbies and only basic features are offered. This is not the case; Dolphin is quite full-featured, but the features are carefully chosen so as to not impede any of the users in the target user groups.
+Then start `dolphincommander`. To try it without installing, run `build/bin/dolphincommander` with `LD_LIBRARY_PATH=build/bin`.
 
-### Target User Groups
+CMake lists any missing packages when it configures. Baloo (file search and the information panel) and PackageKit are optional.
 
-Focusing on usability means that features are discoverable and efficient to use. The feature set is defined indirectly by the target user group of Dolphin:
+## Known limits
 
-- **Lisa**: Lisa has been familiar with computers for 10 years. From her job, she has experience with Word, Excel and Outlook. At home she mainly uses the computer for browsing the web and writing e-mails. She requires a file manager for managing photos from the camera, documents she gets via e-mail, or PDFs she downloads with a browser. Lisa knows concepts like folders and a file hierarchy, but she is not familiar with the file hierarchy of Linux.
+- Which side is hidden is not saved. Both sides are shown again after a restart.
+- `F5` and `F6` also work while the other side is hidden, and then copy to a folder you cannot see.
+- The unit tests in `src/tests` still assume the single tab widget of Dolphin and are not built by default.
 
-- **Simon**: Simon has been a developer at a software company for 8 years. At home he uses a file manager to maintain his large collection of photos and music. Additionally he owns a small homepage and needs to transfer updated files on the FTP server. Moving and copying files are regular tasks in Simon's workflow.
+## Where the new code is
 
-Not part of the target user group of Dolphin are Fred and Jeff:
+- `src/dolphinmainwindow.cpp`: the two sides, which side is active, and the ribbon and divider setup
+- `src/sidessplitter.*`: the divider between the sides, with its arrows
+- `src/views/columnsstrip.*`: the Miller columns
+- `src/ribbonbar.*`: the ribbon
 
-- **Fred**: Fred is 75 years old and is able to write e-mails and browsing the web. He is not familiar with file hierarchies and stores all his documents on the desktop.
+## Upstream and license
 
-- **Jeff**: Jeff is Linux-freak since the age of 16 a few years ago. He is a developer and in his spare time he acts as administrator for a small company. Jeff has two monitors to keep the overview about his huge number of opened applications.
+dolphinCommander follows [KDE's Dolphin](https://invent.kde.org/system/dolphin), and most of the code is theirs. The Dolphin documentation at https://userbase.kde.org/Special:myLanguage/Dolphin still applies to the parts that are unchanged. Please do not report problems in dolphinCommander to KDE. Use this repository's issue tracker.
 
-This does not mean that Fred or Jeff cannot work with Dolphin. But there might be features and concepts of Dolphin that overburden Fred. Also Jeff might miss some features which are a must-have for his daily work. This is acceptable; there are other tools that cater specifically to their needs.
-
-### Non-Intrusive Features
-
-Before a feature is added in Dolphin, check whether the feature is mandatory for the target user group. If this is not the case, then this does not mean that the feature cannot be added; first it must be clarified whether the feature might be non-intrusive, so that it adds value for users outside the primary target user group of Dolphin. The term "non-intrusive" is mainly related to the user interface. A feature that adds a lot of clutter to the main menu, context menus or toolbar might harm the target user group. In this case the feature should not be added.
-
-A good example of a feature that is non-intrusive is the embedded terminal in Dolphin. It only requires one entry inside a sub-menu, but adds great value for Jeff, who is not part of the target user group.
-
-### Options
-
-Options are mandatory as the "average Joe" user does not exist. Still it is not the goal of Dolphin to offer options for all kind of things. Again the focus is on the possible needs of the target user group. Each additional option makes it harder finding other options, so the same rules for features are applied to options too.
+Dolphin and dolphinCommander are free software under the GNU General Public License, version 2 or later. See the files in `LICENSES/`.
