@@ -12,6 +12,7 @@ class QAction;
 class QHBoxLayout;
 class QMenu;
 class QMenuBar;
+class QResizeEvent;
 class QScrollArea;
 class QTabBar;
 
@@ -33,8 +34,13 @@ public:
     /** Shows @p actions as small buttons in front of the tabs, in the row of the tab bar. */
     void setLeadingActions(const QList<QAction *> &actions);
 
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
 private:
     void showPage(int index);
+    /** Makes the ribbon only as tall as the buttons of the current page need. */
+    void updateHeight();
 
 private:
     QPointer<QMenuBar> m_source;

@@ -965,6 +965,7 @@ void DolphinMainWindow::setSessionAutoSaveEnabled(bool enable)
             connect(tabs, &DolphinTabWidget::tabCountChanged, m_sessionSaveTimer, qOverload<>(&QTimer::start), Qt::UniqueConnection);
             connect(tabs, &DolphinTabWidget::activeViewChanged, m_sessionSaveTimer, qOverload<>(&QTimer::start), Qt::UniqueConnection);
         }
+        connect(m_sidesSplitter, &SidesSplitter::hiddenSidesChanged, m_sessionSaveTimer, qOverload<>(&QTimer::start), Qt::UniqueConnection);
     } else if (m_sessionSaveTimer) {
         m_sessionSaveTimer->stop();
         m_sessionSaveWatcher->disconnect();
@@ -986,6 +987,8 @@ void DolphinMainWindow::saveProperties(KConfigGroup &group)
     KConfigGroup rightGroup = group.group(QStringLiteral("Right Side"));
     m_rightTabs->saveProperties(rightGroup);
     group.writeEntry("Active Side", m_tabWidget == m_rightTabs ? 1 : 0);
+    // 0 or 1 if the left or the right side is hidden, -1 if both are shown.
+    group.writeEntry("Hidden Side", m_sidesSplitter->isSideHidden(0) ? 0 : (m_sidesSplitter->isSideHidden(1) ? 1 : -1));
 }
 
 void DolphinMainWindow::readProperties(const KConfigGroup &group)
@@ -994,6 +997,14 @@ void DolphinMainWindow::readProperties(const KConfigGroup &group)
     m_rightTabs->readProperties(group.group(QStringLiteral("Right Side")));
     ensureTabOnEachSide();
     activateSide(group.readEntry("Active Side", 0) == 1 ? m_rightTabs : m_leftTabs);
+
+    // The window has no size yet, so hiding a side has to wait until it is shown.
+    const int hiddenSide = group.readEntry("Hidden Side", -1);
+    if (hiddenSide == 0 || hiddenSide == 1) {
+        QTimer::singleShot(0, this, [this, hiddenSide]() {
+            m_sidesSplitter->moveDivider(hiddenSide == 0 ? -1 : 1);
+        });
+    }
 }
 
 void DolphinMainWindow::updateNewMenu()

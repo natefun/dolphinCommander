@@ -183,6 +183,7 @@ DolphinViewContainer::DolphinViewContainer(const QUrl &url, QWidget *parent)
     m_columnsStrip = new ColumnsStrip(this);
     m_columnsStrip->setUrl(m_view->url());
     m_columnsStrip->setShowHiddenFiles(m_view->hiddenFilesShown());
+    m_columnsStrip->setVisible(GeneralSettings::showMillerColumns());
     connect(m_view, &DolphinView::urlChanged, m_columnsStrip, &ColumnsStrip::setUrl);
     connect(m_view, &DolphinView::hiddenFilesShownChanged, m_columnsStrip, &ColumnsStrip::setShowHiddenFiles);
     connect(m_columnsStrip, &ColumnsStrip::urlRequested, m_view, &DolphinView::setUrl);
@@ -548,6 +549,7 @@ void DolphinViewContainer::readSettings()
 
     m_view->readSettings();
     m_statusBar->readSettings();
+    m_columnsStrip->setVisible(GeneralSettings::showMillerColumns());
 }
 
 bool DolphinViewContainer::isFilterBarVisible() const

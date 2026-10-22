@@ -153,6 +153,10 @@
             <label>Show zoom slider in the statusbar</label>
             <default>false</default>
         </entry>
+        <entry name="ShowMillerColumns" type="Bool">
+            <label>Show Miller columns above the file list</label>
+            <default>true</default>
+        </entry>
         <entry name="LockPanels" type="Bool">
             <label>Lock the layout of the panels</label>
             <default>true</default>

@@ -36,15 +36,12 @@ FoldersTabsSettingsPage::FoldersTabsSettingsPage(QWidget *parent)
     , m_homeUrlRadioButton(nullptr)
     , m_homeUrl(nullptr)
     , m_rememberOpenedTabsRadioButton(nullptr)
-    , m_alwaysShowTabBar(nullptr)
     , m_showCloseButtonOnTabs(nullptr)
     , m_openNewTabAfterLastTab(nullptr)
     , m_openNewTabAfterCurrentTab(nullptr)
-    , m_splitView(nullptr)
     , m_filterBar(nullptr)
     , m_showFullPathInTitlebar(nullptr)
     , m_openExternallyCalledFolderInNewTab(nullptr)
-    , m_closeSplitComboBox(nullptr)
 {
     QFormLayout *topLayout = new QFormLayout(this);
     topLayout->setFormAlignment(Qt::AlignHCenter);
@@ -121,10 +118,8 @@ FoldersTabsSettingsPage::FoldersTabsSettingsPage(QWidget *parent)
     topLayout->addItem(new QSpacerItem(0, Dolphin::VERTICAL_SPACER_HEIGHT, QSizePolicy::Fixed, QSizePolicy::Fixed));
 
     // Tabs properties
-    m_alwaysShowTabBar = new QCheckBox(i18nc("@option:check", "Always show tab bar"));
-    topLayout->addRow(i18nc("@label:checkbox", "Tab width:"), m_alwaysShowTabBar);
     m_showCloseButtonOnTabs = new QCheckBox(i18nc("@option:check", "Show close button on tabs"));
-    topLayout->addRow(QString(), m_showCloseButtonOnTabs);
+    topLayout->addRow(i18nc("@label:checkbox", "Tabs:"), m_showCloseButtonOnTabs);
 
     m_tabStyleAutoWidth = new QRadioButton(i18nc("@option:radio size as in tab width", "Tab width adapts to folder name"));
     m_tabStyleFixed = new QRadioButton(i18nc("@option:radio size as in tab width", "Tabs all have the same fixed width"));
@@ -145,26 +140,6 @@ FoldersTabsSettingsPage::FoldersTabsSettingsPage(QWidget *parent)
     topLayout->addRow(i18nc("@title:group", "Open new tabs: "), m_openNewTabAfterCurrentTab);
     topLayout->addRow(QString(), m_openNewTabAfterLastTab);
 
-    topLayout->addItem(new QSpacerItem(0, Dolphin::VERTICAL_SPACER_HEIGHT, QSizePolicy::Fixed, QSizePolicy::Fixed));
-
-    // Close split view properties
-    QLabel *closeSplitViewLabel{new QLabel(i18nc("@info", "When closing a split view"))};
-    m_closeSplitComboBox = new QComboBox(this);
-    m_closeSplitComboBox->addItems({i18n("Close the active pane"), i18n("Close the inactive pane"), i18n("Close the right pane")});
-    QHBoxLayout *closeSplitViewHLayout{new QHBoxLayout()};
-    QWidget *closeSplitViewWidget{new QWidget()};
-    closeSplitViewWidget->setLayout(closeSplitViewHLayout);
-    closeSplitViewHLayout->addWidget(closeSplitViewLabel);
-    closeSplitViewHLayout->setContentsMargins(0, 0, 0, 0);
-    closeSplitViewHLayout->addWidget(m_closeSplitComboBox);
-    QLabel *splitViewLabel{new QLabel(i18nc("@title:group", "Split view: "))};
-    splitViewLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
-    topLayout->addRow(splitViewLabel, closeSplitViewWidget);
-
-    // 'Begin in split view mode'
-    m_splitView = new QCheckBox(i18nc("@option:check Startup Settings", "Open new windows in split view mode"));
-    topLayout->addRow(QString(), m_splitView);
-
     loadSettings();
 
     updateInitialViewOptions();
@@ -173,15 +148,11 @@ FoldersTabsSettingsPage::FoldersTabsSettingsPage(QWidget *parent)
     connect(m_rememberOpenedTabsRadioButton, &QRadioButton::toggled, this, &FoldersTabsSettingsPage::slotSettingsChanged);
     connect(m_homeUrlRadioButton, &QRadioButton::toggled, this, &FoldersTabsSettingsPage::slotSettingsChanged);
 
-    connect(m_splitView, &QCheckBox::toggled, this, &FoldersTabsSettingsPage::slotSettingsChanged);
     connect(m_filterBar, &QCheckBox::toggled, this, &FoldersTabsSettingsPage::slotSettingsChanged);
 
     connect(m_openExternallyCalledFolderInNewTab, &QCheckBox::toggled, this, &FoldersTabsSettingsPage::slotSettingsChanged);
     connect(m_showFullPathInTitlebar, &QCheckBox::toggled, this, &FoldersTabsSettingsPage::slotSettingsChanged);
 
-    connect(m_closeSplitComboBox, qOverload<int>(&QComboBox::currentIndexChanged), this, &FoldersTabsSettingsPage::changed);
-
-    connect(m_alwaysShowTabBar, &QCheckBox::toggled, this, &FoldersTabsSettingsPage::changed);
     connect(m_showCloseButtonOnTabs, &QCheckBox::toggled, this, &FoldersTabsSettingsPage::changed);
 
     connect(m_openNewTabAfterCurrentTab, &QRadioButton::toggled, this, &FoldersTabsSettingsPage::changed);
@@ -197,8 +168,6 @@ FoldersTabsSettingsPage::~FoldersTabsSettingsPage() = default;
 void FoldersTabsSettingsPage::applySettings()
 {
     GeneralSettings *settings = GeneralSettings::self();
-
-    settings->setCloseSplitViewChoice(m_closeSplitComboBox->currentIndex());
 
     const QUrl url(QUrl::fromUserInput(m_homeUrl->text(), QString(), QUrl::AssumeLocalFile));
     if (url.isValid() && KProtocolManager::supportsListing(url)) {
@@ -223,12 +192,10 @@ void FoldersTabsSettingsPage::applySettings()
     }
 
     settings->setRememberOpenedTabs(m_rememberOpenedTabsRadioButton->isChecked());
-    settings->setSplitView(m_splitView->isChecked());
     settings->setFilterBar(m_filterBar->isChecked());
     settings->setOpenExternallyCalledFolderInNewTab(m_openExternallyCalledFolderInNewTab->isChecked());
     settings->setShowFullPathInTitlebar(m_showFullPathInTitlebar->isChecked());
 
-    settings->setAlwaysShowTabBar(m_alwaysShowTabBar->isChecked());
     settings->setShowCloseButtonOnTabs(m_showCloseButtonOnTabs->isChecked());
 
     settings->setOpenNewTabAfterLastTab(m_openNewTabAfterLastTab->isChecked());
@@ -310,14 +277,10 @@ void FoldersTabsSettingsPage::loadSettings()
     m_homeUrl->setText(url.toDisplayString(QUrl::PreferLocalFile));
     m_rememberOpenedTabsRadioButton->setChecked(GeneralSettings::rememberOpenedTabs());
     m_homeUrlRadioButton->setChecked(!GeneralSettings::rememberOpenedTabs());
-    m_splitView->setChecked(GeneralSettings::splitView());
     m_filterBar->setChecked(GeneralSettings::filterBar());
     m_showFullPathInTitlebar->setChecked(GeneralSettings::showFullPathInTitlebar());
     m_openExternallyCalledFolderInNewTab->setChecked(GeneralSettings::openExternallyCalledFolderInNewTab());
 
-    m_closeSplitComboBox->setCurrentIndex(GeneralSettings::closeSplitViewChoice());
-
-    m_alwaysShowTabBar->setChecked(GeneralSettings::alwaysShowTabBar());
     m_showCloseButtonOnTabs->setChecked(GeneralSettings::showCloseButtonOnTabs());
 
     m_openNewTabAfterLastTab->setChecked(GeneralSettings::openNewTabAfterLastTab());

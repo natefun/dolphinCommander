@@ -112,7 +112,6 @@ GeneralViewSettingsPage::GeneralViewSettingsPage(const QUrl &url, QWidget *paren
                                "go_back",
                                "go_home",
                                "view_redisplay",
-                               "split_view",
                                "edit_select_all",
                                "toggle_selection_mode",
                                "create_dir",

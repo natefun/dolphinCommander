@@ -23,7 +23,7 @@
 StatusAndLocationBarsSettingsPage::StatusAndLocationBarsSettingsPage(QWidget *parent, FoldersTabsSettingsPage *foldersPage)
     : SettingsPageBase(parent)
     , m_editableUrl(nullptr)
-    , m_showFullPath(nullptr)
+    , m_showMillerColumns(nullptr)
     , m_statusBarButtonGroup(nullptr)
     , m_showStatusBarSmall(nullptr)
     , m_showStatusBarFullWidth(nullptr)
@@ -69,15 +69,18 @@ StatusAndLocationBarsSettingsPage::StatusAndLocationBarsSettingsPage(QWidget *pa
     m_editableUrl = new QCheckBox(i18nc("@option:check Startup Settings", "Make location bar editable"));
     topLayout->addRow(i18n("Location bar:"), m_editableUrl);
 
-    m_showFullPath = new QCheckBox(i18nc("@option:check Startup Settings", "Show full path inside location bar"));
-    topLayout->addRow(QString(), m_showFullPath);
+    topLayout->addItem(new QSpacerItem(0, Dolphin::VERTICAL_SPACER_HEIGHT, QSizePolicy::Fixed, QSizePolicy::Fixed));
+
+    // Miller columns
+    m_showMillerColumns = new QCheckBox(i18nc("@option:check", "Show the parent folders as columns above the file list"));
+    topLayout->addRow(i18nc("@title:group", "Miller columns:"), m_showMillerColumns);
 
     loadSettings();
 
     locationUpdateInitialViewOptions();
 
     connect(m_editableUrl, &QCheckBox::toggled, this, &StatusAndLocationBarsSettingsPage::locationSlotSettingsChanged);
-    connect(m_showFullPath, &QCheckBox::toggled, this, &StatusAndLocationBarsSettingsPage::locationSlotSettingsChanged);
+    connect(m_showMillerColumns, &QCheckBox::toggled, this, &StatusAndLocationBarsSettingsPage::changed);
 
     connect(m_statusBarButtonGroup, &QButtonGroup::idClicked, this, &StatusAndLocationBarsSettingsPage::changed);
     connect(m_statusBarButtonGroup, &QButtonGroup::idClicked, this, &StatusAndLocationBarsSettingsPage::onShowStatusBarToggled);
@@ -91,7 +94,7 @@ void StatusAndLocationBarsSettingsPage::applySettings()
     GeneralSettings *settings = GeneralSettings::self();
 
     settings->setEditableUrl(m_editableUrl->isChecked());
-    settings->setShowFullPath(m_showFullPath->isChecked());
+    settings->setShowMillerColumns(m_showMillerColumns->isChecked());
 
     settings->setShowStatusBar(m_statusBarButtonGroup->checkedId());
     settings->setShowZoomSlider(m_showZoomSlider->isChecked());
@@ -134,7 +137,7 @@ void StatusAndLocationBarsSettingsPage::locationUpdateInitialViewOptions()
 void StatusAndLocationBarsSettingsPage::loadSettings()
 {
     m_editableUrl->setChecked(GeneralSettings::editableUrl());
-    m_showFullPath->setChecked(GeneralSettings::showFullPath());
+    m_showMillerColumns->setChecked(GeneralSettings::showMillerColumns());
     m_statusBarButtonGroup->button(GeneralSettings::showStatusBar())->setChecked(true);
     m_showZoomSlider->setChecked(GeneralSettings::showZoomSlider());
 

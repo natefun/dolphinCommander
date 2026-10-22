@@ -13,7 +13,7 @@ class QCheckBox;
 class QRadioButton;
 
 /**
- * @brief Page for the information and folders panels.
+ * @brief Page for the settings of the panels.
  */
 class PanelSettingsPage : public SettingsPageBase
 {

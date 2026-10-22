@@ -13,13 +13,13 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QTabBar>
 #include <QToolButton>
 #include <QVBoxLayout>
 
 namespace
 {
-constexpr int PageHeight = 104;
 constexpr int IconSize = 24;
 constexpr int CompactIconSize = 16;
 constexpr int CompactStackSize = 3;
@@ -31,6 +31,7 @@ const QStringList hiddenTabs{QStringLiteral("go"), QStringLiteral("help")};
 // window through its title bar, the rest is of little use in a window that always has two sides.
 const QStringList hiddenActions{QStringLiteral("file_close"),
                                 QStringLiteral("file_quit"),
+                                QStringLiteral("undo_close_tab"),
                                 QStringLiteral("stop"),
                                 QStringLiteral("focus_inactive_split_view"),
                                 QStringLiteral("split_view"),
@@ -78,7 +79,6 @@ RibbonBar::RibbonBar(QMenuBar *source, QWidget *parent)
     m_scrollArea->setFrameShape(QFrame::NoFrame);
     m_scrollArea->setWidgetResizable(true);
     m_scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_scrollArea->setFixedHeight(PageHeight);
     layout->addWidget(m_scrollArea);
 
     const QList<QAction *> topLevelActions = source->actions();
@@ -114,6 +114,27 @@ void RibbonBar::setLeadingActions(const QList<QAction *> &actions)
     m_tabRowLayout->insertSpacing(position, 8);
 }
 
+void RibbonBar::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    // Whether the page needs a scroll bar depends on the width.
+    updateHeight();
+}
+
+void RibbonBar::updateHeight()
+{
+    QWidget *page = m_scrollArea->widget();
+    if (!page) {
+        return;
+    }
+    // Just as tall as the buttons are. A scroll bar, if there is room for only part of the
+    // page, needs some more room so that it does not cover the buttons.
+    const QSize pageSize = page->sizeHint();
+    const bool needsScrollBar = pageSize.width() > m_scrollArea->width();
+    const int scrollBarHeight = needsScrollBar ? m_scrollArea->horizontalScrollBar()->sizeHint().height() : 0;
+    m_scrollArea->setFixedHeight(pageSize.height() + scrollBarHeight + 2 * m_scrollArea->frameWidth());
+}
+
 void RibbonBar::showPage(int index)
 {
     if (index < 0 || index >= m_menus.size() || !m_menus.at(index)) {
@@ -127,7 +148,7 @@ void RibbonBar::showPage(int index)
 
     auto *page = new QWidget();
     auto *pageLayout = new QHBoxLayout(page);
-    pageLayout->setContentsMargins(6, 4, 6, 4);
+    pageLayout->setContentsMargins(6, 1, 6, 1);
     pageLayout->setSpacing(2);
 
     // Collect what is shown, without actions that are hidden and without separators that would
@@ -193,4 +214,5 @@ void RibbonBar::showPage(int index)
 
     // The scroll area deletes the page it showed before.
     m_scrollArea->setWidget(page);
+    updateHeight();
 }

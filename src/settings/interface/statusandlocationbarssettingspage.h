@@ -46,7 +46,7 @@ private:
 private:
     FoldersTabsSettingsPage *foldersTabsPage;
     QCheckBox *m_editableUrl;
-    QCheckBox *m_showFullPath;
+    QCheckBox *m_showMillerColumns;
 
     QButtonGroup *m_statusBarButtonGroup;
     QRadioButton *m_showStatusBarSmall;
