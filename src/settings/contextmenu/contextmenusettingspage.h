@@ -34,6 +34,10 @@ public:
     /** @see SettingsPageBase::restoreDefaults() */
     void restoreDefaults() override;
 
+Q_SIGNALS:
+    /** Is emitted when the user asks for the page with the keyboard shortcuts. */
+    void shortcutsPageRequested();
+
 protected:
     void showEvent(QShowEvent *event) override;
 

@@ -11,13 +11,17 @@
 #include "dolphin_generalsettings.h"
 #include "dolphinmainwindow.h"
 #include "interface/interfacesettingspage.h"
+#include "languagesettingspage.h"
+#include "shortcutssettingspage.h"
 #include "trash/trashsettingspage.h"
 #include "viewmodes/viewsettingspage.h"
 
+#include <KActionCollection>
 #include <KAuthorized>
 #include <KLocalizedString>
 #include <KMessageBox>
 #include <KRuntimePlatform>
+#include <KStandardAction>
 #include <KWindowConfig>
 
 #include <kwidgetsaddons_version.h>
@@ -35,7 +39,7 @@ DolphinSettingsDialog::DolphinSettingsDialog(const QUrl &url, QWidget *parent, K
     setMinimumSize(QSize(540, minSize.height()));
 
     setFaceType(KRuntimePlatform::runtimePlatform().contains(QLatin1String("phone")) ? Tabbed : List);
-    setWindowTitle(i18nc("@title:window", "Configure"));
+    setWindowTitle(i18nc("@title:window", "Settings"));
 
     // Interface
     InterfaceSettingsPage *interfaceSettingsPage = new InterfaceSettingsPage(this);
@@ -67,6 +71,21 @@ DolphinSettingsDialog::DolphinSettingsDialog(const QUrl &url, QWidget *parent, K
     contextMenuSettingsFrame->setIcon(QIcon::fromTheme(QStringLiteral("preferences-desktop-menu-edit")));
     connect(contextMenuSettingsPage, &ContextMenuSettingsPage::changed, this, &DolphinSettingsDialog::enableApply);
 
+    // Shortcuts
+    auto shortcutsSettingsPage = new ShortcutsSettingsPage(actions, this);
+    KPageWidgetItem *shortcutsSettingsFrame = addPage(shortcutsSettingsPage, i18nc("@title:group", "Shortcuts"));
+    shortcutsSettingsFrame->setIcon(QIcon::fromTheme(QStringLiteral("preferences-desktop-keyboard-shortcut")));
+    connect(shortcutsSettingsPage, &ShortcutsSettingsPage::changed, this, &DolphinSettingsDialog::enableApply);
+    connect(contextMenuSettingsPage, &ContextMenuSettingsPage::shortcutsPageRequested, this, [this, shortcutsSettingsFrame]() {
+        setCurrentPage(shortcutsSettingsFrame);
+    });
+
+    // Language
+    QAction *switchLanguageAction = actions ? actions->action(KStandardAction::name(KStandardAction::SwitchApplicationLanguage)) : nullptr;
+    auto languageSettingsPage = new LanguageSettingsPage(switchLanguageAction, this);
+    KPageWidgetItem *languageSettingsFrame = addPage(languageSettingsPage, i18nc("@title:group", "Language"));
+    languageSettingsFrame->setIcon(QIcon::fromTheme(QStringLiteral("preferences-desktop-locale")));
+
     // Trash
     SettingsPageBase *trashSettingsPage = nullptr;
 #ifndef Q_OS_WIN
@@ -81,6 +100,8 @@ DolphinSettingsDialog::DolphinSettingsDialog(const QUrl &url, QWidget *parent, K
     m_pages.append(interfaceSettingsPage);
     m_pages.append(viewSettingsPage);
     m_pages.append(contextMenuSettingsPage);
+    m_pages.append(shortcutsSettingsPage);
+    m_pages.append(languageSettingsPage);
     if (trashSettingsPage) {
         m_pages.append(trashSettingsPage);
     }

@@ -65,9 +65,7 @@ ContextMenuSettingsPage::ContextMenuSettingsPage(QWidget *parent, const KActionC
 #if KIO_VERSION >= QT_VERSION_CHECK(6, 24, 0)
     auto *shortcutsButton = new QPushButton(QIcon::fromTheme(QStringLiteral("configure-shortcuts")), i18nc("@action:button", "Shortcuts…"), this);
     connect(shortcutsButton, &QPushButton::clicked, this, [this] {
-        if (auto *action = m_actions->action(KStandardAction::name(KStandardAction::KeyBindings))) {
-            action->trigger();
-        }
+        Q_EMIT shortcutsPageRequested();
     });
     searchLayout->addWidget(shortcutsButton);
 #endif

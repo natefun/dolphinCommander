@@ -131,7 +131,7 @@ next column. Click a folder in a column to go there. Click a file to open it.
 <itemizedlist>
 <listitem><para>Drag the divider between two columns to make a column wider or narrower. The widths are kept for each level of the path as long as the window is open.</para></listitem>
 <listitem><para>The columns share the width of the side. If there is not enough room for all of them, the columns that are farthest back are hidden, so that you never have to scroll the strip sideways.</para></listitem>
-<listitem><para>Turn the strip off in <menuchoice><guimenu>Settings</guimenu><guimenuitem>Configure dolphinCommander</guimenuitem><guimenuitem>Interface</guimenuitem><guimenuitem>Status &amp; Location bars</guimenuitem></menuchoice>, with the option <guilabel>Show the parent folders as columns above the file list</guilabel>.</para></listitem>
+<listitem><para>Turn the strip off in the settings, on the <guilabel>Interface</guilabel> page under <guilabel>Status &amp; Location bars</guilabel>, with the option <guilabel>Show the parent folders as columns above the file list</guilabel>.</para></listitem>
 </itemizedlist>
 </sect1>
 
@@ -192,7 +192,7 @@ lists of the Miller columns still jump.
 <title>Settings</title>
 
 <para>
-Open the settings with <guimenuitem>Configure dolphinCommander</guimenuitem> on the <guimenu>Settings</guimenu> tab
+Open the settings with the <guibutton>Settings</guibutton> button on the <guimenu>Settings</guimenu> tab
 of the ribbon. The pages are:
 </para>
 
@@ -208,6 +208,14 @@ of the ribbon. The pages are:
 <varlistentry>
 <term><guilabel>Context Menu</guilabel></term>
 <listitem><para>Which entries the context menu shows, and the shortcuts for them.</para></listitem>
+</varlistentry>
+<varlistentry>
+<term><guilabel>Shortcuts</guilabel></term>
+<listitem><para>The keyboard shortcuts of all actions, with a search field. Single letters are not allowed as shortcuts, as typing in a folder is used for filtering.</para></listitem>
+</varlistentry>
+<varlistentry>
+<term><guilabel>Language</guilabel></term>
+<listitem><para>The language of the application. The button opens the dialog in which it is chosen, and the change is used the next time the application is started.</para></listitem>
 </varlistentry>
 <varlistentry>
 <term><guilabel>Trash</guilabel></term>
@@ -246,8 +254,7 @@ The settings are kept in <filename>~/.config/dolphincommanderrc</filename>.
 </informaltable>
 
 <para>
-You can change the shortcuts in <guimenuitem>Configure Keyboard Shortcuts</guimenuitem> on the
-<guimenu>Settings</guimenu> tab.
+You can change the shortcuts on the <guilabel>Shortcuts</guilabel> page of the settings.
 </para>
 </chapter>
 

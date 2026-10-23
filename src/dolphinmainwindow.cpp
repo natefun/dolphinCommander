@@ -258,6 +258,21 @@ DolphinMainWindow::DolphinMainWindow()
         }
     }
 
+    // The shortcuts and the language are pages of the settings now, and the button for them is
+    // called just "Settings". The language action stays enabled, as the language page uses it.
+    if (QAction *keyBindings = actionCollection()->action(KStandardAction::name(KStandardAction::KeyBindings))) {
+        // Its own dialog is not needed, as there is the page of the settings.
+        keyBindings->setVisible(false);
+        keyBindings->setEnabled(false);
+    }
+    if (QAction *switchLanguage = actionCollection()->action(KStandardAction::name(KStandardAction::SwitchApplicationLanguage))) {
+        switchLanguage->setVisible(false);
+    }
+    if (QAction *preferences = actionCollection()->action(KStandardAction::name(KStandardAction::Preferences))) {
+        preferences->setText(i18nc("@action", "Settings"));
+        preferences->setIconText(i18nc("@action:intoolbar", "Settings"));
+    }
+
     // The ribbon replaces the toolbar, so there is nothing to show or to configure anymore.
     for (const KStandardAction::StandardAction standardAction : {KStandardAction::ShowToolbar, KStandardAction::ConfigureToolbars}) {
         if (QAction *action = actionCollection()->action(KStandardAction::name(standardAction))) {
@@ -2543,7 +2558,9 @@ void DolphinMainWindow::setupActions()
     auto windowColorSchemeMenu = new QAction(this);
     windowColorSchemeMenu->setMenu(selectionMenu->menu());
     windowColorSchemeMenu->menu()->setIcon(QIcon::fromTheme(QStringLiteral("preferences-desktop-color")));
-    windowColorSchemeMenu->menu()->setTitle(i18n("&Window Color Scheme"));
+    windowColorSchemeMenu->menu()->setTitle(i18n("&Theme"));
+    windowColorSchemeMenu->setText(i18n("&Theme"));
+    windowColorSchemeMenu->setIconText(i18n("Theme"));
     actionCollection()->addAction(QStringLiteral("window_color_sheme"), windowColorSchemeMenu);
 
     m_recentFiles = new KRecentFilesAction(this);

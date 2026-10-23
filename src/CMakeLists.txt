@@ -336,6 +336,8 @@ target_sources(dolphinstatic PRIVATE
     settings/interface/previewssettingspage.cpp
     settings/dolphinsettingsdialog.cpp
     settings/contextmenu/contextmenusettingspage.cpp
+    settings/languagesettingspage.cpp
+    settings/shortcutssettingspage.cpp
     settings/settingspagebase.cpp
     settings/servicemodel.cpp
     settings/trash/trashsettingspage.cpp
@@ -403,6 +405,8 @@ target_sources(dolphinstatic PRIVATE
     settings/interface/previewssettingspage.h
     settings/dolphinsettingsdialog.h
     settings/contextmenu/contextmenusettingspage.h
+    settings/languagesettingspage.h
+    settings/shortcutssettingspage.h
     settings/settingspagebase.h
     settings/servicemodel.h
     settings/trash/trashsettingspage.h
