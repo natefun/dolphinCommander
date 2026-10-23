@@ -41,6 +41,8 @@ private:
     void showPage(int index);
     /** Makes the ribbon only as tall as the buttons of the current page need. */
     void updateHeight();
+    /** The height of a page: what a row of large buttons needs. */
+    int largeButtonRowHeight() const;
 
 private:
     QPointer<QMenuBar> m_source;
@@ -48,6 +50,7 @@ private:
     QTabBar *m_tabBar = nullptr;
     QScrollArea *m_scrollArea = nullptr;
     QList<QPointer<QMenu>> m_menus;
+    int m_pageHeight = 0;
 };
 
 #endif

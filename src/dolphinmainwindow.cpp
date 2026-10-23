@@ -271,8 +271,13 @@ DolphinMainWindow::DolphinMainWindow()
     static_cast<QVBoxLayout *>(this->centralWidget()->layout())->insertWidget(0, ribbon);
     // The buttons of the toolbar share the row of the ribbon tabs, so the toolbar itself is not needed.
     QList<QAction *> ribbonLeadingActions;
-    for (const char *name : {"go_back", "go_forward", "go_up", "toggle_search"}) {
-        if (QAction *action = actionCollection()->action(QLatin1String(name))) {
+    const QStringList ribbonLeadingActionNames{QStringLiteral("go_back"),
+                                               QStringLiteral("go_forward"),
+                                               QStringLiteral("go_up"),
+                                               KStandardAction::name(KStandardAction::Redisplay),
+                                               QStringLiteral("toggle_search")};
+    for (const QString &name : ribbonLeadingActionNames) {
+        if (QAction *action = actionCollection()->action(name)) {
             ribbonLeadingActions << action;
         }
     }

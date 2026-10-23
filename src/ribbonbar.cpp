@@ -5,11 +5,15 @@
 #include "ribbonbar.h"
 
 #include <KActionMenu>
+#include <KLocalizedString>
+#include <KStandardAction>
 #include <KToggleToolBarAction>
 
 #include <QAction>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QHash>
+#include <QIcon>
 #include <QMenu>
 #include <QMenuBar>
 #include <QScrollArea>
@@ -23,6 +27,7 @@ namespace
 constexpr int IconSize = 24;
 constexpr int CompactIconSize = 16;
 constexpr int CompactStackSize = 3;
+constexpr int PageMargin = 1;
 
 // Menus without a tab. Go only repeats the Places panel and the recently closed tabs of the File tab.
 const QStringList hiddenTabs{QStringLiteral("go"), QStringLiteral("help")};
@@ -127,16 +132,29 @@ void RibbonBar::updateHeight()
     if (!page) {
         return;
     }
-    // Just as tall as the buttons are. A scroll bar, if there is room for only part of the
-    // page, needs some more room so that it does not cover the buttons.
-    const QSize pageSize = page->sizeHint();
-    const bool needsScrollBar = pageSize.width() > m_scrollArea->width();
+    // All pages are as tall as a row of large buttons, so the ribbon does not change its height
+    // from tab to tab. A scroll bar, if there is room for only part of the page, needs some more
+    // room so that it does not cover the buttons.
+    const bool needsScrollBar = page->sizeHint().width() > m_scrollArea->width();
     const int scrollBarHeight = needsScrollBar ? m_scrollArea->horizontalScrollBar()->sizeHint().height() : 0;
-    m_scrollArea->setFixedHeight(pageSize.height() + scrollBarHeight + 2 * m_scrollArea->frameWidth());
+    m_scrollArea->setFixedHeight(m_pageHeight + scrollBarHeight + 2 * m_scrollArea->frameWidth());
+}
+
+int RibbonBar::largeButtonRowHeight() const
+{
+    // What a button with a large icon and its label under it needs.
+    QToolButton probe;
+    probe.setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+    probe.setIconSize(QSize(IconSize, IconSize));
+    probe.setIcon(QIcon::fromTheme(QStringLiteral("document-new")));
+    probe.setText(QStringLiteral("Mg"));
+    probe.setAutoRaise(true);
+    return probe.sizeHint().height() + 2 * PageMargin;
 }
 
 void RibbonBar::showPage(int index)
 {
+    m_pageHeight = largeButtonRowHeight();
     if (index < 0 || index >= m_menus.size() || !m_menus.at(index)) {
         m_scrollArea->takeWidget();
         return;
@@ -148,7 +166,7 @@ void RibbonBar::showPage(int index)
 
     auto *page = new QWidget();
     auto *pageLayout = new QHBoxLayout(page);
-    pageLayout->setContentsMargins(6, 1, 6, 1);
+    pageLayout->setContentsMargins(6, PageMargin, 6, PageMargin);
     pageLayout->setSpacing(2);
 
     // Collect what is shown, without actions that are hidden and without separators that would
@@ -162,7 +180,9 @@ void RibbonBar::showPage(int index)
             }
             continue;
         }
-        if (!action->isVisible() || qobject_cast<KToggleToolBarAction *>(action) || hiddenActions.contains(action->objectName())) {
+        // Refresh is next to back and forward, in the row of the tabs.
+        if (!action->isVisible() || qobject_cast<KToggleToolBarAction *>(action) || hiddenActions.contains(action->objectName())
+            || action->objectName() == KStandardAction::name(KStandardAction::Redisplay)) {
             continue;
         }
         items.append(action);
@@ -171,8 +191,24 @@ void RibbonBar::showPage(int index)
         items.removeLast();
     }
 
+    // Shorter labels for the buttons than the menus have. Only the text of the buttons changes.
+    const QHash<QString, QString> shortLabels{
+        {QStringLiteral("view_mode"), i18nc("@action:intoolbar", "View Mode")},
+        {QStringLiteral("additional_info"), i18nc("@action:intoolbar", "Details")},
+        {QStringLiteral("show_preview"), i18nc("@action:intoolbar", "Previews")},
+        {QStringLiteral("show_hidden_files"), i18nc("@action:intoolbar", "Hidden Files")},
+        {QStringLiteral("act_as_admin"), i18nc("@action:intoolbar", "Admin")},
+        {QStringLiteral("restore_view_settings_default"), i18nc("@action:intoolbar", "Reset View")},
+        {QStringLiteral("view_properties"), i18nc("@action:intoolbar", "Display Style")},
+        {QStringLiteral("panels"), i18nc("@action:intoolbar", "Panels")},
+    };
+
     QVBoxLayout *stack = nullptr;
     auto addButton = [&](QAction *action, bool compact) {
+        const auto shortLabel = shortLabels.constFind(action->objectName());
+        if (shortLabel != shortLabels.constEnd()) {
+            action->setIconText(shortLabel.value());
+        }
         auto *button = new QToolButton(page);
         button->setAutoRaise(true);
         button->setIconSize(compact ? QSize(CompactIconSize, CompactIconSize) : QSize(IconSize, IconSize));
@@ -191,7 +227,8 @@ void RibbonBar::showPage(int index)
             stack->setSpacing(0);
             pageLayout->addLayout(stack);
         }
-        button->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+        // Three of them have to fit into the height of one large button.
+        button->setFixedHeight((m_pageHeight - 2 * PageMargin) / CompactStackSize);
         stack->addWidget(button);
     };
 
