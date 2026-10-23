@@ -80,6 +80,7 @@
         </Menu>
         <Menu name="settings">
             <Action name="window_color_sheme"/>
+            <Action name="help_contents"/>
         </Menu>
     </MenuBar>
     <State name="new_file" >

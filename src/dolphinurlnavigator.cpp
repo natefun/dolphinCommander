@@ -45,7 +45,7 @@ DolphinUrlNavigator::DolphinUrlNavigator(const QUrl &url, QWidget *parent)
                         "<para>This interactive path "
                         "is more powerful than one would expect. To learn more "
                         "about the basic and advanced features of the location bar "
-                        "<link url='help:/dolphin/location-bar.html'>click here</link>. "
+                        "<link url='help:/dolphincommander/location-bar.html'>click here</link>. "
                         "This will open the dedicated page in the Handbook.</para>"));
 
     DolphinUrlNavigatorsController::registerDolphinUrlNavigator(this);

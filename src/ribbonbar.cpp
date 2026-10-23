@@ -201,6 +201,7 @@ void RibbonBar::showPage(int index)
         {QStringLiteral("restore_view_settings_default"), i18nc("@action:intoolbar", "Reset View")},
         {QStringLiteral("view_properties"), i18nc("@action:intoolbar", "Display Style")},
         {QStringLiteral("panels"), i18nc("@action:intoolbar", "Panels")},
+        {QStringLiteral("help_contents"), i18nc("@action:intoolbar", "Handbook")},
     };
 
     QVBoxLayout *stack = nullptr;

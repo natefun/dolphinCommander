@@ -34,6 +34,10 @@ Then start `dolphincommander`. To try it without installing, run `build/bin/dolp
 
 CMake lists any missing packages when it configures. Baloo (file search and the information panel) and PackageKit are optional.
 
+## Documentation
+
+The handbook is in `doc/index.docbook` and is installed with the program. Open it with `F1` or with the Handbook button on the Settings tab of the ribbon. It describes the sides, tabs, path bar, Miller columns, ribbon, filter, settings and keyboard shortcuts.
+
 ## Known limits
 
 - Which side is hidden is not saved. Both sides are shown again after a restart.

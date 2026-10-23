@@ -7,5 +7,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 if (KF6DocTools_FOUND)
-    kdoctools_create_handbook(index.docbook INSTALL_DESTINATION ${KDE_INSTALL_DOCBUNDLEDIR}/en SUBDIR dolphin)
+    kdoctools_create_handbook(index.docbook INSTALL_DESTINATION ${KDE_INSTALL_DOCBUNDLEDIR}/en SUBDIR dolphincommander)
 endif()

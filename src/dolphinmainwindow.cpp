@@ -3174,15 +3174,10 @@ void DolphinMainWindow::setupWhatsThis()
         "<emphasis>files</emphasis> that are at the location described in "
         "the <interface>Location Bar</interface> above. This area is the "
         "central part of this application where you navigate to the files "
-        "you want to use.</para><para>For an elaborate and general "
-        "introduction to this application <link "
-        "url='https://userbase.kde.org/Dolphin/File_Management#Introduction_to_Dolphin'>"
-        "click here</link>. This will open an introductory article from "
-        "the <emphasis>KDE UserBase Wiki</emphasis>.</para><para>For brief "
-        "explanations of all the features of this <emphasis>view</emphasis> "
-        "<link url='help:/dolphin/dolphin-view.html'>click here</link> "
-        "instead. This will open a page from the <emphasis>Handbook"
-        "</emphasis> that covers the basics.</para>"));
+        "you want to use.</para><para>For explanations of all the "
+        "features of this <emphasis>view</emphasis> <link "
+        "url='help:/dolphincommander/window.html'>click here</link>. This "
+        "will open a page from the <emphasis>Handbook</emphasis>.</para>"));
 
     // Settings menu
     actionCollection()->action(KStandardAction::name(KStandardAction::KeyBindings))
@@ -3212,7 +3207,7 @@ void DolphinMainWindow::setupWhatsThis()
     // frustrate the user. If there are multiple languages that the user might
     // know with a reasonable chance you might want to have 2 external links.
     // The same might be true for any external link you translate.
-    setStandardActionWhatsThis(KStandardAction::HelpContents, xi18nc("@info:whatsthis handbook", "<para>This opens the Handbook for this application. It provides explanations for every part of <emphasis>Dolphin</emphasis>.</para><para>If you want more elaborate introductions to the different features of <emphasis>Dolphin</emphasis> <link url='https://userbase.kde.org/Dolphin/File_Management'>click here</link>. It will open the dedicated page in the KDE UserBase Wiki.</para>"));
+    setStandardActionWhatsThis(KStandardAction::HelpContents, xi18nc("@info:whatsthis handbook", "<para>This opens the Handbook for this application. It explains the two sides, the tabs, the Miller columns, the ribbon and the filter.</para>"));
     // (The i18n call should be completely in the line following the i18n: comment without any line breaks within the i18n call or the comment might not be correctly extracted. See: https://commits.kde.org/kxmlgui/a31135046e1b3335b5d7bbbe6aa9a883ce3284c1 )
 
     setStandardActionWhatsThis(KStandardAction::WhatsThis,
@@ -3221,10 +3216,9 @@ void DolphinMainWindow::setupWhatsThis()
         "using right now! Click it, then click any component of this "
         "application to ask \"What's this?\" about it. The mouse cursor "
         "will change appearance if no help is available for a spot.</para>"
-        "<para>There are two other ways to get help: "
-        "The <link url='help:/dolphin/index.html'>Dolphin Handbook</link> and "
-        "the <link url='https://userbase.kde.org/Dolphin/File_Management'>KDE "
-        "UserBase Wiki</link>.</para><para>The \"What's this?\" help is "
+        "<para>There is another way to get help: "
+        "The <link url='help:/dolphincommander/index.html'>dolphinCommander Handbook</link>."
+        "</para><para>The \"What's this?\" help is "
         "missing in most other windows so don't get too used to this.</para>"));
 
     setStandardActionWhatsThis(KStandardAction::ReportBug,
