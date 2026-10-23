@@ -62,9 +62,9 @@ struct LayoutStructure {
     int messageWidget = 2;
     int selectionModeTopBar = 3;
     int columnsStrip = 4;
-    int view = 5;
-    int selectionModeBottomBar = 6;
-    int filterBar = 7;
+    int filterBar = 5;
+    int view = 6;
+    int selectionModeBottomBar = 7;
     int statusBar = 8;
 };
 constexpr LayoutStructure positionFor;
@@ -120,6 +120,13 @@ DolphinViewContainer::DolphinViewContainer(const QUrl &url, QWidget *parent)
     // Initialize the main view
     m_view = new DolphinView(url, this);
     connect(m_view, &DolphinView::urlChanged, m_filterBar, &FilterBar::clearIfUnlocked);
+    connect(m_view, &DolphinView::typedText, this, &DolphinViewContainer::startFiltering);
+    connect(m_view, &DolphinView::escapePressed, this, [this]() {
+        // Escape also gets rid of a filter that is still shown while the view has the focus.
+        if (isFilterBarVisible()) {
+            closeFilterBar();
+        }
+    });
     connect(m_view, &DolphinView::urlChanged, m_messageWidget, &KMessageWidget::hide);
     // m_urlNavigator stays in sync with m_view's location changes and
     // keeps track of them so going back and forth in the history works.
@@ -663,6 +670,13 @@ void DolphinViewContainer::setFilterBarVisible(bool visible)
     } else {
         closeFilterBar();
     }
+}
+
+void DolphinViewContainer::startFiltering(const QString &text)
+{
+    // The filter bar takes over the typing, with the text that started it.
+    setFilterBarVisible(true);
+    m_filterBar->appendText(text);
 }
 
 void DolphinViewContainer::delayedStatusBarUpdate()

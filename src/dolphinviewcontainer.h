@@ -252,11 +252,16 @@ public Q_SLOTS:
     void setUrl(const QUrl &url);
 
     /**
-     * Popups the filter bar above the status bar if \a visible is true.
+     * Popups the filter bar above the file list, below the Miller columns, if \a visible is true.
      * It \a visible is true, it is assured that the filter bar gains
      * the keyboard focus.
      */
     void setFilterBarVisible(bool visible);
+
+    /**
+     * Shows the filter bar and adds @p text to the filter. Used when text is typed into the view.
+     */
+    void startFiltering(const QString &text);
 
     /** Used to notify the m_selectionModeBottomBar that there is no other ViewContainer in the tab. */
     void slotSplitTabDisabled();

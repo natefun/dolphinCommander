@@ -117,6 +117,14 @@ void FilterBar::selectAll()
     m_filterInput->selectAll();
 }
 
+void FilterBar::appendText(const QString &text)
+{
+    m_filterInput->setFocus();
+    m_filterInput->deselect();
+    m_filterInput->end(false);
+    m_filterInput->insert(text);
+}
+
 KFileItemModelFilter::FilterMode FilterBar::filterMode() const
 {
     return m_filterModeComboBox->itemData(m_filterModeComboBox->currentIndex()).value<KFileItemModelFilter::FilterMode>();
@@ -193,11 +201,8 @@ void FilterBar::keyPressEvent(QKeyEvent *event)
 {
     switch (event->key()) {
     case Qt::Key_Escape:
-        if (m_filterInput->text().isEmpty()) {
-            Q_EMIT closeRequest();
-        } else {
-            m_filterInput->clear();
-        }
+        // One press closes the filter bar, which also clears the filter.
+        Q_EMIT closeRequest();
         return;
 
     case Qt::Key_Enter:

@@ -219,6 +219,10 @@ DolphinView::DolphinView(const QUrl &url, QWidget *parent)
     connect(controller, &KItemListController::itemUnhovered, this, &DolphinView::slotItemUnhovered);
     connect(controller, &KItemListController::itemDropEvent, this, &DolphinView::slotItemDropEvent);
     connect(controller, &KItemListController::escapePressed, this, &DolphinView::stopLoading);
+    connect(controller, &KItemListController::escapePressed, this, &DolphinView::escapePressed);
+    // Typing filters the items instead of jumping to the first one that matches.
+    controller->setTypeToFilter(true);
+    connect(controller, &KItemListController::typedText, this, &DolphinView::typedText);
     connect(controller, &KItemListController::modelChanged, this, &DolphinView::slotModelChanged);
     connect(controller, &KItemListController::selectedItemTextPressed, this, &DolphinView::slotSelectedItemTextPressed);
     connect(controller, &KItemListController::increaseZoom, this, &DolphinView::slotIncreaseZoom);

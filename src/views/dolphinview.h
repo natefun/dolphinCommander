@@ -758,6 +758,16 @@ Q_SIGNALS:
      */
     void doubleClickViewBackground(Qt::MouseButton button);
 
+    /**
+     * Emitted when text is typed into the view. It is meant to be used for filtering the items.
+     */
+    void typedText(const QString &text);
+
+    /**
+     * Emitted when the Escape key is pressed in the view.
+     */
+    void escapePressed();
+
     void viewSettingsChanged(bool isDefault);
 
 protected:

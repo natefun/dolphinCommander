@@ -90,6 +90,7 @@ private Q_SLOTS:
 
     void testCollapsibleGroups();
     void testRestartingInlineRenameKeepsEditor();
+    void testTypeToFilter();
 
 private:
     /**
@@ -1533,5 +1534,34 @@ void KItemListControllerTest::testRestartingInlineRenameKeepsEditor()
 }
 
 QTEST_MAIN(KItemListControllerTest)
+
+void KItemListControllerTest::testTypeToFilter()
+{
+    QSignalSpy typedSpy(m_controller, &KItemListController::typedText);
+
+    // By default typing is used for the type-ahead search and nothing is reported.
+    QVERIFY(!m_controller->typeToFilter());
+    QTest::keyClick(m_container, Qt::Key_B);
+    QCOMPARE(typedSpy.count(), 0);
+
+    // With type-to-filter on, the typed text is reported.
+    m_controller->setTypeToFilter(true);
+    QTest::keyClick(m_container, Qt::Key_B);
+    QCOMPARE(typedSpy.count(), 1);
+    QCOMPARE(typedSpy.takeFirst().at(0).toString().toLower(), QStringLiteral("b"));
+
+    // Shortcuts are not typed text.
+    QTest::keyClick(m_container, Qt::Key_B, Qt::ControlModifier);
+    QTest::keyClick(m_container, Qt::Key_B, Qt::AltModifier);
+    QCOMPARE(typedSpy.count(), 0);
+
+    // Keys that are no text, like the arrow keys, still move the current item.
+    m_selectionManager->setCurrentItem(0);
+    QTest::keyClick(m_container, Qt::Key_Down);
+    QVERIFY(m_selectionManager->currentItem() != 0 || m_model->count() < 2);
+    QCOMPARE(typedSpy.count(), 0);
+
+    m_controller->setTypeToFilter(false);
+}
 
 #include "kitemlistcontrollertest.moc"

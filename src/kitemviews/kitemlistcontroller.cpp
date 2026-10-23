@@ -235,6 +235,16 @@ bool KItemListController::isSearchAsYouTypeActive() const
     return m_keyboardManager->isSearchAsYouTypeActive();
 }
 
+void KItemListController::setTypeToFilter(bool typeToFilter)
+{
+    m_typeToFilter = typeToFilter;
+}
+
+bool KItemListController::typeToFilter() const
+{
+    return m_typeToFilter;
+}
+
 bool KItemListController::keyPressEvent(QKeyEvent *event)
 {
     int index = m_selectionManager->currentItem();
@@ -478,6 +488,11 @@ bool KItemListController::keyPressEvent(QKeyEvent *event)
         // Shift-produced characters (e.g. punctuation) keep their literal
         // meaning so they remain searchable.
         const QString text = event->text();
+        if (m_typeToFilter && !text.isEmpty() && text.at(0).isPrint() && !(event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
+            Q_EMIT typedText(text);
+            event->accept();
+            return true;
+        }
         const bool searchBackwards = shiftPressed && text.size() == 1 && text.at(0).isLetter();
         m_keyboardManager->addKeys(text, searchBackwards);
         // Make sure unconsumed events get propagated up the chain. #302329

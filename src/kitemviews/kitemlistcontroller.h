@@ -107,6 +107,13 @@ public:
      * the setting from style()->styleHint(QStyle::SH_ItemView_ActivateItemOnSingleClick) is used.
      */
     void setSingleClickActivationEnforced(bool singleClick);
+
+    /**
+     * If true, printable keys do not start the type-ahead search that jumps to the matching item.
+     * They are reported by typedText() instead, so that they can be used for filtering the items.
+     */
+    void setTypeToFilter(bool typeToFilter);
+    bool typeToFilter() const;
     bool singleClickActivationEnforced() const;
 
     /**
@@ -205,6 +212,12 @@ Q_SIGNALS:
      * @param foundIndex    The index of the item that was marked as current in response to this search.
      */
     void typeAheadUsed(const QString &typedString, std::optional<int> foundIndex);
+
+    /**
+     * Is emitted if a printable key is pressed while typeToFilter() is true, instead of using
+     * the key for the type-ahead search.
+     */
+    void typedText(const QString &text);
 
     /**
      * Is emitted if the Escape key is pressed.
@@ -367,6 +380,7 @@ private:
     KItemListView *m_view;
     KItemListSelectionManager *m_selectionManager;
     KItemListKeyboardSearchManager *m_keyboardManager;
+    bool m_typeToFilter = false;
     std::optional<int> m_pressedIndex;
     QPointF m_pressedMouseGlobalPos;
 

@@ -38,6 +38,9 @@ public:
      */
     void selectAll();
 
+    /** Adds @p text to the end of the filter and moves the keyboard focus to the filter. */
+    void appendText(const QString &text);
+
     KFileItemModelFilter::FilterMode filterMode() const;
     bool isCaseSensitive() const;
 
