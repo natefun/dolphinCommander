@@ -66,6 +66,8 @@ StatusAndLocationBarsSettingsPage::StatusAndLocationBarsSettingsPage(QWidget *pa
 
     // Miller columns
     m_showMillerColumns = new QCheckBox(i18nc("@option:check", "Show the parent folders as columns above the file list"));
+    m_showMillerColumns->setToolTip(
+        i18nc("@info:tooltip", "Applies to all views. Each view also has an arrow above its columns that shows or hides only its own."));
     topLayout->addRow(i18nc("@title:group", "Miller columns:"), m_showMillerColumns);
 
     loadSettings();

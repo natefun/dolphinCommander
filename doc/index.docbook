@@ -129,7 +129,7 @@ next column. Click a folder in a column to go there. Click a file to open it.
 </para>
 
 <itemizedlist>
-<listitem><para>The small arrow between the path bar and the columns hides the columns, and shows them again. It applies to both sides, and it is the same as the setting below.</para></listitem>
+<listitem><para>The small arrow between the path bar and the columns hides the columns of that side, and shows them again. Each side, and each tab, has its own. The setting below shows or hides the columns in all views, and is what new tabs start with.</para></listitem>
 <listitem><para>Drag the divider between two columns to make a column wider or narrower. The widths are kept for each level of the path as long as the window is open.</para></listitem>
 <listitem><para>The columns share the width of the side. If there is not enough room for all of them, the columns that are farthest back are hidden, so that you never have to scroll the strip sideways.</para></listitem>
 <listitem><para>Turn the strip off in the settings, on the <guilabel>Interface</guilabel> page under <guilabel>Status &amp; Location bars</guilabel>, with the option <guilabel>Show the parent folders as columns above the file list</guilabel>.</para></listitem>

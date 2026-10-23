@@ -198,9 +198,10 @@ DolphinViewContainer::DolphinViewContainer(const QUrl &url, QWidget *parent)
     m_columnsToggle->setFocusPolicy(Qt::NoFocus);
     m_columnsToggle->setFixedHeight(16);
     m_columnsToggle->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    connect(m_columnsToggle, &QToolButton::clicked, this, []() {
-        GeneralSettings::setShowMillerColumns(!GeneralSettings::showMillerColumns());
-        GeneralSettings::self()->save();
+    // Every view has its own state. The setting is what the views start with, and changing it
+    // gives all of the views that state.
+    connect(m_columnsToggle, &QToolButton::clicked, this, [this]() {
+        setMillerColumnsShown(!m_columnsStrip->isVisibleTo(this));
     });
     connect(GeneralSettings::self(), &GeneralSettings::showMillerColumnsChanged, this, &DolphinViewContainer::applyMillerColumnsSetting);
     applyMillerColumnsSetting();
@@ -570,7 +571,6 @@ void DolphinViewContainer::readSettings()
 
     m_view->readSettings();
     m_statusBar->readSettings();
-    applyMillerColumnsSetting();
 }
 
 bool DolphinViewContainer::isFilterBarVisible() const
@@ -688,7 +688,11 @@ void DolphinViewContainer::setFilterBarVisible(bool visible)
 
 void DolphinViewContainer::applyMillerColumnsSetting()
 {
-    const bool shown = GeneralSettings::showMillerColumns();
+    setMillerColumnsShown(GeneralSettings::showMillerColumns());
+}
+
+void DolphinViewContainer::setMillerColumnsShown(bool shown)
+{
     m_columnsStrip->setVisible(shown);
     m_columnsToggle->setArrowType(shown ? Qt::DownArrow : Qt::RightArrow);
     m_columnsToggle->setToolTip(shown ? i18nc("@info:tooltip", "Hide the parent folders as columns")

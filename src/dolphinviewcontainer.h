@@ -264,7 +264,10 @@ public Q_SLOTS:
      */
     void startFiltering(const QString &text);
 
-    /** Shows or hides the Miller columns as the settings say, and updates the arrow that does the same. */
+    /** Shows or hides the Miller columns of this view only, and updates the arrow that does the same. */
+    void setMillerColumnsShown(bool shown);
+
+    /** Gives this view the state of the Miller columns that the settings say. */
     void applyMillerColumnsSetting();
 
     /** Used to notify the m_selectionModeBottomBar that there is no other ViewContainer in the tab. */
