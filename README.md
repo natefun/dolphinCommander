@@ -11,6 +11,7 @@ It is an independent project and is not affiliated with or endorsed by KDE.
 - **Two panes, always.** The window is split into a left and a right side. Each side has its own tab bar and its own tabs, with a new-tab button that is always visible.
 - **Hide either side.** Two arrows in the middle of the divider hide the left or the right side. The divider then stays at the window edge and the same arrows bring the side back. Dragging the divider to an edge does the same.
 - **Copy and move between sides.** `F5` copies and `F6` moves the selection to the folder shown in the other side. `Ctrl+F3` moves the keyboard focus to the other side. "Open in Other Pane" is in the context menu.
+- **Double-click to go up.** Double-clicking empty space in a folder goes up one folder. You can change that in Settings under View, General.
 - **Path bar above each side.** Every side has a large breadcrumb path bar that always shows the full path.
 - **Miller columns.** Above each file list is a strip with one column for each parent folder of the current folder. You can resize the columns by dragging the dividers. They scale with the window, and the columns farthest back are hidden when there is not enough room, so the strip never scrolls sideways.
 - **A ribbon.** The hamburger menu and the toolbar are replaced by a ribbon with a tab for each of File, Edit, View, Tools and Settings. Back, forward, up and search are next to the tabs.

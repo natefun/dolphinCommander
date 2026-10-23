@@ -17,7 +17,7 @@
     <group name="General">
         <entry name="DoubleClickViewAction" type="String">
             <label>Select Action</label>
-            <default>edit_select_all</default>
+            <default>go_up</default>
         </entry>
         <entry name="DoubleClickViewCustomAction" type="String">
             <label>Custom Action</label>
