@@ -498,15 +498,15 @@ endif()
 # Install the icons on macOS and Windows
 ecm_add_app_icon(dolphin
     ICONS
-        icons/128-apps-org.kde.dolphin.png
-        icons/16-apps-org.kde.dolphin.png
-        icons/22-apps-org.kde.dolphin.png
-        icons/32-apps-org.kde.dolphin.png
-        icons/48-apps-org.kde.dolphin.png
-        icons/64-apps-org.kde.dolphin.png
+        icons/128-apps-org.kde.dolphincommander.png
+        icons/16-apps-org.kde.dolphincommander.png
+        icons/22-apps-org.kde.dolphincommander.png
+        icons/32-apps-org.kde.dolphincommander.png
+        icons/48-apps-org.kde.dolphincommander.png
+        icons/64-apps-org.kde.dolphincommander.png
 )
 
-install(FILES icons/org.kde.dolphin.svg DESTINATION ${KDE_INSTALL_ICONDIR}/hicolor/scalable/apps)
+install(FILES icons/org.kde.dolphincommander.svg DESTINATION ${KDE_INSTALL_ICONDIR}/hicolor/scalable/apps)
 
 target_link_libraries(dolphin
     PRIVATE

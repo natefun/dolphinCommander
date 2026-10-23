@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=dolphinCommander
 Exec=dolphincommander %u
-Icon=org.kde.dolphin
+Icon=org.kde.dolphincommander
 Type=Application
 Categories=Qt;KDE;System;FileTools;FileManager;
 GenericName=Dual-pane File Manager

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d8bff"/>
+      <stop offset="1" stop-color="#1b3f9c"/>
+    </linearGradient>
+    <linearGradient id="folder" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd166"/>
+      <stop offset="1" stop-color="#f4a21f"/>
+    </linearGradient>
+    <g id="row">
+      <path d="M0 2.5A2.5 2.5 0 0 1 2.5 0H8l2.5 3H15a2.5 2.5 0 0 1 2.5 2.5V12A2.5 2.5 0 0 1 15 14.5H2.5A2.5 2.5 0 0 1 0 12z" fill="url(#folder)"/>
+      <rect x="22" y="5" width="11" height="4.5" rx="2.25" fill="#9db4e8"/>
+    </g>
+  </defs>
+
+  <rect x="4" y="4" width="120" height="120" rx="26" fill="url(#background)"/>
+
+  <!-- left pane -->
+  <rect x="14" y="16" width="47" height="14" rx="7" fill="#ffffff" fill-opacity="0.95"/>
+  <rect x="14" y="36" width="47" height="76" rx="9" fill="#ffffff"/>
+  <use href="#row" x="18" y="45"/>
+  <use href="#row" x="18" y="66"/>
+  <use href="#row" x="18" y="87"/>
+
+  <!-- right pane -->
+  <rect x="67" y="16" width="47" height="14" rx="7" fill="#ffffff" fill-opacity="0.95"/>
+  <rect x="67" y="36" width="47" height="76" rx="9" fill="#e6efff"/>
+  <rect x="73" y="62" width="38" height="22" rx="5" fill="#bcd2ff"/>
+  <use href="#row" x="77" y="45"/>
+  <use href="#row" x="77" y="66"/>
+  <use href="#row" x="77" y="87"/>
+
+  <!-- the arrows of the divider -->
+  <circle cx="64" cy="74" r="8.5" fill="#ff7a45" stroke="#ffffff" stroke-width="2"/>
+  <path d="M63 70 59.3 74 63 78z" fill="#ffffff"/>
+  <path d="M65 70 68.7 74 65 78z" fill="#ffffff"/>
+</svg>
