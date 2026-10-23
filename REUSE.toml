@@ -72,7 +72,7 @@ SPDX-License-Identifier = "MIT"
 # Developer-infrastructure and build configuration files without usable comment syntax.
 # These contain no creative expression and are dedicated to the public domain.
 [[annotations]]
-path = [".gitignore", ".git-blame-ignore-revs", "*.json", ".flatpak-*", "*.cmake.in", "*.service.in"]
+path = [".gitignore", "*.json", "*.cmake.in", "*.service.in"]
 SPDX-FileCopyrightText = "KDE Contributors"
 SPDX-License-Identifier = "CC0-1.0"
 

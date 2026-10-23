@@ -495,10 +495,6 @@ target_sources(dolphin PRIVATE
     main.cpp
 )
 
-if(FLATPAK)
-    target_compile_definitions(dolphin PRIVATE FLATPAK)
-endif()
-
 # Install the icons on macOS and Windows
 ecm_add_app_icon(dolphin
     ICONS

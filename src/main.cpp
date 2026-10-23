@@ -215,11 +215,7 @@ int main(int argc, char **argv)
         QObject::connect(&app, &QGuiApplication::commitDataRequest, disableSessionManagement);
         QObject::connect(&app, &QGuiApplication::saveStateRequest, disableSessionManagement);
 
-#ifdef FLATPAK
-        KDBusService dolphinDBusService(KDBusService::NoExitOnFailure);
-#else
         KDBusService dolphinDBusService;
-#endif
         DBusInterface interface;
         interface.setAsDaemon();
         return app.exec();
