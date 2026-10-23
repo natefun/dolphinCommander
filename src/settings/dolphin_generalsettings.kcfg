@@ -11,6 +11,7 @@
     <signal name="tabBarChanged" />
     <signal name="sortingChoiceChanged" />
     <signal name="splitViewChanged" />
+    <signal name="showMillerColumnsChanged" />
     <signal name="showStatusBarChanged">
         <argument type="Bool">showStatusBar</argument>
     </signal>
@@ -21,10 +22,6 @@
         </entry>
         <entry name="DoubleClickViewCustomAction" type="String">
             <label>Custom Action</label>
-        </entry>
-        <entry name="EditableUrl" type="Bool">
-            <label>Should the URL be editable for the user</label>
-            <default>false</default>
         </entry>
         <entry name="UrlCompletionMode" type="Enum">
             <label>Text completion mode of the URL Navigator</label>
@@ -156,6 +153,7 @@
         <entry name="ShowMillerColumns" type="Bool">
             <label>Show Miller columns above the file list</label>
             <default>true</default>
+            <emit signal="showMillerColumnsChanged" />
         </entry>
         <entry name="LockPanels" type="Bool">
             <label>Lock the layout of the panels</label>

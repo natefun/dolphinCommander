@@ -106,7 +106,7 @@ Each side has its own tab bar, which is always shown, so that a new tab is one c
 
 <para>
 Above each side is a path bar that shows the full path of the folder as a row of buttons. Click one of
-the buttons to go to that folder. Click on the empty space behind them, or press
+the buttons to go to that folder. Click on the button of the folder you are in, or on the empty space behind the buttons, or press
 <keycombo action="simul">&Ctrl;<keycap>L</keycap></keycombo>, to type a path instead. Press <keycap>Enter</keycap>
 to go there.
 </para>
@@ -129,6 +129,7 @@ next column. Click a folder in a column to go there. Click a file to open it.
 </para>
 
 <itemizedlist>
+<listitem><para>The small arrow between the path bar and the columns hides the columns, and shows them again. It applies to both sides, and it is the same as the setting below.</para></listitem>
 <listitem><para>Drag the divider between two columns to make a column wider or narrower. The widths are kept for each level of the path as long as the window is open.</para></listitem>
 <listitem><para>The columns share the width of the side. If there is not enough room for all of them, the columns that are farthest back are hidden, so that you never have to scroll the strip sideways.</para></listitem>
 <listitem><para>Turn the strip off in the settings, on the <guilabel>Interface</guilabel> page under <guilabel>Status &amp; Location bars</guilabel>, with the option <guilabel>Show the parent folders as columns above the file list</guilabel>.</para></listitem>

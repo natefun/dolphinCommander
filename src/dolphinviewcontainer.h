@@ -33,6 +33,7 @@ class ColumnsStrip;
 class FilterBar;
 class QAction;
 class QGridLayout;
+class QToolButton;
 class QUrl;
 namespace Search
 {
@@ -262,6 +263,9 @@ public Q_SLOTS:
      * Shows the filter bar and adds @p text to the filter. Used when text is typed into the view.
      */
     void startFiltering(const QString &text);
+
+    /** Shows or hides the Miller columns as the settings say, and updates the arrow that does the same. */
+    void applyMillerColumnsSetting();
 
     /** Used to notify the m_selectionModeBottomBar that there is no other ViewContainer in the tab. */
     void slotSplitTabDisabled();
@@ -534,6 +538,7 @@ private:
 
     DolphinView *m_view;
     ColumnsStrip *m_columnsStrip = nullptr;
+    QToolButton *m_columnsToggle = nullptr;
 
     FilterBar *m_filterBar;
 

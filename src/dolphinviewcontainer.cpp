@@ -47,6 +47,7 @@
 #include <QScrollBar>
 #include <QStyle>
 #include <QTimer>
+#include <QToolButton>
 #include <QUrl>
 #include <QUrlQuery>
 
@@ -61,11 +62,12 @@ struct LayoutStructure {
     int adminBar = 1;
     int messageWidget = 2;
     int selectionModeTopBar = 3;
-    int columnsStrip = 4;
-    int filterBar = 5;
-    int view = 6;
-    int selectionModeBottomBar = 7;
-    int statusBar = 8;
+    int columnsToggle = 4;
+    int columnsStrip = 5;
+    int filterBar = 6;
+    int view = 7;
+    int selectionModeBottomBar = 8;
+    int statusBar = 9;
 };
 constexpr LayoutStructure positionFor;
 
@@ -190,10 +192,22 @@ DolphinViewContainer::DolphinViewContainer(const QUrl &url, QWidget *parent)
     m_columnsStrip = new ColumnsStrip(this);
     m_columnsStrip->setUrl(m_view->url());
     m_columnsStrip->setShowHiddenFiles(m_view->hiddenFilesShown());
-    m_columnsStrip->setVisible(GeneralSettings::showMillerColumns());
+    // A thin bar with an arrow shows and hides the columns, and stays when they are hidden.
+    m_columnsToggle = new QToolButton(this);
+    m_columnsToggle->setAutoRaise(true);
+    m_columnsToggle->setFocusPolicy(Qt::NoFocus);
+    m_columnsToggle->setFixedHeight(16);
+    m_columnsToggle->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    connect(m_columnsToggle, &QToolButton::clicked, this, []() {
+        GeneralSettings::setShowMillerColumns(!GeneralSettings::showMillerColumns());
+        GeneralSettings::self()->save();
+    });
+    connect(GeneralSettings::self(), &GeneralSettings::showMillerColumnsChanged, this, &DolphinViewContainer::applyMillerColumnsSetting);
+    applyMillerColumnsSetting();
     connect(m_view, &DolphinView::urlChanged, m_columnsStrip, &ColumnsStrip::setUrl);
     connect(m_view, &DolphinView::hiddenFilesShownChanged, m_columnsStrip, &ColumnsStrip::setShowHiddenFiles);
     connect(m_columnsStrip, &ColumnsStrip::urlRequested, m_view, &DolphinView::setUrl);
+    m_topLayout->addWidget(m_columnsToggle, positionFor.columnsToggle, 0);
     m_topLayout->addWidget(m_columnsStrip, positionFor.columnsStrip, 0);
     m_topLayout->addWidget(m_view, positionFor.view, 0);
     m_topLayout->addWidget(m_filterBar, positionFor.filterBar, 0);
@@ -556,7 +570,7 @@ void DolphinViewContainer::readSettings()
 
     m_view->readSettings();
     m_statusBar->readSettings();
-    m_columnsStrip->setVisible(GeneralSettings::showMillerColumns());
+    applyMillerColumnsSetting();
 }
 
 bool DolphinViewContainer::isFilterBarVisible() const
@@ -670,6 +684,15 @@ void DolphinViewContainer::setFilterBarVisible(bool visible)
     } else {
         closeFilterBar();
     }
+}
+
+void DolphinViewContainer::applyMillerColumnsSetting()
+{
+    const bool shown = GeneralSettings::showMillerColumns();
+    m_columnsStrip->setVisible(shown);
+    m_columnsToggle->setArrowType(shown ? Qt::DownArrow : Qt::RightArrow);
+    m_columnsToggle->setToolTip(shown ? i18nc("@info:tooltip", "Hide the parent folders as columns")
+                                      : i18nc("@info:tooltip", "Show the parent folders as columns"));
 }
 
 void DolphinViewContainer::startFiltering(const QString &text)

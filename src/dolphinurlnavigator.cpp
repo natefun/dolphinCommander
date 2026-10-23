@@ -20,6 +20,8 @@
 #include <QLabel>
 #include <QLayout>
 #include <QLineEdit>
+#include <QMouseEvent>
+#include <QTimer>
 
 DolphinUrlNavigator::DolphinUrlNavigator(QWidget *parent)
     : DolphinUrlNavigator(QUrl(), parent)
@@ -30,7 +32,8 @@ DolphinUrlNavigator::DolphinUrlNavigator(const QUrl &url, QWidget *parent)
     : KUrlNavigator(DolphinPlacesModelSingleton::instance().placesModel(), url, parent)
 {
     const GeneralSettings *settings = GeneralSettings::self();
-    setUrlEditable(settings->editableUrl());
+    // The location bar shows the buttons of the path. A click on it is what makes it editable.
+    setUrlEditable(false);
     setShowFullPath(settings->showFullPath());
     setHomeUrl(Dolphin::homeUrl());
     setPlacesSelectorVisible(DolphinUrlNavigatorsController::placesSelectorVisible());
@@ -149,9 +152,40 @@ bool DolphinUrlNavigator::readOnlyBadgeVisible() const
 
 void DolphinUrlNavigator::slotReturnPressed()
 {
-    if (!GeneralSettings::editableUrl()) {
-        setUrlEditable(false);
+    setUrlEditable(false);
+}
+
+bool DolphinUrlNavigator::event(QEvent *event)
+{
+    if (event->type() == QEvent::ChildPolished) {
+        // The buttons of the path are created again whenever the location changes.
+        QObject *child = static_cast<QChildEvent *>(event)->child();
+        if (child->inherits("KDEPrivate::KUrlNavigatorButton")) {
+            child->installEventFilter(this);
+        }
     }
+    return KUrlNavigator::event(event);
+}
+
+bool DolphinUrlNavigator::eventFilter(QObject *watched, QEvent *event)
+{
+    if (event->type() == QEvent::MouseButtonRelease && static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton) {
+        // The last button of the path is the one of the folder that is shown.
+        QWidget *lastPathButton = nullptr;
+        for (int i = layout()->count() - 1; i >= 0 && !lastPathButton; --i) {
+            QWidget *widget = layout()->itemAt(i)->widget();
+            if (widget && widget->inherits("KDEPrivate::KUrlNavigatorButton")) {
+                lastPathButton = widget;
+            }
+        }
+        if (watched == lastPathButton) {
+            // Later, so that the click is done with first.
+            QTimer::singleShot(0, this, [this]() {
+                setUrlEditable(true);
+            });
+        }
+    }
+    return KUrlNavigator::eventFilter(watched, event);
 }
 
 void DolphinUrlNavigator::keyPressEvent(QKeyEvent *keyEvent)

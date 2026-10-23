@@ -963,7 +963,7 @@ void DolphinMainWindow::slotClickViewBackground()
 {
     KUrlNavigator *navigator = activeNavigators()->primaryUrlNavigator();
 
-    if (navigator->isUrlEditable() && !GeneralSettings::editableUrl()) {
+    if (navigator->isUrlEditable()) {
         navigator->setUrlEditable(false);
     }
 }

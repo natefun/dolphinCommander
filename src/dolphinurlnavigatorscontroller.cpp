@@ -20,7 +20,6 @@ void DolphinUrlNavigatorsController::slotReadSettings()
     // settings of the URL navigators and split view.
     if (GeneralSettings::modifiedStartupSettings()) {
         for (DolphinUrlNavigator *urlNavigator : s_instances) {
-            urlNavigator->setUrlEditable(GeneralSettings::editableUrl());
             urlNavigator->setShowFullPath(GeneralSettings::showFullPath());
             urlNavigator->setHomeUrl(Dolphin::homeUrl());
         }

@@ -104,6 +104,16 @@ protected:
      * Return focus back to the view when pressing Escape and this would have no other effect (e.g. deselecting or changing edit mode).
      */
     void keyPressEvent(QKeyEvent *keyEvent) override;
+
+    /**
+     * Watches the buttons of the path as they are created.
+     */
+    bool event(QEvent *event) override;
+
+    /**
+     * A click on the button of the folder that is shown makes the path editable. It would lead nowhere otherwise.
+     */
+    bool eventFilter(QObject *watched, QEvent *event) override;
 };
 
 #endif // DOLPHINURLNAVIGATOR_H
