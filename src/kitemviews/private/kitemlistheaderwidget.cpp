@@ -203,6 +203,8 @@ void KItemListHeaderWidget::paint(QPainter *painter, const QStyleOptionGraphicsI
         return;
     }
 
+    painter->fillRect(QRectF(QPointF(0, 0), size()), palette().window());
+
     // Draw roles
     painter->setFont(font());
     painter->setPen(palette().text().color());
@@ -249,21 +251,19 @@ void KItemListHeaderWidget::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
             Q_EMIT columnWidthChangeFinished(m_pressedGrip->roleToTheLeft, currentWidth);
         }
     } else if (m_pressedRoleIndex != -1 && m_movingRole.index == -1) {
-        // Only a click has been done and no moving or resizing has been started
-        const QByteArray sortRole = m_model->sortRole();
-        const int sortRoleIndex = m_columns.indexOf(sortRole);
-        if (m_pressedRoleIndex == sortRoleIndex) {
-            // Toggle the sort order
-            const Qt::SortOrder previous = m_model->sortOrder();
-            const Qt::SortOrder current = (m_model->sortOrder() == Qt::AscendingOrder) ? Qt::DescendingOrder : Qt::AscendingOrder;
-            m_model->setSortOrder(current);
-            Q_EMIT sortOrderChanged(current, previous);
-        } else {
-            // Change the sort role and use the appropriate default sort order
-            const QByteArray previous = m_model->sortRole();
-            const QByteArray current = m_columns[m_pressedRoleIndex];
-            m_model->setSortRole(current, true);
-            Q_EMIT sortRoleChanged(current, previous);
+        // Only a click has been done and no moving or resizing has been started. The upper half of the
+        // column sorts upwards, the lower half downwards.
+        const Qt::SortOrder wanted = m_pressedMousePos.y() < size().height() / 2 ? Qt::AscendingOrder : Qt::DescendingOrder;
+        const QByteArray previousRole = m_model->sortRole();
+        const QByteArray currentRole = m_columns[m_pressedRoleIndex];
+        if (previousRole != currentRole) {
+            m_model->setSortRole(currentRole, true);
+            Q_EMIT sortRoleChanged(currentRole, previousRole);
+        }
+        if (m_model->sortOrder() != wanted) {
+            const Qt::SortOrder previousOrder = m_model->sortOrder();
+            m_model->setSortOrder(wanted);
+            Q_EMIT sortOrderChanged(wanted, previousOrder);
         }
     }
 
@@ -418,6 +418,7 @@ void KItemListHeaderWidget::hoverMoveEvent(QGraphicsSceneHoverEvent *event)
 
     const QPointF &pos = event->pos();
     updateHoveredIndex(pos);
+    setToolTip(m_hoveredIndex == -1 ? QString() : m_model->roleDescription(m_columns.at(m_hoveredIndex)));
     if (isAboveResizeGrip(pos)) {
         setCursor(Qt::SplitHCursor);
     } else {
@@ -441,68 +442,37 @@ void KItemListHeaderWidget::slotSortOrderChanged(Qt::SortOrder current, Qt::Sort
 
 void KItemListHeaderWidget::paintRole(QPainter *painter, const QByteArray &role, const QRectF &rect, int orderIndex, QWidget *widget) const
 {
-    // The following code is based on the code from QHeaderView::paintSection().
-    // SPDX-FileCopyrightText: 2011 Nokia Corporation and/or its subsidiary(-ies).
-    QStyleOptionHeader option;
-    option.section = orderIndex;
-    option.state = QStyle::State_None | QStyle::State_Raised | QStyle::State_Horizontal;
-    if (isEnabled()) {
-        option.state |= QStyle::State_Enabled;
-    }
-    if (window() && window()->isActiveWindow()) {
-        option.state |= QStyle::State_Active;
-    }
-    if (m_hoveredIndex == orderIndex) {
-        option.state |= QStyle::State_MouseOver;
-    }
-    if (m_pressedRoleIndex == orderIndex) {
-        option.state |= QStyle::State_Sunken;
-    }
-    if (m_model->sortRole() == role) {
-        option.sortIndicator = (m_model->sortOrder() == Qt::AscendingOrder) ? QStyleOptionHeader::SortDown : QStyleOptionHeader::SortUp;
-    }
-    option.rect = rect.toRect();
-    option.orientation = Qt::Horizontal;
-    option.selectedPosition = QStyleOptionHeader::NotAdjacent;
-    option.text = m_model->roleDescription(role);
+    Q_UNUSED(widget)
 
-    // First we paint any potential empty (padding) space on left and/or right of this role's column.
-    const auto paintPadding = [&](int section, const QRectF &rect, const QStyleOptionHeader::SectionPosition &pos) {
-        QStyleOptionHeader padding;
-        padding.state = QStyle::State_None | QStyle::State_Raised | QStyle::State_Horizontal;
-        padding.section = section;
-        padding.sortIndicator = QStyleOptionHeader::None;
-        padding.rect = rect.toRect();
-        padding.position = pos;
-        padding.text = QString();
-        style()->drawControl(QStyle::CE_Header, &padding, painter, widget);
-    };
-
-    if (m_columns.count() == 1) {
-        option.position = QStyleOptionHeader::Middle;
-        paintPadding(0, QRectF(0.0, 0.0, rect.left(), rect.height()), QStyleOptionHeader::Beginning);
-        paintPadding(1, QRectF(rect.right(), 0.0, size().width() - rect.right(), rect.height()), QStyleOptionHeader::End);
-    } else if (orderIndex == 0) {
-        // Paint the header for the first column; check if there is some empty space to the left which needs to be filled.
-        if (rect.left() > 0) {
-            option.position = QStyleOptionHeader::Middle;
-            paintPadding(0, QRectF(0.0, 0.0, rect.left(), rect.height()), QStyleOptionHeader::Beginning);
-        } else {
-            option.position = QStyleOptionHeader::Beginning;
-        }
-    } else if (orderIndex == m_columns.count() - 1) {
-        // Paint the header for the last column; check if there is some empty space to the right which needs to be filled.
-        if (rect.right() < size().width()) {
-            option.position = QStyleOptionHeader::Middle;
-            paintPadding(m_columns.count(), QRectF(rect.right(), 0.0, size().width() - rect.right(), rect.height()), QStyleOptionHeader::End);
-        } else {
-            option.position = QStyleOptionHeader::End;
-        }
-    } else {
-        option.position = QStyleOptionHeader::Middle;
+    // No label: a pair of chevrons at the start of the column sorts by it, the upper one upwards and the lower one downwards.
+    // The tooltip tells which column it is.
+    painter->save();
+    painter->fillRect(rect, palette().window());
+    if (m_hoveredIndex == orderIndex || m_pressedRoleIndex == orderIndex) {
+        painter->setOpacity(0.15);
+        painter->fillRect(rect, palette().color(QPalette::Highlight));
+        painter->setOpacity(1.0);
     }
 
-    style()->drawControl(QStyle::CE_Header, &option, painter, widget);
+    const bool sorted = m_model->sortRole() == role;
+    const bool ascending = m_model->sortOrder() == Qt::AscendingOrder;
+    QColor active = palette().text().color();
+    QColor inactive = active;
+    inactive.setAlphaF(0.35);
+
+    const qreal x = rect.left() + 6;
+    const qreal centerY = rect.center().y();
+    painter->setRenderHint(QPainter::Antialiasing);
+    QPen pen(active, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+
+    pen.setColor(sorted && ascending ? active : inactive);
+    painter->setPen(pen);
+    painter->drawPolyline(QPolygonF{QPointF(x, centerY - 1.5), QPointF(x + 4, centerY - 5.5), QPointF(x + 8, centerY - 1.5)});
+
+    pen.setColor(sorted && !ascending ? active : inactive);
+    painter->setPen(pen);
+    painter->drawPolyline(QPolygonF{QPointF(x, centerY + 1.5), QPointF(x + 4, centerY + 5.5), QPointF(x + 8, centerY + 1.5)});
+    painter->restore();
 }
 
 void KItemListHeaderWidget::updatePressedRoleIndex(const QPointF &pos)
