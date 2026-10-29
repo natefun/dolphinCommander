@@ -1016,6 +1016,13 @@ void KItemListView::paint(QPainter *painter, const QStyleOptionGraphicsItem *opt
         style()->drawControl(QStyle::CE_RubberBand, &opt, painter);
     }
 
+    if (m_dragActionColor.isValid()) {
+        // The action of the drag that is over the view: red moves the items, green copies them.
+        painter->setPen(QPen(m_dragActionColor, 3));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRect(QRectF(QPointF(0, 0), size()).adjusted(1.5, 1.5, -1.5, -1.5));
+    }
+
     if (!m_dropIndicator.isEmpty()) {
         const QRectF r = m_dropIndicator.toRect();
 
@@ -1354,6 +1361,17 @@ void KItemListView::dragMoveEvent(QGraphicsSceneDragDropEvent *event)
 {
     QGraphicsWidget::dragMoveEvent(event);
 
+    QColor actionColor;
+    if (event->proposedAction() == Qt::MoveAction) {
+        actionColor = QColor(0xe0, 0x30, 0x30);
+    } else if (event->proposedAction() == Qt::CopyAction) {
+        actionColor = QColor(0x30, 0xb0, 0x40);
+    }
+    if (actionColor != m_dragActionColor) {
+        m_dragActionColor = actionColor;
+        update();
+    }
+
     m_mousePos = transform().map(event->pos());
     if (m_autoScrollTimer && !m_autoScrollTimer->isActive()) {
         m_autoScrollTimer->start(InitialAutoScrollDelay);
@@ -1364,12 +1382,16 @@ void KItemListView::dragLeaveEvent(QGraphicsSceneDragDropEvent *event)
 {
     QGraphicsWidget::dragLeaveEvent(event);
     setAutoScroll(false);
+    m_dragActionColor = QColor();
+    update();
 }
 
 void KItemListView::dropEvent(QGraphicsSceneDragDropEvent *event)
 {
     QGraphicsWidget::dropEvent(event);
     setAutoScroll(false);
+    m_dragActionColor = QColor();
+    update();
 }
 
 QList<KItemListWidget *> KItemListView::visibleItemListWidgets() const

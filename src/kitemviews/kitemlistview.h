@@ -856,6 +856,8 @@ private:
     // The m_dropIndicator is set by the KItemListController
     // by KItemListView::showDropIndicator() and KItemListView::hideDropIndicator().
     QRectF m_dropIndicator;
+    /// The color of the action of a drag over the view, or an invalid color if there is none.
+    QColor m_dragActionColor;
 
     QList<QVariantAnimation *> m_rubberBandAnimations;
 

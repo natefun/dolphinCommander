@@ -52,8 +52,22 @@ KIO::DropJob *DragAndDropHelper::dropUrls(const QUrl &destUrl, QDropEvent *event
             return nullptr;
         }
 
+        // A drop moves the files unless Ctrl is held, which copies them, and never asks. Ctrl+Shift still links.
+        Qt::KeyboardModifiers modifiers = event->modifiers();
+        Qt::DropAction action = event->dropAction();
+        if (!(modifiers & (Qt::ControlModifier | Qt::ShiftModifier | Qt::AltModifier))) {
+            modifiers |= Qt::ShiftModifier;
+            action = Qt::MoveAction;
+        } else if ((modifiers & Qt::ControlModifier) && !(modifiers & Qt::ShiftModifier)) {
+            action = Qt::CopyAction;
+        } else if (modifiers & Qt::ShiftModifier && !(modifiers & Qt::ControlModifier)) {
+            action = Qt::MoveAction;
+        }
+        QDropEvent adjustedEvent(event->position(), event->possibleActions(), event->mimeData(), event->buttons(), modifiers);
+        adjustedEvent.setDropAction(action);
+
         // Drop into a directory or a desktop-file
-        KIO::DropJob *job = KIO::drop(event, destUrl, dropjobFlags);
+        KIO::DropJob *job = KIO::drop(&adjustedEvent, destUrl, dropjobFlags);
         KJobWidgets::setWindow(job, window);
         return job;
     }
