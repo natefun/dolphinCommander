@@ -39,6 +39,7 @@ class DolphinViewActionHandler;
 class DolphinSettingsDialog;
 class DolphinViewContainer;
 class DolphinRemoteEncoding;
+class DolphinDockWidget;
 class DolphinNavigatorsWidgetAction;
 class DolphinTabWidget;
 class SidesSplitter;
@@ -48,6 +49,7 @@ class KJob;
 class KNewFileMenu;
 class KRecentFilesAction;
 class KToolBarPopupAction;
+class QHBoxLayout;
 class QToolButton;
 class PlacesPanel;
 class TerminalPanel;
@@ -817,6 +819,10 @@ private:
 
     TerminalPanel *m_terminalPanel;
     PlacesPanel *m_placesPanel;
+    /** The dock with the places and the button for the settings below them. */
+    DolphinDockWidget *m_placesDock = nullptr;
+    /// The row below the places with the buttons for the menu, refresh, search and the settings.
+    QHBoxLayout *m_placesButtonRow = nullptr;
     bool m_tearDownFromPlacesRequested;
 
     KToolBarPopupAction *m_backAction;

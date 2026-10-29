@@ -13,6 +13,7 @@
 #include "interface/interfacesettingspage.h"
 #include "languagesettingspage.h"
 #include "shortcutssettingspage.h"
+#include "themesettingspage.h"
 #include "trash/trashsettingspage.h"
 #include "viewmodes/viewsettingspage.h"
 
@@ -52,6 +53,12 @@ DolphinSettingsDialog::DolphinSettingsDialog(const QUrl &url, QWidget *parent, K
     KPageWidgetItem *viewSettingsFrame = addPage(viewSettingsPage, i18nc("@title:group", "View"));
     viewSettingsFrame->setIcon(QIcon::fromTheme(QStringLiteral("preferences-desktop-icons")));
     connect(viewSettingsPage, &ViewSettingsPage::changed, this, &DolphinSettingsDialog::enableApply);
+
+    // Theme
+    auto themeSettingsPage = new ThemeSettingsPage(this);
+    KPageWidgetItem *themeSettingsFrame = addPage(themeSettingsPage, i18nc("@title:group", "Theme"));
+    themeSettingsFrame->setIcon(QIcon::fromTheme(QStringLiteral("preferences-desktop-color")));
+    connect(themeSettingsPage, &ThemeSettingsPage::changed, this, &DolphinSettingsDialog::enableApply);
 
     // Context Menu
     auto contextMenuSettingsPage = new ContextMenuSettingsPage(this,
@@ -99,6 +106,7 @@ DolphinSettingsDialog::DolphinSettingsDialog(const QUrl &url, QWidget *parent, K
 
     m_pages.append(interfaceSettingsPage);
     m_pages.append(viewSettingsPage);
+    m_pages.append(themeSettingsPage);
     m_pages.append(contextMenuSettingsPage);
     m_pages.append(shortcutsSettingsPage);
     m_pages.append(languageSettingsPage);

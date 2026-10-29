@@ -6,6 +6,7 @@
 
 #include "dolphinviewcontainer.h"
 #include "views/columnsstrip.h"
+#include "views/viewheader.h"
 
 #include "admin/bar.h"
 #include "admin/workerintegration.h"
@@ -64,10 +65,11 @@ struct LayoutStructure {
     int selectionModeTopBar = 3;
     int columnsToggle = 4;
     int columnsStrip = 5;
-    int filterBar = 6;
-    int view = 7;
-    int selectionModeBottomBar = 8;
-    int statusBar = 9;
+    int viewHeader = 6;
+    int filterBar = 7;
+    int view = 8;
+    int selectionModeBottomBar = 9;
+    int statusBar = 10;
 };
 constexpr LayoutStructure positionFor;
 
@@ -192,12 +194,14 @@ DolphinViewContainer::DolphinViewContainer(const QUrl &url, QWidget *parent)
     m_columnsStrip = new ColumnsStrip(this);
     m_columnsStrip->setUrl(m_view->url());
     m_columnsStrip->setShowHiddenFiles(m_view->hiddenFilesShown());
-    // A thin bar with an arrow shows and hides the columns, and stays when they are hidden.
+    // A button in the upper right corner shows and hides the columns, and stays when they are hidden.
     m_columnsToggle = new QToolButton(this);
     m_columnsToggle->setAutoRaise(true);
     m_columnsToggle->setFocusPolicy(Qt::NoFocus);
-    m_columnsToggle->setFixedHeight(16);
-    m_columnsToggle->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_columnsToggle->setCheckable(true);
+    m_columnsToggle->setIcon(QIcon::fromTheme(QStringLiteral("view-split-left-right")));
+    m_columnsToggle->setFixedSize(24, 24);
+    m_columnsToggle->raise();
     // Every view has its own state. The setting is what the views start with, and changing it
     // gives all of the views that state.
     connect(m_columnsToggle, &QToolButton::clicked, this, [this]() {
@@ -208,8 +212,12 @@ DolphinViewContainer::DolphinViewContainer(const QUrl &url, QWidget *parent)
     connect(m_view, &DolphinView::urlChanged, m_columnsStrip, &ColumnsStrip::setUrl);
     connect(m_view, &DolphinView::hiddenFilesShownChanged, m_columnsStrip, &ColumnsStrip::setShowHiddenFiles);
     connect(m_columnsStrip, &ColumnsStrip::urlRequested, m_view, &DolphinView::setUrl);
-    m_topLayout->addWidget(m_columnsToggle, positionFor.columnsToggle, 0);
     m_topLayout->addWidget(m_columnsStrip, positionFor.columnsStrip, 0);
+    m_viewHeader = new ViewHeader(m_view, m_urlNavigator.get(), this);
+    m_topLayout->addWidget(m_viewHeader, positionFor.viewHeader, 0);
+    m_columnsStrip->installEventFilter(this);
+    m_viewHeader->installEventFilter(this);
+    installEventFilter(this);
     m_topLayout->addWidget(m_view, positionFor.view, 0);
     m_topLayout->addWidget(m_filterBar, positionFor.filterBar, 0);
     if (GeneralSettings::showStatusBar() == GeneralSettings::EnumShowStatusBar::FullWidth) {
@@ -694,7 +702,8 @@ void DolphinViewContainer::applyMillerColumnsSetting()
 void DolphinViewContainer::setMillerColumnsShown(bool shown)
 {
     m_columnsStrip->setVisible(shown);
-    m_columnsToggle->setArrowType(shown ? Qt::DownArrow : Qt::RightArrow);
+    updateColumnsTogglePosition();
+    m_columnsToggle->setChecked(shown);
     m_columnsToggle->setToolTip(shown ? i18nc("@info:tooltip", "Hide the parent folders as columns")
                                       : i18nc("@info:tooltip", "Show the parent folders as columns"));
 }
@@ -1292,8 +1301,33 @@ void DolphinViewContainer::updateStatusBarGeometry()
     }
 }
 
+void DolphinViewContainer::updateColumnsTogglePosition()
+{
+    if (!m_columnsToggle || !m_columnsStrip || !m_viewHeader) {
+        return;
+    }
+    // On the row of the names of the columns, or on the header of the view if the columns are hidden.
+    const QWidget *top = m_columnsStrip->isVisibleTo(this) ? static_cast<QWidget *>(m_columnsStrip) : static_cast<QWidget *>(m_viewHeader);
+    m_columnsToggle->move(width() - m_columnsToggle->width() - 2, top->y() + 2);
+    m_columnsToggle->raise();
+}
+
 bool DolphinViewContainer::eventFilter(QObject *object, QEvent *event)
 {
+    if ((object == m_columnsStrip || object == m_viewHeader || object == this) && event->type() != QEvent::Paint) {
+        switch (event->type()) {
+        case QEvent::Move:
+        case QEvent::Resize:
+        case QEvent::Show:
+        case QEvent::Hide:
+        case QEvent::LayoutRequest:
+            updateColumnsTogglePosition();
+            break;
+        default:
+            break;
+        }
+    }
+
     if (GeneralSettings::showStatusBar() == GeneralSettings::EnumShowStatusBar::Small && object == m_view) {
         switch (event->type()) {
         case QEvent::Resize: {

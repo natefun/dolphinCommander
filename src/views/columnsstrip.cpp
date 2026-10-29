@@ -13,21 +13,66 @@
 #include <KFileItem>
 #include <KIO/OpenUrlJob>
 #include <KJobUiDelegate>
+#include <KLocalizedString>
 #include <KNotificationJobUiDelegate>
 
+#include <QLabel>
+#include <QPainter>
 #include <QPointer>
 #include <QResizeEvent>
 #include <QTimer>
+#include <QVBoxLayout>
+
+#include <functional>
 
 namespace
 {
 /** A column is never narrower than this, even if the user drags a divider. */
 constexpr int MinimumColumnWidth = 80;
 /** Columns are hidden, farthest back first, until the rest can have at least this much. */
-constexpr int PreferredColumnWidth = 130;
+constexpr int PreferredColumnWidth = 150;
 /** The width a new column starts with. Columns are only made narrower than this if there is not enough room. */
 constexpr int DefaultColumnWidth = 170;
-constexpr int StripHeight = 190;
+constexpr int StripHeight = 224;
+/** The width of the strip that stands for a column that is hidden. */
+constexpr int CollapsedLabelWidth = 14;
+
+/** A narrow strip with the name of a folder written upwards. A click on it opens the folder. */
+class CollapsedLabel : public QWidget
+{
+public:
+    CollapsedLabel(const QString &text, const std::function<void()> &clicked, QWidget *parent)
+        : QWidget(parent)
+        , m_text(text)
+        , m_clicked(clicked)
+    {
+        setFixedWidth(CollapsedLabelWidth);
+        QFont smaller = font();
+        smaller.setPointSizeF(smaller.pointSizeF() * 0.85);
+        setFont(smaller);
+        setCursor(Qt::PointingHandCursor);
+        setToolTip(text);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter painter(this);
+        painter.fillRect(rect(), palette().alternateBase());
+        painter.setPen(palette().color(QPalette::Disabled, QPalette::WindowText));
+        painter.translate(0, height());
+        painter.rotate(-90);
+        painter.drawText(QRect(4, 0, height() - 8, width()), Qt::AlignVCenter | Qt::AlignLeft, fontMetrics().elidedText(m_text, Qt::ElideRight, height() - 8));
+    }
+    void mouseReleaseEvent(QMouseEvent *) override
+    {
+        m_clicked();
+    }
+
+private:
+    QString m_text;
+    std::function<void()> m_clicked;
+};
 
 QUrl parentUrl(const QUrl &url)
 {
@@ -52,8 +97,9 @@ ColumnsStrip::ColumnsStrip(QWidget *parent)
     // Remember what the user dragged, but only for the columns that are shown.
     connect(this, &QSplitter::splitterMoved, this, [this]() {
         const QList<int> widths = sizes();
-        for (int i = m_firstVisibleColumn; i < m_columns.size() && i < widths.size(); ++i) {
-            m_columnWidths[i] = qMax(widths.at(i), 1);
+        const int offset = m_columns.size();
+        for (int i = m_firstVisibleColumn; i < m_columns.size() && offset + i < widths.size(); ++i) {
+            m_columnWidths[i] = qMax(widths.at(offset + i), 1);
         }
     });
 }
@@ -106,10 +152,15 @@ void ColumnsStrip::setUrl(const QUrl &url)
         column.widget->hide();
         column.widget->setParent(nullptr);
         column.widget->deleteLater();
+        column.label->hide();
+        column.label->setParent(nullptr);
+        column.label->deleteLater();
     }
     for (int i = keep; i < columnUrls.size(); ++i) {
         Column column = createColumn(columnUrls.at(i));
-        insertWidget(m_columns.size(), column.widget);
+        // The labels of all columns come first, then the columns themselves.
+        insertWidget(m_columns.size(), column.label);
+        insertWidget(m_columns.size() * 2 + 1, column.widget);
         m_columns.append(column);
     }
     while (m_columnWidths.size() < m_columns.size()) {
@@ -146,19 +197,31 @@ void ColumnsStrip::updateColumnLayout()
         return;
     }
 
-    // Show as many of the last columns as have room, but at least one.
-    const int visibleCount = qBound(1, width() / PreferredColumnWidth, count);
+    // Show as many of the last columns as have room, but at least one. The columns that do not fit are
+    // narrow labels at the left, which takes some of the room.
+    int visibleCount = 1;
+    for (int v = count; v > 1; --v) {
+        if ((width() - (count - v) * CollapsedLabelWidth) / v >= PreferredColumnWidth) {
+            visibleCount = v;
+            break;
+        }
+    }
     m_firstVisibleColumn = count - visibleCount;
 
     // Every column gets the width that was asked for, or less if they do not all fit. What is
     // left over goes to the filler behind the last column.
-    const int available = width() - visibleCount * handleWidth();
+    const int available = width() - visibleCount * handleWidth() - m_firstVisibleColumn * (CollapsedLabelWidth + handleWidth());
     int wanted = 0;
     for (int i = m_firstVisibleColumn; i < count; ++i) {
         wanted += m_columnWidths.at(i);
     }
     const double scale = wanted > available ? double(available) / wanted : 1.0;
     QList<int> newSizes;
+    for (int i = 0; i < count; ++i) {
+        const bool collapsed = i < m_firstVisibleColumn;
+        m_columns.at(i).label->setVisible(collapsed);
+        newSizes.append(collapsed ? CollapsedLabelWidth : 0);
+    }
     int used = 0;
     for (int i = 0; i < count; ++i) {
         const bool visible = i >= m_firstVisibleColumn;
@@ -196,7 +259,25 @@ ColumnsStrip::Column ColumnsStrip::createColumn(const QUrl &url)
     container->setMinimumWidth(MinimumColumnWidth);
     // Long names are cut off instead of making the column scroll sideways.
     container->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    column.widget = container;
+
+    // The name of the folder is above its list.
+    auto *wrapper = new QWidget(this);
+    auto *wrapperLayout = new QVBoxLayout(wrapper);
+    wrapperLayout->setContentsMargins(0, 0, 0, 0);
+    wrapperLayout->setSpacing(0);
+    const QString folderName = url.adjusted(QUrl::StripTrailingSlash).fileName();
+    auto *title = new QLabel(folderName.isEmpty() ? i18nc("@title the root folder", "Root") : folderName, wrapper);
+    QFont titleFont = title->font();
+    titleFont.setPointSizeF(titleFont.pointSizeF() * 1.4);
+    title->setFont(titleFont);
+    title->setContentsMargins(4, 2, 4, 2);
+    title->setMinimumWidth(1);
+    title->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+    title->setToolTip(url.toDisplayString(QUrl::PreferLocalFile));
+    wrapperLayout->addWidget(title);
+    wrapperLayout->addWidget(container, 1);
+    wrapper->setMinimumWidth(MinimumColumnWidth);
+    column.widget = wrapper;
 
     // The model and controller are parented to this widget so they outlive the QObject tree
     // of the container, but they must not stay around after their column is deleted.
@@ -213,6 +294,15 @@ ColumnsStrip::Column ColumnsStrip::createColumn(const QUrl &url)
             }
         }
     });
+
+    const QString name = url.adjusted(QUrl::StripTrailingSlash).fileName();
+    column.label = new CollapsedLabel(
+        name.isEmpty() ? i18nc("@title the root folder", "Root") : name,
+        [this, url]() {
+            Q_EMIT urlRequested(url);
+        },
+        this);
+    column.label->hide();
 
     column.model->loadDirectory(url);
     return column;

@@ -1,6 +1,6 @@
 # dolphinCommander
 
-dolphinCommander is a fork of [Dolphin](https://apps.kde.org/dolphin/), KDE's file manager, that works more like [OneCommander](https://onecommander.com/): two panes side by side, each with its own tabs, a path bar and Miller columns, and a ribbon instead of menus.
+dolphinCommander is a fork of [Dolphin](https://apps.kde.org/dolphin/), KDE's file manager, that works more like [OneCommander](https://onecommander.com/): two panes side by side, each with its own tabs, a path bar and Miller columns, and one row of buttons below the places instead of menus and a toolbar.
 
 It is an independent project and is not affiliated with or endorsed by KDE.
 
@@ -14,7 +14,7 @@ It is an independent project and is not affiliated with or endorsed by KDE.
 - **Double-click to go up.** Double-clicking empty space in a folder goes up one folder. You can change that in Settings under View, General.
 - **Path bar above each side.** Every side has a large breadcrumb path bar that always shows the full path.
 - **Miller columns.** Above each file list is a strip with one column for each parent folder of the current folder. You can resize the columns by dragging the dividers. They scale with the window, and the columns farthest back are hidden when there is not enough room, so the strip never scrolls sideways.
-- **A ribbon.** The hamburger menu and the toolbar are replaced by a ribbon with a tab for each of File, Edit, View, Tools and Settings. Back, forward, up and search are next to the tabs.
+- **Buttons below the places instead of the toolbar.** The row has a menu button that opens everything from the menus of Dolphin, the refresh and search buttons, and the settings. Back, forward and up are in the header of every view.
 - **No telemetry and no links to KDE.** KUserFeedback, the KDE Store download button, and the About KDE, Report Bug and Donate entries are removed. There is no address that crash reports are sent to.
 - **Removed from Dolphin:** the Folders panel, the toolbar, and the toggle for split view, since there are always two sides.
 
@@ -36,7 +36,7 @@ CMake lists any missing packages when it configures. Baloo (file search and the 
 
 ## Documentation
 
-The handbook is in `doc/index.docbook` and is installed with the program. Open it with `F1` or with the Handbook button on the Settings tab of the ribbon. It describes the sides, tabs, path bar, Miller columns, ribbon, filter, settings and keyboard shortcuts.
+The handbook is in `doc/index.docbook` and is installed with the program. Open it with `F1` or from the menu button. It describes the sides, tabs, path bar, Miller columns, menu, filter, settings and keyboard shortcuts.
 
 ## Known limits
 
@@ -46,10 +46,9 @@ The handbook is in `doc/index.docbook` and is installed with the program. Open i
 
 ## Where the new code is
 
-- `src/dolphinmainwindow.cpp`: the two sides, which side is active, and the ribbon and divider setup
+- `src/dolphinmainwindow.cpp`: the two sides, which side is active, and the buttons below the places and divider setup
 - `src/sidessplitter.*`: the divider between the sides, with its arrows
 - `src/views/columnsstrip.*`: the Miller columns
-- `src/ribbonbar.*`: the ribbon
 
 ## Upstream and license
 

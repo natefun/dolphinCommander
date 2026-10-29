@@ -7,7 +7,6 @@
  */
 
 #include "dolphinmainwindow.h"
-#include "ribbonbar.h"
 #include "sidessplitter.h"
 
 #include "admin/workerintegration.h"
@@ -84,6 +83,7 @@
 #include <QDialog>
 #include <QDomDocument>
 #include <QFileInfo>
+#include <QHBoxLayout>
 #include <QLineEdit>
 #include <QMenuBar>
 #include <QPushButton>
@@ -93,6 +93,7 @@
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QTimer>
+#include <QToolBar>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QtConcurrentRun>
@@ -207,7 +208,7 @@ DolphinMainWindow::DolphinMainWindow()
             activateSide(inactiveTabWidget());
         }
     });
-    // The ribbon is inserted above the two sides once the menus exist (see setupGUI() below).
+    // The menu button is added below the places once the menus exist (see setupGUI() below).
     auto *centralContainer = new QWidget(this);
     auto *centralLayout = new QVBoxLayout(centralContainer);
     centralLayout->setContentsMargins(0, 0, 0, 0);
@@ -273,30 +274,13 @@ DolphinMainWindow::DolphinMainWindow()
         preferences->setIconText(i18nc("@action:intoolbar", "Settings"));
     }
 
-    // The ribbon replaces the toolbar, so there is nothing to show or to configure anymore.
+    // The toolbar of Dolphin is not used, so there is nothing to show or to configure.
     for (const KStandardAction::StandardAction standardAction : {KStandardAction::ShowToolbar, KStandardAction::ConfigureToolbars}) {
         if (QAction *action = actionCollection()->action(KStandardAction::name(standardAction))) {
             action->setVisible(false);
             action->setEnabled(false);
         }
     }
-
-    // A ribbon with the content of all menus replaces the hamburger menu.
-    auto *ribbon = new RibbonBar(menuBar(), this->centralWidget());
-    static_cast<QVBoxLayout *>(this->centralWidget()->layout())->insertWidget(0, ribbon);
-    // The buttons of the toolbar share the row of the ribbon tabs, so the toolbar itself is not needed.
-    QList<QAction *> ribbonLeadingActions;
-    const QStringList ribbonLeadingActionNames{QStringLiteral("go_back"),
-                                               QStringLiteral("go_forward"),
-                                               QStringLiteral("go_up"),
-                                               KStandardAction::name(KStandardAction::Redisplay),
-                                               QStringLiteral("toggle_search")};
-    for (const QString &name : ribbonLeadingActionNames) {
-        if (QAction *action = actionCollection()->action(name)) {
-            ribbonLeadingActions << action;
-        }
-    }
-    ribbon->setLeadingActions(ribbonLeadingActions);
     toolBar()->hide();
     // Saved window settings must not bring the toolbar back.
     connect(toolBar(), &QToolBar::visibilityChanged, toolBar(), [this](bool visible) {
@@ -323,8 +307,7 @@ DolphinMainWindow::DolphinMainWindow()
         menuBar()->setVisible(false);
 
         if (usePhoneUi) {
-            Q_ASSERT(qobject_cast<QDockWidget *>(m_placesPanel->parent()));
-            m_placesPanel->parentWidget()->hide();
+            m_placesDock->hide();
             auto settings = GeneralSettings::self();
             settings->setShowZoomSlider(false); // Zooming can be done with pinch gestures instead and we are short on horizontal space.
             settings->setRenameInline(false); // This works around inline renaming currently not working well with virtual keyboards.
@@ -343,7 +326,22 @@ DolphinMainWindow::DolphinMainWindow()
     hamburgerMenu->setShowMenuBarAction(showMenuBarAction);
     connect(hamburgerMenu, &KHamburgerMenu::aboutToShowMenu, this, &DolphinMainWindow::updateHamburgerMenu);
     hamburgerMenu->hideActionsOf(toolBar());
-    // The ribbon replaces the hamburger menu, so it is not added to the toolbar.
+
+    // Below the places: the menu that holds everything that is not in the settings or the context menu,
+    // and the buttons for refresh and search, in front of the button for the settings.
+    auto *topBar = new QToolBar(m_placesDock->widget());
+    topBar->setMovable(false);
+    topBar->setFloatable(false);
+    topBar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    topBar->setIconSize(QSize(16, 16));
+    topBar->setContextMenuPolicy(Qt::NoContextMenu);
+    topBar->addAction(hamburgerMenu);
+    for (const QString &name : {KStandardAction::name(KStandardAction::Redisplay), QStringLiteral("toggle_search")}) {
+        if (QAction *action = actionCollection()->action(name)) {
+            topBar->addAction(action);
+        }
+    }
+    m_placesButtonRow->insertWidget(0, topBar);
 
     updateAllowedToolbarAreas();
     updateNavigatorsBackground();
@@ -375,11 +373,8 @@ DolphinMainWindow::~DolphinMainWindow()
     disconnect(QGuiApplication::clipboard(), &QClipboard::dataChanged, this, &DolphinMainWindow::updatePasteAction);
 
     // This fixes a crash in dolphinmainwindowtest where the connection below fires even though the KMainWindow destructor of this object is already running.
-    Q_ASSERT(qobject_cast<DolphinDockWidget *>(m_placesPanel->parent()));
-    disconnect(static_cast<DolphinDockWidget *>(m_placesPanel->parent()),
-               &DolphinDockWidget::visibilityChanged,
-               this,
-               &DolphinMainWindow::slotPlacesPanelVisibilityChanged);
+    Q_ASSERT(m_placesDock);
+    disconnect(m_placesDock, &DolphinDockWidget::visibilityChanged, this, &DolphinMainWindow::slotPlacesPanelVisibilityChanged);
 }
 
 QVector<DolphinViewContainer *> DolphinMainWindow::viewContainers() const
@@ -2709,9 +2704,37 @@ void DolphinMainWindow::setupDockWidgets()
     placesDock->setObjectName(QStringLiteral("placesDock"));
     placesDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 
-    m_placesPanel = new PlacesPanel(placesDock);
+    m_placesDock = placesDock;
+
+    // The places, and the button for the settings below them.
+    auto *placesContainer = new QWidget(placesDock);
+    auto *placesLayout = new QVBoxLayout(placesContainer);
+    placesLayout->setContentsMargins(0, 0, 0, 0);
+    placesLayout->setSpacing(0);
+
+    m_placesPanel = new PlacesPanel(placesContainer);
     m_placesPanel->setCustomContextMenuActions({lockLayoutAction});
-    placesDock->setWidget(m_placesPanel);
+    placesLayout->addWidget(m_placesPanel, 1);
+
+    auto *settingsButton = new QToolButton(placesContainer);
+    settingsButton->setAutoRaise(true);
+    settingsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    settingsButton->setIcon(QIcon::fromTheme(QStringLiteral("configure")));
+    settingsButton->setText(i18nc("@action:button", "Settings"));
+    settingsButton->setToolTip(i18nc("@info:tooltip", "Open the settings"));
+    settingsButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    connect(settingsButton, &QToolButton::clicked, this, [this]() {
+        if (QAction *preferences = actionCollection()->action(KStandardAction::name(KStandardAction::Preferences))) {
+            preferences->trigger();
+        }
+    });
+    m_placesButtonRow = new QHBoxLayout();
+    m_placesButtonRow->setContentsMargins(0, 0, 0, 0);
+    m_placesButtonRow->setSpacing(0);
+    m_placesButtonRow->addWidget(settingsButton);
+    placesLayout->addLayout(m_placesButtonRow);
+
+    placesDock->setWidget(placesContainer);
 
     createPanelAction(QIcon::fromTheme(QStringLiteral("compass")), Qt::Key_F9, placesDock, QStringLiteral("show_places_panel"));
 
@@ -3224,7 +3247,7 @@ void DolphinMainWindow::setupWhatsThis()
     // frustrate the user. If there are multiple languages that the user might
     // know with a reasonable chance you might want to have 2 external links.
     // The same might be true for any external link you translate.
-    setStandardActionWhatsThis(KStandardAction::HelpContents, xi18nc("@info:whatsthis handbook", "<para>This opens the Handbook for this application. It explains the two sides, the tabs, the Miller columns, the ribbon and the filter.</para>"));
+    setStandardActionWhatsThis(KStandardAction::HelpContents, xi18nc("@info:whatsthis handbook", "<para>This opens the Handbook for this application. It explains the two sides, the tabs, the Miller columns, the menu and the filter.</para>"));
     // (The i18n call should be completely in the line following the i18n: comment without any line breaks within the i18n call or the comment might not be correctly extracted. See: https://commits.kde.org/kxmlgui/a31135046e1b3335b5d7bbbe6aa9a883ce3284c1 )
 
     setStandardActionWhatsThis(KStandardAction::WhatsThis,

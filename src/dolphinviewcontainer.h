@@ -30,6 +30,7 @@ namespace Admin
 class Bar;
 }
 class ColumnsStrip;
+class ViewHeader;
 class FilterBar;
 class QAction;
 class QGridLayout;
@@ -504,6 +505,10 @@ protected:
     bool eventFilter(QObject *object, QEvent *event) override;
 
 private:
+    /** Puts the button for the Miller columns in the upper right corner. */
+    void updateColumnsTogglePosition();
+
+private:
     QGridLayout *m_topLayout;
 
     /**
@@ -542,6 +547,7 @@ private:
     DolphinView *m_view;
     ColumnsStrip *m_columnsStrip = nullptr;
     QToolButton *m_columnsToggle = nullptr;
+    ViewHeader *m_viewHeader = nullptr;
 
     FilterBar *m_filterBar;
 

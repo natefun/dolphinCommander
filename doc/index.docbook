@@ -73,7 +73,7 @@ installed next to Dolphin and does not share its settings.
 
 <para>
 The window is split into a left and a right side by a divider. Both sides work the same way. One of
-them is the <emphasis>active</emphasis> side, which is the one you clicked in last. The ribbon, the
+them is the <emphasis>active</emphasis> side, which is the one you clicked in last. The menu, the
 keyboard and the status bar act on the active side.
 </para>
 
@@ -112,8 +112,8 @@ to go there.
 </para>
 
 <para>
-Next to the path bar are the buttons <guibutton>Back</guibutton>, <guibutton>Forward</guibutton>,
-<guibutton>Up</guibutton>, <guibutton>Refresh</guibutton> and <guibutton>Search</guibutton>, in the row of the ribbon tabs.
+Every side has its own <guibutton>Back</guibutton>, <guibutton>Forward</guibutton> and
+<guibutton>Up</guibutton> buttons, above the file list. <guibutton>Refresh</guibutton> and <guibutton>Search</guibutton> are below the places.
 <keycap>Backspace</keycap> goes back. Double-clicking on empty space in a folder goes up one folder. You can
 change that in the settings.
 </para>
@@ -129,21 +129,18 @@ next column. Click a folder in a column to go there. Click a file to open it.
 </para>
 
 <itemizedlist>
-<listitem><para>The small arrow between the path bar and the columns hides the columns of that side, and shows them again. Each side, and each tab, has its own. The setting below shows or hides the columns in all views, and is what new tabs start with.</para></listitem>
+<listitem><para>The button in the upper right corner of the columns hides the columns of that side, and shows them again. Each side, and each tab, has its own. The setting below shows or hides the columns in all views, and is what new tabs start with.</para></listitem>
 <listitem><para>Drag the divider between two columns to make a column wider or narrower. The widths are kept for each level of the path as long as the window is open.</para></listitem>
 <listitem><para>The columns share the width of the side. If there is not enough room for all of them, the columns that are farthest back are hidden, so that you never have to scroll the strip sideways.</para></listitem>
 <listitem><para>Turn the strip off in the settings, on the <guilabel>Interface</guilabel> page under <guilabel>Status &amp; Location bars</guilabel>, with the option <guilabel>Show the parent folders as columns above the file list</guilabel>.</para></listitem>
 </itemizedlist>
 </sect1>
 
-<sect1 id="ribbon">
-<title>The ribbon</title>
+<sect1 id="menu">
+<title>The menu</title>
 
 <para>
-The ribbon at the top of the window replaces the menus and the toolbar. It has one tab for each of
-<guimenu>File</guimenu>, <guimenu>Edit</guimenu>, <guimenu>View</guimenu>, <guimenu>Tools</guimenu> and
-<guimenu>Settings</guimenu>, and the buttons of a tab are what the menu of that name offers. A button with
-a small arrow opens a menu. The ribbon is as tall as one row of buttons for every tab.
+Below the places are the <guibutton>Menu</guibutton>, <guibutton>Refresh</guibutton>, <guibutton>Search</guibutton> and <guibutton>Settings</guibutton> buttons. The menu button opens everything that is in the menus of Dolphin, such as <guimenu>File</guimenu>, <guimenu>Edit</guimenu>, <guimenu>View</guimenu> and <guimenu>Tools</guimenu>, and has the entry to show the menu bar, and this handbook. The same menu is in the context menu.
 </para>
 </sect1>
 </chapter>
@@ -193,8 +190,8 @@ lists of the Miller columns still jump.
 <title>Settings</title>
 
 <para>
-Open the settings with the <guibutton>Settings</guibutton> button on the <guimenu>Settings</guimenu> tab
-of the ribbon. The pages are:
+Open the settings with the <guibutton>Settings</guibutton> button below the places at the left of the window.
+The pages are:
 </para>
 
 <variablelist>
@@ -205,6 +202,10 @@ of the ribbon. The pages are:
 <varlistentry>
 <term><guilabel>View</guilabel></term>
 <listitem><para>How files are shown in each view mode and which action a double-click on empty space triggers. By default it goes up one folder.</para></listitem>
+</varlistentry>
+<varlistentry>
+<term><guilabel>Theme</guilabel></term>
+<listitem><para>The colors of the window. The first entry follows the theme of the system.</para></listitem>
 </varlistentry>
 <varlistentry>
 <term><guilabel>Context Menu</guilabel></term>
@@ -265,7 +266,7 @@ You can change the shortcuts on the <guilabel>Shortcuts</guilabel> page of the s
 <itemizedlist>
 <listitem><para>There are always two sides. Dolphin's split view, with its toggle and the choice of what to close, is gone.</para></listitem>
 <listitem><para>Each side has its own tabs. In Dolphin the tabs belong to the window.</para></listitem>
-<listitem><para>The ribbon takes the place of the menu bar, the toolbar and the hamburger menu.</para></listitem>
+<listitem><para>The buttons below the places take the place of the toolbar. The menu bar is hidden, and its menus are in the menu button.</para></listitem>
 <listitem><para>The Folders panel is gone, as the Miller columns show the parent folders. Places and Terminal are still there.</para></listitem>
 <listitem><para>Typing filters the list instead of jumping to the first match.</para></listitem>
 <listitem><para>Double-clicking on empty space goes up a folder instead of selecting everything.</para></listitem>

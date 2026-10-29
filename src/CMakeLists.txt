@@ -113,6 +113,7 @@ target_sources(dolphinprivate PRIVATE
     views/dolphinitemlistview.cpp
     views/dolphinnewfilemenuobserver.cpp
     views/columnsstrip.cpp
+    views/viewheader.cpp
     views/dolphinremoteencoding.cpp
     views/dolphinview.cpp
     views/dolphinviewactionhandler.cpp
@@ -291,8 +292,6 @@ target_sources(dolphinstatic PRIVATE
     dolphinbookmarkhandler.cpp
     dolphindockwidget.cpp
     dolphinmainwindow.cpp
-    ribbonbar.cpp
-    ribbonbar.h
     sidessplitter.cpp
     sidessplitter.h
     dolphinviewcontainer.cpp
@@ -338,6 +337,7 @@ target_sources(dolphinstatic PRIVATE
     settings/contextmenu/contextmenusettingspage.cpp
     settings/languagesettingspage.cpp
     settings/shortcutssettingspage.cpp
+    settings/themesettingspage.cpp
     settings/settingspagebase.cpp
     settings/servicemodel.cpp
     settings/trash/trashsettingspage.cpp
@@ -407,6 +407,7 @@ target_sources(dolphinstatic PRIVATE
     settings/contextmenu/contextmenusettingspage.h
     settings/languagesettingspage.h
     settings/shortcutssettingspage.h
+    settings/themesettingspage.h
     settings/settingspagebase.h
     settings/servicemodel.h
     settings/trash/trashsettingspage.h

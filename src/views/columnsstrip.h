@@ -53,6 +53,8 @@ private:
     struct Column {
         QUrl url;
         QWidget *widget = nullptr;
+        /** A narrow strip with the name of the folder, shown instead of the column while it is hidden. */
+        QWidget *label = nullptr;
         KFileItemModel *model = nullptr;
         KItemListController *controller = nullptr;
     };
