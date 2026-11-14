@@ -1,0 +1,48 @@
+# Tests that fail on dolphinCommander on purpose. A comment line gives the reason for the
+# entries below it, up to the next empty line. See fork/README.md.
+# fork/check-tests.py fails a run only for a failure that is not listed here.
+
+# The fork has two sides with their own tabs in place of Dolphin's split view inside a tab.
+DolphinMainWindowTest::testActivationAndTabTitleAfterRenameOpeningFolder()
+DolphinMainWindowTest::testActiveViewAfterClosingSplitView(close left view)
+DolphinMainWindowTest::testActiveViewAfterClosingSplitView(close right view)
+DolphinMainWindowTest::testActiveViewAfterTabSwitchWithSplitView()
+DolphinMainWindowTest::testActiveViewFollowsTheActivatedView()
+DolphinMainWindowTest::testFocusOtherView()
+DolphinMainWindowTest::testOpenFiles()
+DolphinMainWindowTest::testOpenFilesAtStartupInSplitView(files in two folders)
+DolphinMainWindowTest::testOpenFilesAtStartupInSplitView(one file)
+DolphinMainWindowTest::testRestoreStateKeepsTheActiveSplitPane()
+DolphinMainWindowTest::testSplitActionKeepsItsNameWhenSplit()
+DolphinMainWindowTest::testTheSecondViewOfASplitReportsARedirectionAsTheFirst()
+DolphinMainWindowTest::testUpdateWindowTitleAfterChangingSplitView()
+DolphinMainWindowTest::testUpdateWindowTitleAfterClosingSplitView()
+
+# Tab reaches the item lists of the fork's Miller columns, which have no accessible name of their own.
+DolphinMainWindowTest::testAccessibilityTree()
+
+# The fork renamed dolphinui.rc to dolphincommanderui.rc, which this test does not know.
+DolphinMainWindowTest::testSyncDesktopAndPhoneUi()
+
+# The session save this test waits for does not come on the fork. Failed before the merge of
+# 2026-11 too; the cause is not looked into yet.
+DolphinMainWindowTest::testAutoSaveSession()
+
+# Flaky on a busy or slow machine (focus and timing); they pass when run alone on an idle one.
+DolphinMainWindowTest::testCreateDirectoryFocus(icons)
+DolphinMainWindowTest::testCreateSubdirectory()
+DolphinMainWindowTest::testInlineRename()
+
+# The fork opens folders in the details view, the test expects Dolphin's icons view.
+DolphinViewContainerTest::testEachViewModeKeepsItsOwnZoomLevel()
+ViewPropertiesTest::testRestoreViewProps()
+
+# The fork's header makes a view at least 379 pixels wide, the test needs 250 for a scrollbar.
+DolphinViewContainerTest::testTheSmallStatusBarStaysOffTheScrollbars()
+
+# The fork's location bar goes back to its buttons on every change of folder; there is no setting
+# for an editable one.
+DolphinViewContainerTest::testTheEditableLocationFollowsASwitchToAndFromColumns()
+
+# The fork's own appdata file gets a warning from some versions of appstreamcli (Manjaro's), not from Arch's.
+suite:appstreamtest

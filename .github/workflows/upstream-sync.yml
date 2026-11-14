@@ -1,0 +1,123 @@
+# Merges Dolphin's master into dolphinCommander once a week.
+#
+# - Nothing new in Dolphin: nothing happens.
+# - It merges, builds and passes the tests (fork/expected-test-failures.txt aside): a pull request.
+# - It merges but a test that should pass fails: a draft pull request that lists the failures.
+# - Conflicts are left that need a person: an issue that lists them, and no pull request.
+#
+# See fork/README.md.
+name: Merge Dolphin master
+
+on:
+  schedule:
+    - cron: "23 5 * * 1" # Mondays
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: upstream-sync
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    # Dolphin's master wants the newest KDE Frameworks, which Arch Linux has.
+    container: archlinux:latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Install git and the GitHub CLI
+        run: pacman -Syu --noconfirm --needed git github-cli
+
+      - uses: actions/checkout@v4
+        with:
+          ref: dolphincommander
+          fetch-depth: 0
+
+      - name: Merge
+        id: merge
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="upstream-sync/$(date +%F)"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          set +e
+          fork/merge-upstream.sh "$branch" | tee merge.log
+          status=${PIPESTATUS[0]}
+          set -e
+          case "$status" in
+            0) echo "result=merged" >> "$GITHUB_OUTPUT" ;;
+            3) echo "result=up-to-date" >> "$GITHUB_OUTPUT" ;;
+            2) echo "result=conflicts" >> "$GITHUB_OUTPUT" ;;
+            *) exit "$status" ;;
+          esac
+
+      - name: Open an issue for the conflicts
+        if: steps.merge.outputs.result == 'conflicts'
+        run: |
+          title="Dolphin master does not merge without conflicts"
+          {
+            echo "The weekly merge of Dolphin's master stopped at conflicts that need a person."
+            echo
+            echo '```'
+            cat merge.log
+            echo '```'
+            echo
+            echo "To resolve them locally, from the dolphincommander branch:"
+            echo
+            echo '```bash'
+            echo "fork/merge-upstream.sh"
+            echo '```'
+            echo
+            echo "then follow fork/README.md. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > issue.md
+          existing="$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file issue.md
+          else
+            gh issue create --title "$title" --body-file issue.md
+          fi
+          exit 1
+
+      - name: Build and test
+        id: test
+        if: steps.merge.outputs.result == 'merged'
+        continue-on-error: true
+        run: fork/ci-build-and-test.sh --install-deps
+
+      - name: Open a pull request
+        if: steps.merge.outputs.result == 'merged'
+        run: |
+          branch="${{ steps.merge.outputs.branch }}"
+          git push origin "$branch"
+          {
+            echo "The weekly merge of Dolphin's master."
+            echo
+            git log --format='- %s' --no-merges HEAD^1..HEAD^2 | grep -v 'GIT_SILENT\|SVN_SILENT' | head -100
+            echo
+            echo "## Tests"
+            echo '```'
+            cat build-ci/test-summary.txt 2>/dev/null || echo "The build failed, see the run."
+            echo '```'
+            echo
+            echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > pr.md
+          draft=""
+          if [ "${{ steps.test.outcome }}" != "success" ]; then
+            draft="--draft"
+          fi
+          gh pr create $draft --base dolphincommander --head "$branch" \
+            --title "Merge Dolphin master ($(date +%F))" --body-file pr.md
+          # An older merge that is still open is replaced by this one.
+          gh pr list --state open --search "head:upstream-sync/" --json number,headRefName \
+            --jq ".[] | select(.headRefName != \"$branch\") | .number" |
+            while read -r number; do gh pr close "$number" --comment "Replaced by the merge of $(date +%F)." --delete-branch; done
+
+      - name: Fail the run when tests failed
+        if: steps.test.outcome == 'failure'
+        run: exit 1

@@ -1,0 +1,76 @@
+# Keeping dolphinCommander up to date with Dolphin
+
+dolphinCommander is a fork of KDE's Dolphin (https://invent.kde.org/system/dolphin, mirrored at
+https://github.com/KDE/dolphin). Its own work lives on the `dolphincommander` branch, and Dolphin's
+`master` is merged into that branch from time to time. Merging, not rebasing, keeps the fork's
+history as it is and resolves each conflict once.
+
+## What runs on its own
+
+`.github/workflows/upstream-sync.yml` runs every Monday (and from the Actions tab, "Run workflow"):
+
+| What happened | What you get |
+| --- | --- |
+| Nothing new in Dolphin | nothing |
+| Merged, built, no new test failures | a pull request to review and merge |
+| Merged, but a test that should pass fails, or the build fails | a draft pull request with the failures |
+| Conflicts that need a person | an issue with the files, no pull request |
+
+It builds in an Arch Linux container, because Dolphin's `master` needs the newest KDE Frameworks.
+
+For the workflow to open pull requests, the repository needs Settings → Actions → General →
+"Allow GitHub Actions to create and approve pull requests".
+
+## Merging by hand (or when the workflow stopped at conflicts)
+
+```bash
+fork/merge-upstream.sh
+```
+
+It makes a branch `upstream-sync/<date>` from the current branch and merges Dolphin's `master`.
+Two kinds of conflict always go the fork's way and are resolved by the script:
+
+- a file that the fork deleted stays deleted (Dolphin's handbook images and translated handbooks,
+  `org.kde.dolphin.desktop`, the Folders panel, ...);
+- the handbook in `doc/` is the fork's own.
+
+Every other conflict is left in the files. When they are resolved:
+
+```bash
+git add -A && git commit --no-edit
+fork/ci-build-and-test.sh   # builds into build-ci/ and checks the tests, as the workflow does
+```
+
+`rerere` is turned on by the script, so a conflict that was resolved once is resolved the same way
+when it comes again.
+
+### How to resolve a conflict
+
+- **Keep what the fork does, take what Dolphin adds.** A conflict is mostly the two sides changing
+  the same few lines for different reasons: the result needs both.
+- **When Dolphin moves code, the fork's lines move with it.** In the merge of 2026-11, Dolphin moved
+  the connections of a view into `DolphinViewContainer::connectViewSignals()` and
+  `DolphinView::connectItemController()`, so that they also apply to a view that replaces another.
+  The fork's type-to-filter and Escape lines had to go there too, or they would have been lost
+  without a conflict to show it.
+- **Look at what merged without a conflict too.** Code that merges cleanly can still be wrong
+  together, like Dolphin's new pinned tabs next to the fork's dragging of tabs between the sides.
+- **A test of Dolphin that fails because of what the fork changed** goes in
+  `expected-test-failures.txt`, with the reason. Do not change Dolphin's tests to pass on the fork
+  unless they do not build: every change to them is a conflict at the next merge.
+
+## Tests
+
+- Dolphin's own tests, plus `src/tests/dolphincommanderfeaturestest.cpp`, which tests the fork's
+  features (the two sides and moving tabs between them, the header, the Miller columns, typing to
+  filter, details as the default). A new feature of the fork gets a test there, so a merge that
+  breaks it fails.
+- `check-tests.py` compares a run with `expected-test-failures.txt` and fails only for a failure
+  that is not listed there. It also lists the expected ones that passed, which are flaky or fixed.
+
+## Writing fork code that merges well
+
+- Put new things in new files (`sidessplitter.cpp`, `views/columnsstrip.cpp`, `views/viewheader.cpp`).
+- Where Dolphin's code has to change, keep the change small and in one place, and keep the fork's
+  part in its own function when it can be (`DolphinViewContainer::connectForkViewSignals()`).
+- Do not reformat or reorder Dolphin's code: it makes conflicts out of nothing.
