@@ -1,0 +1,128 @@
+# Releases dolphinCommander once a week, when the dolphincommander branch has changed since the
+# last release:
+#
+# - builds it and runs the tests (fork/expected-test-failures.txt aside), and stops if they fail;
+# - tags the release v<year>.<month>.<day>;
+# - builds the Arch package from that tag with fork/arch/PKGBUILD;
+# - makes a GitHub release with the changes and the package;
+# - updates the package in the AUR, when the AUR_SSH_PRIVATE_KEY secret is set.
+#
+# See fork/README.md.
+name: Release
+
+on:
+  schedule:
+    - cron: "17 6 * * 2" # Tuesdays, the day after the merge of Dolphin's master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Install git, the GitHub CLI and the packaging tools
+        run: pacman -Syu --noconfirm --needed git github-cli openssh pacman-contrib
+
+      - uses: actions/checkout@v4
+        with:
+          ref: dolphincommander
+          fetch-depth: 0
+
+      - name: Decide whether there is something to release
+        id: decide
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          last="$(gh release view --json tagName --jq .tagName 2>/dev/null || true)"
+          if [ -n "$last" ] && [ "$(git rev-list --count "$last..HEAD")" = 0 ]; then
+            echo "Nothing changed since $last."
+            echo "release=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          version="$(date +%Y.%m.%d)"
+          if git rev-parse -q --verify "refs/tags/v$version" > /dev/null; then
+            version="$version.$(date +%H%M)"
+          fi
+          echo "release=yes" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "last=$last" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test
+        if: steps.decide.outputs.release == 'yes'
+        run: fork/ci-build-and-test.sh --install-deps
+
+      - name: Tag
+        if: steps.decide.outputs.release == 'yes'
+        run: |
+          git tag "v${{ steps.decide.outputs.version }}"
+          git push origin "v${{ steps.decide.outputs.version }}"
+
+      - name: Build the package
+        if: steps.decide.outputs.release == 'yes'
+        run: |
+          mkdir -p /tmp/pkg
+          sed "s/^pkgver=0$/pkgver=${{ steps.decide.outputs.version }}/" fork/arch/PKGBUILD > /tmp/pkg/PKGBUILD
+          chown -R builder: /tmp/pkg
+          cd /tmp/pkg
+          runuser -u builder -- updpkgsums
+          runuser -u builder -- makepkg -f --noconfirm
+          runuser -u builder -- makepkg --printsrcinfo > .SRCINFO
+
+      - name: Make the GitHub release
+        if: steps.decide.outputs.release == 'yes'
+        run: |
+          version="${{ steps.decide.outputs.version }}"
+          last="${{ steps.decide.outputs.last }}"
+          {
+            if [ -n "$last" ]; then
+              echo "## Changes since $last"
+              echo
+              git log --first-parent --format='- %s' "$last..v$version"
+            else
+              echo "The first release of dolphinCommander."
+            fi
+            echo
+            echo "## Install"
+            echo
+            echo "On Arch Linux and Manjaro, download the package below and install it with"
+            echo
+            echo '```bash'
+            echo "sudo pacman -U dolphincommander-$version-1-x86_64.pkg.tar.zst"
+            echo '```'
+            echo
+            echo "or install \`dolphincommander\` from the AUR. It installs under /opt and can be installed next to Dolphin."
+            echo "The package is built against Arch Linux's libraries of the day; Manjaro's stable branch can be a few weeks behind them."
+          } > notes.md
+          gh release create "v$version" /tmp/pkg/*.pkg.tar.zst \
+            --title "dolphinCommander $version" --notes-file notes.md
+
+      - name: Update the AUR package
+        if: steps.decide.outputs.release == 'yes'
+        env:
+          AUR_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$AUR_KEY" ]; then
+            echo "No AUR_SSH_PRIVATE_KEY secret, so the AUR is not updated."
+            exit 0
+          fi
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$AUR_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan -t ed25519 aur.archlinux.org >> ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/aur"
+          git clone ssh://aur@aur.archlinux.org/dolphincommander.git /tmp/aur
+          cp /tmp/pkg/PKGBUILD /tmp/pkg/.SRCINFO /tmp/aur/
+          cd /tmp/aur
+          git config user.name "natefun"
+          git config user.email "6456032+natefun@users.noreply.github.com"
+          git add PKGBUILD .SRCINFO
+          git commit -m "Update to ${{ steps.decide.outputs.version }}"
+          git push origin HEAD:master

@@ -20,6 +20,14 @@ It is an independent project and is not affiliated with or endorsed by KDE.
 
 It can be installed next to Dolphin. It uses its own program name (`dolphincommander`), its own settings file (`~/.config/dolphincommanderrc`) and its own D-Bus name, and it does not take over the file manager D-Bus service.
 
+## Installing
+
+On Arch Linux and Manjaro, install `dolphincommander` from the AUR, or download the package of the
+latest [release](https://github.com/natefun/dolphinCommander/releases) and install it with
+`sudo pacman -U dolphincommander-*.pkg.tar.zst`. It installs under `/opt/dolphincommander`. A new
+release comes out every week that has changes, with the latest fixes from Dolphin merged in
+(see [fork/README.md](fork/README.md)).
+
 ## Building
 
 dolphinCommander is based on the development version of Dolphin (KDE Gear 26.11), so it needs recent Qt 6 and KDE Frameworks 6 (6.23 or newer) with their development files.

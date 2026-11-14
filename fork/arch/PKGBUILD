@@ -1,0 +1,64 @@
+# Maintainer: natefun
+#
+# The PKGBUILD of dolphinCommander, for the AUR and for the package of every GitHub release.
+# The release workflow sets pkgver and the checksum and publishes it; see fork/README.md.
+#
+# dolphinCommander installs under /opt, so that it can be installed next to Dolphin: both build
+# libdolphinprivate, the same settings files and the same translations. Only what has a name of
+# its own goes to /usr: the launcher, the .desktop file, the icon and the AppStream metadata.
+
+pkgname=dolphincommander
+pkgver=0
+pkgrel=1
+pkgdesc="Two-sided file manager with Miller columns, based on KDE's Dolphin"
+arch=(x86_64)
+url="https://github.com/natefun/dolphinCommander"
+license=(GPL-2.0-or-later)
+depends=(
+    gcc-libs glibc qt6-base qt6-multimedia
+    kbookmarks kcmutils kcodecs kcolorscheme kcompletion kconfig kcoreaddons kcrash
+    kdbusaddons kfilemetadata kguiaddons ki18n kiconthemes kio knotifications kparts
+    kservice ktextwidgets kwidgetsaddons kwindowsystem kxmlgui solid
+)
+makedepends=(cmake extra-cmake-modules kdoctools ninja)
+optdepends=(
+    'kio-extras: thumbnails and more locations'
+    'packagekit-qt6: installing the programs that service menus need'
+)
+options=('!debug')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+_prefix=/opt/dolphincommander
+
+build() {
+    cmake -S "dolphinCommander-$pkgver" -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE=None \
+        -DCMAKE_INSTALL_PREFIX="$_prefix" \
+        -DCMAKE_INSTALL_RPATH="$_prefix/lib" \
+        -DBUILD_TESTING=OFF
+    cmake --build build
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install build
+
+    # Only the files with names of their own go where the desktop finds them.
+    install -d "$pkgdir/usr/share/applications" "$pkgdir/usr/share/metainfo" "$pkgdir/usr/share/icons"
+    mv "$pkgdir$_prefix/share/applications/org.kde.dolphincommander.desktop" "$pkgdir/usr/share/applications/"
+    mv "$pkgdir$_prefix/share/metainfo/org.kde.dolphincommander.appdata.xml" "$pkgdir/usr/share/metainfo/"
+    mv "$pkgdir$_prefix/share/icons/hicolor" "$pkgdir/usr/share/icons/"
+    rmdir "$pkgdir$_prefix/share/applications" "$pkgdir$_prefix/share/metainfo" "$pkgdir$_prefix/share/icons"
+    # The global shortcuts of the program, which kglobalaccel reads from its .desktop file.
+    rm -r "$pkgdir$_prefix/share/kglobalaccel"
+    install -d "$pkgdir/usr/share/kglobalaccel"
+    ln -s /usr/share/applications/org.kde.dolphincommander.desktop "$pkgdir/usr/share/kglobalaccel/"
+
+    # The launcher shows the program its own plugins and translations under /opt.
+    install -Dm755 /dev/stdin "$pkgdir/usr/bin/dolphincommander" <<EOF
+#!/bin/sh
+export QT_PLUGIN_PATH="$_prefix/lib/plugins\${QT_PLUGIN_PATH:+:\$QT_PLUGIN_PATH}"
+export XDG_DATA_DIRS="$_prefix/share:\${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+exec "$_prefix/bin/dolphincommander" "\$@"
+EOF
+}

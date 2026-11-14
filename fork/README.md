@@ -21,6 +21,32 @@ It builds in an Arch Linux container, because Dolphin's `master` needs the newes
 For the workflow to open pull requests, the repository needs Settings → Actions → General →
 "Allow GitHub Actions to create and approve pull requests".
 
+## Releases
+
+`.github/workflows/release.yml` runs every Tuesday (and from the Actions tab). When the
+`dolphincommander` branch has commits that the last release does not have, it builds and tests
+them, tags `v<year>.<month>.<day>`, builds the Arch package from that tag with
+`fork/arch/PKGBUILD`, and makes a GitHub release with the changes and the package. If the tests
+fail, there is no release.
+
+The package installs under `/opt/dolphincommander`, so that it can be installed next to Dolphin:
+both have `libdolphinprivate`, the same settings files and the same translations. `/usr/bin/dolphincommander`
+is a launcher that shows the program its plugins and translations there.
+
+### The AUR
+
+The release workflow also updates the `dolphincommander` package in the AUR, once it can push
+there. That takes, once:
+
+1. An account on https://aur.archlinux.org.
+2. An SSH key for the workflow only: `ssh-keygen -t ed25519 -f aur_dolphincommander -N "" -C "dolphincommander release workflow"`.
+   Add the `.pub` file to the account (My Account → SSH Public Key).
+3. The private key as the secret `AUR_SSH_PRIVATE_KEY` of the GitHub repository
+   (Settings → Secrets and variables → Actions), then delete the local copy.
+
+The package does not have to exist in the AUR first: the first release that has the key pushes it
+there, which creates it.
+
 ## Merging by hand (or when the workflow stopped at conflicts)
 
 ```bash
