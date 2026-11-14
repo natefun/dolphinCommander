@@ -7,6 +7,7 @@
 #ifndef DOLPHIN_TAB_BAR_H
 #define DOLPHIN_TAB_BAR_H
 
+#include <QPointer>
 #include <QTabBar>
 
 class QToolButton;
@@ -24,6 +25,8 @@ Q_SIGNALS:
     void tabDragMoveEvent(int index, QDragMoveEvent *event);
     void tabDropEvent(int index, QDropEvent *event);
     void tabDetachRequested(int index);
+    /** Emitted when the tab at @p index was dropped on @p target, the tab bar of the other side, to go to @p targetIndex there (-1 for the end). */
+    void tabMoveRequested(int index, DolphinTabBar *target, int targetIndex);
     void tabRenamed(int index, const QString &label);
     void newTabRequested();
 
@@ -48,6 +51,9 @@ protected:
      */
     void contextMenuEvent(QContextMenuEvent *event) override;
 
+    /** While a tab of this bar is dragged, takes the drag over the other side of the window. */
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private Q_SLOTS:
     void slotAutoActivationTimeout();
     void slotTabBarChanged();
@@ -63,6 +69,9 @@ private:
     bool isOutsideUndetachableZone(const QPoint &pos) const;
     void startTabDrag(QMouseEvent *event);
     void cancelTabDrag();
+
+    /** Returns the tab bar of the side of this window that @p widget is on, if that is not the side of this bar. */
+    DolphinTabBar *otherSideTabBarAt(QWidget *widget) const;
 
 private:
     struct DragState {
@@ -80,6 +89,10 @@ private:
     int m_tabToBeClosedOnMiddleMouseButtonRelease = -1;
     QToolButton *m_newTabButton = nullptr;
     DragState m_drag;
+
+    /** Where the tab that is being dragged was dropped on the other side, if it was. */
+    QPointer<DolphinTabBar> m_dropTarget;
+    int m_dropTargetIndex = -1;
 };
 
 #endif // DOLPHIN_TAB_BAR_H

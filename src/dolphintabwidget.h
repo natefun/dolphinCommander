@@ -15,6 +15,7 @@
 
 #include <optional>
 
+class DolphinTabBar;
 class DolphinViewContainer;
 class KConfigGroup;
 
@@ -247,11 +248,23 @@ private Q_SLOTS:
 
     void openNewTabFromButton();
 
+    /** Moves the tab at @p index to the side whose tab bar is @p target, at @p targetIndex there (-1 for the end). */
+    void moveTabToOtherSide(int index, DolphinTabBar *target, int targetIndex);
+
 protected:
     void tabInserted(int index) override;
     void tabRemoved(int index) override;
 
 private:
+    /** Connects the signals of @p tabPage that this widget follows. */
+    void connectTabPage(DolphinTabPage *tabPage);
+
+    /** Removes the tab at @p index without deleting its page, which then belongs to no side. */
+    DolphinTabPage *takeTabPage(int index);
+
+    /** Adds @p tabPage, taken from the other side, at @p index (-1 for the end) and shows it. */
+    void insertTabPage(DolphinTabPage *tabPage, int index);
+
     /**
      * @param tabPage The tab page to get the name of
      * @return The name of the tab page

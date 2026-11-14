@@ -21,6 +21,12 @@
 #include <QTimer>
 #include <QToolButton>
 
+namespace
+{
+/** The mime type of a tab that is being dragged. */
+const QString tabMimeType = QStringLiteral("application/x-dolphincommander-tab");
+}
+
 class PreventFocusWhileHidden : public QObject
 {
 public:
@@ -221,7 +227,9 @@ void DolphinTabBar::startTabDrag(QMouseEvent *event)
     QTabBar::mouseReleaseEvent(&releaseEvent);
 
     QDrag *drag = new QDrag(this);
-    drag->setMimeData(new QMimeData());
+    auto *mimeData = new QMimeData();
+    mimeData->setData(tabMimeType, QByteArray::number(detachIndex));
+    drag->setMimeData(mimeData);
 
     const int tabW = tabPixmap.width() / dpr;
     const int tabH = tabPixmap.height() / dpr;
@@ -242,15 +250,73 @@ void DolphinTabBar::startTabDrag(QMouseEvent *event)
         drag->setHotSpot(QPoint(hotX, hotY));
     }
 
+    // The views of the other side accept any drag, so the drop of a tab there is taken before they see it.
+    m_dropTarget = nullptr;
+    m_dropTargetIndex = -1;
+    qApp->installEventFilter(this);
     drag->exec(Qt::MoveAction);
+    qApp->removeEventFilter(this);
 
     const QPoint releasePos = mapFromGlobal(QCursor::pos());
     const bool shouldDetach = isOutsideUndetachableZone(releasePos);
     cancelTabDrag();
 
-    if (shouldDetach) {
+    if (m_dropTarget) {
+        DolphinTabBar *target = m_dropTarget;
+        m_dropTarget = nullptr;
+        Q_EMIT tabMoveRequested(detachIndex, target, m_dropTargetIndex);
+    } else if (shouldDetach) {
         Q_EMIT tabDetachRequested(detachIndex);
     }
+}
+
+DolphinTabBar *DolphinTabBar::otherSideTabBarAt(QWidget *widget) const
+{
+    if (!widget || widget->window() != window()) {
+        return nullptr;
+    }
+    for (QWidget *w = widget; w; w = w->parentWidget()) {
+        DolphinTabBar *tabBar = qobject_cast<DolphinTabBar *>(w);
+        if (!tabBar) {
+            if (auto *tabWidget = qobject_cast<QTabWidget *>(w)) {
+                tabBar = qobject_cast<DolphinTabBar *>(tabWidget->tabBar());
+            }
+        }
+        if (tabBar) {
+            return tabBar != this ? tabBar : nullptr;
+        }
+    }
+    return nullptr;
+}
+
+bool DolphinTabBar::eventFilter(QObject *watched, QEvent *event)
+{
+    switch (event->type()) {
+    case QEvent::DragEnter:
+    case QEvent::DragMove:
+    case QEvent::Drop: {
+        auto *dropEvent = static_cast<QDropEvent *>(event);
+        if (dropEvent->source() != this || !dropEvent->mimeData()->hasFormat(tabMimeType) || !watched->isWidgetType()) {
+            break;
+        }
+        auto *widget = static_cast<QWidget *>(watched);
+        DolphinTabBar *target = otherSideTabBarAt(widget);
+        if (!target) {
+            // Over this side, the drag goes on as before: a drop far enough from the bar detaches the tab.
+            break;
+        }
+        dropEvent->setDropAction(Qt::MoveAction);
+        dropEvent->accept();
+        if (event->type() == QEvent::Drop) {
+            m_dropTarget = target;
+            m_dropTargetIndex = widget == target ? target->tabAt(dropEvent->position().toPoint()) : -1;
+        }
+        return true;
+    }
+    default:
+        break;
+    }
+    return QTabBar::eventFilter(watched, event);
 }
 
 void DolphinTabBar::mouseReleaseEvent(QMouseEvent *event)

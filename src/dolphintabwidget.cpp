@@ -38,6 +38,7 @@ DolphinTabWidget::DolphinTabWidget(DolphinNavigatorsWidgetAction *navigatorsWidg
     connect(tabBar, &DolphinTabBar::tabDragMoveEvent, this, &DolphinTabWidget::tabDragMoveEvent);
     connect(tabBar, &DolphinTabBar::tabDropEvent, this, &DolphinTabWidget::tabDropEvent);
     connect(tabBar, &DolphinTabBar::tabDetachRequested, this, &DolphinTabWidget::detachTab);
+    connect(tabBar, &DolphinTabBar::tabMoveRequested, this, &DolphinTabWidget::moveTabToOtherSide);
     connect(tabBar, &DolphinTabBar::tabRenamed, this, &DolphinTabWidget::renameTab);
     connect(tabBar, &DolphinTabBar::newTabRequested, this, &DolphinTabWidget::openNewTabFromButton);
     setTabBar(tabBar);
@@ -233,12 +234,7 @@ DolphinTabPage *DolphinTabWidget::openNewTab(const QUrl &primaryUrl, const QUrl 
 
     DolphinTabPage *tabPage = new DolphinTabPage(primaryUrl, secondaryUrl, this);
     tabPage->setActive(false);
-    connect(tabPage, &DolphinTabPage::activeViewChanged, this, &DolphinTabWidget::activeViewChanged);
-    connect(tabPage, &DolphinTabPage::paneActivated, this, &DolphinTabWidget::paneActivated);
-    connect(tabPage, &DolphinTabPage::activeViewUrlChanged, this, &DolphinTabWidget::tabUrlChanged);
-    connect(tabPage->activeViewContainer(), &DolphinViewContainer::captionChanged, this, [this, tabPage]() {
-        updateTabName(indexOf(tabPage));
-    });
+    connectTabPage(tabPage);
 
     if (position == NewTabPosition::FollowSetting) {
         if (GeneralSettings::openNewTabAfterLastTab()) {
@@ -261,6 +257,53 @@ DolphinTabPage *DolphinTabWidget::openNewTab(const QUrl &primaryUrl, const QUrl 
         focusWidget->setFocus();
     }
     return tabPage;
+}
+
+void DolphinTabWidget::connectTabPage(DolphinTabPage *tabPage)
+{
+    connect(tabPage, &DolphinTabPage::activeViewChanged, this, &DolphinTabWidget::activeViewChanged);
+    connect(tabPage, &DolphinTabPage::paneActivated, this, &DolphinTabWidget::paneActivated);
+    connect(tabPage, &DolphinTabPage::activeViewUrlChanged, this, &DolphinTabWidget::tabUrlChanged);
+    connect(tabPage->activeViewContainer(), &DolphinViewContainer::captionChanged, this, [this, tabPage]() {
+        updateTabName(indexOf(tabPage));
+    });
+}
+
+DolphinTabPage *DolphinTabWidget::takeTabPage(int index)
+{
+    DolphinTabPage *tabPage = tabPageAt(index);
+    // Removing the current tab makes another one current, which takes the navigators of this side from the page.
+    removeTab(index);
+    if (tabPage == m_lastViewedTab) {
+        tabPage->disconnectNavigators();
+        m_lastViewedTab = nullptr;
+    }
+    tabPage->setActive(false);
+    disconnect(tabPage, nullptr, this, nullptr);
+    disconnect(tabPage->primaryViewContainer(), nullptr, this, nullptr);
+    if (tabPage->secondaryViewContainer()) {
+        disconnect(tabPage->secondaryViewContainer(), nullptr, this, nullptr);
+    }
+    return tabPage;
+}
+
+void DolphinTabWidget::insertTabPage(DolphinTabPage *tabPage, int index)
+{
+    connectTabPage(tabPage);
+    const int newIndex = insertTab(index, tabPage, QIcon() /* loaded in tabInserted */, tabName(tabPage));
+    updateTabName(newIndex);
+    setCurrentIndex(newIndex);
+    tabPage->activeViewContainer()->setActive(true);
+    tabPage->activeViewContainer()->view()->setFocus();
+}
+
+void DolphinTabWidget::moveTabToOtherSide(int index, DolphinTabBar *target, int targetIndex)
+{
+    auto *targetTabWidget = qobject_cast<DolphinTabWidget *>(target->parentWidget());
+    if (!targetTabWidget || targetTabWidget == this || index < 0 || index >= count() || count() < 2) {
+        return;
+    }
+    targetTabWidget->insertTabPage(takeTabPage(index), targetIndex);
 }
 
 void DolphinTabWidget::openDirectories(const QList<QUrl> &dirs, bool splitView)
