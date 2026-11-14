@@ -7,6 +7,7 @@
 
 #include "viewmodesettings.h"
 
+#include "dolphin_columnsmodesettings.h"
 #include "dolphin_compactmodesettings.h"
 #include "dolphin_detailsmodesettings.h"
 #include "dolphin_iconsmodesettings.h"
@@ -60,6 +61,9 @@ ViewModeSettings::ViewModeSettings(DolphinView::Mode mode)
     case DolphinView::DetailsView:
         m_viewModeSettingsVariant = DetailsModeSettings::self();
         return;
+    case DolphinView::ColumnsView:
+        m_viewModeSettingsVariant = ColumnsModeSettings::self();
+        return;
     default:
         Q_UNREACHABLE();
     }
@@ -77,6 +81,9 @@ ViewModeSettings::ViewModeSettings(ViewSettingsTab::Mode mode)
         return;
     case ViewSettingsTab::DetailsMode:
         m_viewModeSettingsVariant = DetailsModeSettings::self();
+        return;
+    case ViewSettingsTab::ColumnsViewMode:
+        m_viewModeSettingsVariant = ColumnsModeSettings::self();
         return;
     default:
         Q_UNREACHABLE();

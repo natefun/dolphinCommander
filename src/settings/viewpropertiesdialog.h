@@ -10,7 +10,10 @@
 
 #include "dolphin_export.h"
 
+#include "views/dolphinview.h" // for DolphinView::Mode
+
 #include <QDialog>
+#include <QPointer>
 
 class QCheckBox;
 class QListWidget;
@@ -38,6 +41,8 @@ public:
 
 public Q_SLOTS:
     void accept() override;
+    /** Sets the view to apply to, after a switch to or from the columns view replaced it. */
+    void setView(DolphinView *dolphinView);
 
 private Q_SLOTS:
     void slotApply();
@@ -55,13 +60,19 @@ private Q_SLOTS:
 Q_SIGNALS:
     void isDirtyChanged(bool isDirty);
 
+    /**
+     * Emitted for the container to apply the view mode, as it may replace the view.
+     */
+    void viewModeChangeRequested(DolphinView::Mode mode);
+
 private:
     void applyViewProperties();
     void loadSettings();
 
 private:
     bool m_isDirty;
-    DolphinView *m_dolphinView;
+    /// Weak: applying a switch to or from the columns view destroys the view.
+    QPointer<DolphinView> m_dolphinView;
     ViewProperties *m_viewProps;
 
     QComboBox *m_viewMode;

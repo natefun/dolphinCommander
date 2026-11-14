@@ -1,0 +1,129 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Sebastian Englbrecht
+ * SPDX-FileCopyrightText: 2026 Méven Car <meven@kde.org>
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
+#ifndef DOLPHINCOLUMNPANE_H
+#define DOLPHINCOLUMNPANE_H
+
+#include "dolphin_export.h"
+#include "kitemviews/kitemrange.h"
+
+#include <KFileItem>
+#include <QFont>
+#include <QUrl>
+#include <QWidget>
+
+class DolphinItemListView;
+class KFileItemModel;
+class KItemListContainer;
+class KItemListController;
+class QLabel;
+class QTimer;
+class VersionControlObserver;
+
+/**
+ * @short One column of DolphinColumnsView, listing one folder.
+ */
+class DOLPHIN_EXPORT DolphinColumnPane : public QWidget
+{
+    Q_OBJECT
+
+public:
+    /// The controller of the pane takes the ownership of @p model.
+    explicit DolphinColumnPane(KFileItemModel *model, QWidget *parent = nullptr);
+    ~DolphinColumnPane() override;
+
+    QUrl dirUrl() const;
+
+    /// Marks the folder that the next column shows.
+    void setActiveChildUrl(const QUrl &childUrl);
+    /// Marks the child again, for a folder that had not listed when it was told.
+    void reapplyActiveChildMark();
+
+    /// A pending column has no width until its folder has listed.
+    void setWidthPending(bool pending);
+    bool isWidthPending() const;
+    /// The width that the columns view last gave this column, 0 before it gave one.
+    void setAppliedWidth(int width);
+    int appliedWidth() const;
+    void clearActiveChild();
+    /// Clears the selection, also of a child not listed yet, which closes the columns after this one.
+    void dropActiveChild();
+
+    KFileItemModel *model() const;
+    KItemListController *controller() const;
+    KItemListContainer *container() const;
+    DolphinItemListView *itemListView() const;
+    /// The item under the keyboard focus of this column, or a null item.
+    KFileItem currentFileItem() const;
+    /// The folder that @p item opens, a directory or an archive, or an empty url.
+    static QUrl folderUrlFor(const KFileItem &item);
+
+    /// Shows that the folder lists, after a delay, or what an empty folder says once it has listed.
+    void updatePlaceholderLabel();
+
+    void setPreviewsShown(bool show);
+
+    /// The width that shows the longest name of the column, with no lower bound.
+    int calculateOptimalWidth() const;
+
+    /// Whether the folder of the column is being listed.
+    bool isLoading() const;
+
+    void setZoomLevel(int level);
+
+    void reloadSettings();
+
+Q_SIGNALS:
+    void directoryActivated(const QUrl &childDirUrl);
+    /// A file, or a folder activated with Ctrl or Shift.
+    void fileActivated(const KFileItem &item);
+    /// The item that the next column shows the folder of is no longer listed here, or nothing is selected here.
+    void activeChildRemoved();
+    void directoryLoadingCompleted();
+
+    void infoMessage(const QString &msg);
+    void errorMessage(const QString &msg);
+    void operationCompletedMessage(const QString &msg);
+
+private Q_SLOTS:
+    void slotItemActivated(int index);
+    void slotCurrentChanged(int current, int previous);
+    void slotSelectionChanged();
+    void slotItemsRemoved();
+
+private:
+    void checkActiveChildSelected();
+    void measureInsertedNames(const KItemRangeList &ranges);
+    qreal nameWidth(int index) const;
+
+    KFileItemModel *m_model = nullptr;
+    DolphinItemListView *m_view = nullptr;
+    KItemListController *m_controller = nullptr;
+    KItemListContainer *m_container = nullptr;
+    VersionControlObserver *m_versionControlObserver = nullptr;
+    QLabel *m_placeholderLabel = nullptr;
+    QTimer *m_showLoadingPlaceholderTimer = nullptr;
+    enum class LoadingState {
+        Loading,
+        Canceled,
+        Completed,
+    };
+    LoadingState m_loadingState = LoadingState::Completed;
+    QUrl m_activeChildUrl;
+    bool m_widthPending = false;
+    int m_appliedWidth = 0;
+    bool m_selectionCheckPending = false;
+    bool m_itemsRemoved = false;
+    /// The width of the longest name, measured only for the items inserted since the last full
+    /// measure. A removal or a rename makes the next calculateOptimalWidth() measure all names.
+    mutable bool m_widestNameValid = false;
+    mutable qreal m_widestName = -1;
+    mutable QFont m_widestNameFont;
+    mutable bool m_widestNameHiddenShown = false;
+};
+
+#endif // DOLPHINCOLUMNPANE_H

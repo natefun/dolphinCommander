@@ -67,6 +67,12 @@ public:
      */
     KActionCollection *actionCollection();
 
+    /**
+     * Takes the Columns view mode out of the view mode button and the menus, for a view that
+     * cannot show columns.
+     */
+    void removeColumnsMode();
+
 public Q_SLOTS:
     /**
      * Update all actions in the 'View' menu, i.e. those that depend on the
@@ -97,6 +103,11 @@ Q_SIGNALS:
 
     /** Used to request either entering or leaving of selection mode */
     void selectionModeChangeTriggered(bool enabled, SelectionMode::BottomBar::Contents bottomBarContents = SelectionMode::BottomBar::Contents::GeneralContents);
+
+    /**
+     * Emitted when the user chose a view mode. The receiver applies it to the container.
+     */
+    void viewModeChangeRequested(DolphinView::Mode mode);
 
 private Q_SLOTS:
     /**
@@ -289,12 +300,27 @@ private:
 
     void updateGroupByActions();
 
+    /**
+     * Enables the role actions that need the File Search index where the index has values for the current
+     * folder, and gives the others the reason as tooltip.
+     */
+    void updateIndexerRoleActions();
+
+    /**
+     * Returns the "switch to columns mode" action.
+     * Helper method for createActions();
+     */
+    KToggleAction *columnsModeAction();
+
     KActionCollection *m_actionCollection;
     DolphinView *m_currentView;
 
     QHash<QByteArray, KToggleAction *> m_sortByActions;
     QHash<QByteArray, KToggleAction *> m_visibleRoles;
-    QHash<QByteArray, KToggleAction *> m_groupByActions;
+    // A role can appear in multiple submenus
+    QMultiHash<QByteArray, KToggleAction *> m_groupByActions;
+    /// The sort, group and visible role actions of the roles with requiresIndexer set.
+    QList<QAction *> m_indexerRoleActions;
 };
 
 #endif /* DOLPHINVIEWACTIONHANDLER_H */

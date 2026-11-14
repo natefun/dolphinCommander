@@ -668,6 +668,22 @@ bool KItemListView::alternateBackgrounds() const
     return m_alternateBackgrounds;
 }
 
+void KItemListView::setHorizontalScrollingEnabled(bool enabled)
+{
+    if (m_horizontalScrollingEnabled != enabled) {
+        m_horizontalScrollingEnabled = enabled;
+        if (m_headerWidget->automaticColumnResizing()) {
+            applyAutomaticColumnWidths();
+            doLayout(NoAnimation);
+        }
+    }
+}
+
+bool KItemListView::horizontalScrollingEnabled() const
+{
+    return m_horizontalScrollingEnabled;
+}
+
 QRectF KItemListView::itemRect(int index) const
 {
     return m_layouter->itemRect(index);
@@ -1052,12 +1068,39 @@ void KItemListView::setStatusBarOffset(int offset)
 
 QVariant KItemListView::itemChange(GraphicsItemChange change, const QVariant &value)
 {
-    if (change == QGraphicsItem::ItemSceneHasChanged && scene()) {
-        if (!scene()->views().isEmpty()) {
-            m_styleOption.palette = scene()->views().at(0)->palette();
+    if (change == QGraphicsItem::ItemSceneHasChanged) {
+        if (m_paletteWidget) {
+            m_paletteWidget->removeEventFilter(this);
+        }
+        m_paletteWidget = (scene() && !scene()->views().isEmpty()) ? scene()->views().at(0) : nullptr;
+        if (m_paletteWidget) {
+            // The palette of that widget changes without a PaletteChange of this item, for example
+            // when the application palette changes before the event loop runs.
+            m_paletteWidget->installEventFilter(this);
+            m_styleOption.palette = itemPalette();
         }
     }
     return QGraphicsItem::itemChange(change, value);
+}
+
+QPalette KItemListView::itemPalette() const
+{
+    if (!m_paletteWidget) {
+        return palette();
+    }
+    QPalette result = m_paletteWidget->palette();
+    for (const auto group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
+        result.setBrush(group, QPalette::Base, palette().brush(group, QPalette::Base));
+    }
+    return result;
+}
+
+bool KItemListView::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_paletteWidget && event->type() == QEvent::PaletteChange) {
+        updatePalette();
+    }
+    return QGraphicsWidget::eventFilter(watched, event);
 }
 
 void KItemListView::setItemSize(const QSizeF &size)
@@ -1413,7 +1456,7 @@ void KItemListView::updateFont()
 void KItemListView::updatePalette()
 {
     KItemListStyleOption option = styleOption();
-    option.palette = palette();
+    option.palette = itemPalette();
     setStyleOption(option);
 }
 
@@ -2807,17 +2850,22 @@ void KItemListView::applyAutomaticColumnWidths()
         // Stretch the first column to use the whole remaining width
         firstColumnWidth += availableWidth - requiredWidth;
         m_headerWidget->setColumnWidth(firstRole, firstColumnWidth);
-    } else if (requiredWidth > availableWidth && m_visibleRoles.count() > 1) {
+    } else if (requiredWidth > availableWidth && (m_visibleRoles.count() > 1 || !m_horizontalScrollingEnabled)) {
         // Shrink the first column to be able to show as much other
         // columns as possible
         qreal shrinkedFirstColumnWidth = firstColumnWidth - requiredWidth + availableWidth;
 
-        // TODO: A proper calculation of the minimum width depends on the implementation
-        // of KItemListWidget. Probably a kind of minimum size-hint should be introduced
-        // later.
-        const qreal minWidth = qMin(firstColumnWidth, qreal(m_styleOption.iconSize * 2 + 200));
-        if (shrinkedFirstColumnWidth < minWidth) {
-            shrinkedFirstColumnWidth = minWidth;
+        if (m_visibleRoles.count() > 1) {
+            // TODO: A proper calculation of the minimum width depends on the implementation
+            // of KItemListWidget. Probably a kind of minimum size-hint should be introduced
+            // later.
+            const qreal minWidth = qMin(firstColumnWidth, qreal(m_styleOption.iconSize * 2 + 200));
+            if (shrinkedFirstColumnWidth < minWidth) {
+                shrinkedFirstColumnWidth = minWidth;
+            }
+        } else {
+            // Without horizontal scrolling, nothing past the view could be reached.
+            shrinkedFirstColumnWidth = qMax(qreal(0), shrinkedFirstColumnWidth);
         }
 
         m_headerWidget->setColumnWidth(firstRole, shrinkedFirstColumnWidth);

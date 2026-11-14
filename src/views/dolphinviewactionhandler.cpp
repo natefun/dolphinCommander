@@ -14,9 +14,6 @@
 #include "views/zoomlevelinfo.h"
 #include "views/zoomwidgetaction.h"
 
-#if HAVE_BALOO
-#include <Baloo/IndexerConfig>
-#endif
 #include <KActionCategory>
 #include <KActionCollection>
 #include <KActionMenu>
@@ -71,6 +68,7 @@ void DolphinViewActionHandler::setCurrentView(DolphinView *view)
     });
     connect(view, &DolphinView::selectionChanged, this, &DolphinViewActionHandler::slotSelectionChanged);
     slotSelectionChanged(m_currentView->selectedItems());
+    connect(view, &DolphinView::urlChanged, this, &DolphinViewActionHandler::updateIndexerRoleActions);
 }
 
 DolphinView *DolphinViewActionHandler::currentView()
@@ -209,6 +207,7 @@ void DolphinViewActionHandler::createActions(SelectionMode::ActionTextHelper *ac
     KToggleAction *iconsAction = iconsModeAction();
     KToggleAction *compactAction = compactModeAction();
     KToggleAction *detailsAction = detailsModeAction();
+    KToggleAction *columnsAction = columnsModeAction();
 
     iconsAction->setWhatsThis(xi18nc("@info:whatsthis Icons view mode",
                                      "<para>This switches to a view mode that focuses on the folder "
@@ -230,6 +229,11 @@ void DolphinViewActionHandler::createActions(SelectionMode::ActionTextHelper *ac
                                        "view the contents of a folder without leaving the current "
                                        "location by clicking the region to the left of it. This way you can "
                                        "view the contents of multiple folders in the same list.</para>"));
+    columnsAction->setWhatsThis(xi18nc("@info:whatsthis Columns view mode",
+                                       "<para>This switches to a columns view mode (Miller Columns). "
+                                       "Each directory level is shown in its own column, cascading "
+                                       "horizontally from left to right.</para><para>Selecting a folder "
+                                       "opens its contents in the next column to the right.</para>"));
 
     KSelectAction *viewModeActions = m_actionCollection->add<KSelectAction>(QStringLiteral("view_mode"));
     viewModeActions->setText(i18nc("@action:intoolbar", "Change View Mode"));
@@ -237,18 +241,16 @@ void DolphinViewActionHandler::createActions(SelectionMode::ActionTextHelper *ac
     viewModeActions->addAction(iconsAction);
     viewModeActions->addAction(compactAction);
     viewModeActions->addAction(detailsAction);
+    viewModeActions->addAction(columnsAction);
     viewModeActions->setToolBarMode(KSelectAction::MenuMode);
     viewModeActions->setToolButtonPopupMode(QToolButton::ToolButtonPopupMode::MenuButtonPopup);
     connect(viewModeActions, &KSelectAction::actionTriggered, this, &DolphinViewActionHandler::slotViewModeActionTriggered);
-    connect(viewModeActions, &KSelectAction::triggered, this, [this, viewModeActions, iconsAction, compactAction, detailsAction]() {
-        // Loop through the actions when button is clicked
-        const auto currentAction = viewModeActions->currentAction();
-        if (currentAction == iconsAction) {
-            slotViewModeActionTriggered(compactAction);
-        } else if (currentAction == compactAction) {
-            slotViewModeActionTriggered(detailsAction);
-        } else if (currentAction == detailsAction) {
-            slotViewModeActionTriggered(iconsAction);
+    connect(viewModeActions, &KSelectAction::triggered, this, [this, viewModeActions]() {
+        // A click on the button goes to the next view mode of the group, and from the last one to the first.
+        const QList<QAction *> modes = viewModeActions->actions();
+        const int current = modes.indexOf(viewModeActions->currentAction());
+        if (current >= 0) {
+            slotViewModeActionTriggered(modes.at((current + 1) % modes.size()));
         }
     });
 
@@ -298,6 +300,7 @@ void DolphinViewActionHandler::createActions(SelectionMode::ActionTextHelper *ac
     sortByActionMenu->setIcon(QIcon::fromTheme(QStringLiteral("view-sort")));
     sortByActionMenu->setText(i18nc("@action:inmenu View", "Sort By"));
     sortByActionMenu->setPopupMode(QToolButton::InstantPopup);
+    sortByActionMenu->menu()->setToolTipsVisible(true);
 
     const auto sortByActionGroupActions = sortByActionGroup->actions();
     for (QAction *action : sortByActionGroupActions) {
@@ -335,6 +338,7 @@ void DolphinViewActionHandler::createActions(SelectionMode::ActionTextHelper *ac
     visibleRolesMenu->setText(i18nc("@action:inmenu View", "Show Additional Information"));
     visibleRolesMenu->setIcon(QIcon::fromTheme(QStringLiteral("documentinfo")));
     visibleRolesMenu->setPopupMode(QToolButton::InstantPopup);
+    visibleRolesMenu->menu()->setToolTipsVisible(true);
 
     const auto visibleRolesGroupActions = visibleRolesGroup->actions();
     for (QAction *action : visibleRolesGroupActions) {
@@ -344,6 +348,7 @@ void DolphinViewActionHandler::createActions(SelectionMode::ActionTextHelper *ac
     auto *groupingCategory = new KActionCategory(i18nc("@item:intable, Heading of a list of fields and grouping options", "Grouping"), m_actionCollection);
 
     KActionMenu *groupByActionMenu = groupingCategory->add<KActionMenu>(QStringLiteral("group_by"));
+    groupByActionMenu->menu()->setToolTipsVisible(true);
     groupByActionMenu->setIcon(QIcon::fromTheme(QStringLiteral("view-group")));
     groupByActionMenu->setText(i18nc("@action:inmenu View", "Group By"));
     groupByActionMenu->setWhatsThis(i18nc("@info:whatsthis",
@@ -454,12 +459,6 @@ QActionGroup *DolphinViewActionHandler::createFileItemRolesActionGroup(const QSt
     KActionMenu *groupMenu = nullptr;
     QActionGroup *groupMenuGroup = nullptr;
 
-    bool indexingEnabled = false;
-#if HAVE_BALOO
-    Baloo::IndexerConfig config;
-    indexingEnabled = config.fileIndexingEnabled();
-#endif
-
     const QList<KFileItemModel::RoleInfo> rolesInfo = KFileItemModel::rolesInformation();
     for (const KFileItemModel::RoleInfo &info : rolesInfo) {
         if (!isSortGroup && !isGroupGroup && info.role == "text") {
@@ -477,6 +476,7 @@ QActionGroup *DolphinViewActionHandler::createFileItemRolesActionGroup(const QSt
                 groupName = info.group;
                 groupMenu = category->add<KActionMenu>(groupName);
                 groupMenu->setText(groupName);
+                groupMenu->menu()->setToolTipsVisible(true);
                 groupMenu->setActionGroup(rolesActionGroup);
 
                 groupMenuGroup = new QActionGroup(groupMenu);
@@ -497,8 +497,9 @@ QActionGroup *DolphinViewActionHandler::createFileItemRolesActionGroup(const QSt
         action->setText(info.translation);
         action->setData(info.role);
 
-        const bool enable = (!info.requiresBaloo && !info.requiresIndexer) || (info.requiresBaloo) || (info.requiresIndexer && indexingEnabled);
-        action->setEnabled(enable);
+        if (info.requiresIndexer) {
+            m_indexerRoleActions.append(action);
+        }
 
         if (isSortGroup) {
             m_sortByActions.insert(info.role, action);
@@ -515,7 +516,7 @@ QActionGroup *DolphinViewActionHandler::createFileItemRolesActionGroup(const QSt
 void DolphinViewActionHandler::slotViewModeActionTriggered(QAction *action)
 {
     const DolphinView::Mode mode = action->data().value<DolphinView::Mode>();
-    m_currentView->setViewMode(mode);
+    Q_EMIT viewModeChangeRequested(mode);
 
     QAction *viewModeMenu = m_actionCollection->action(QStringLiteral("view_mode"));
     viewModeMenu->setIcon(action->icon());
@@ -580,6 +581,8 @@ QString DolphinViewActionHandler::currentViewModeActionName() const
         return QStringLiteral("details");
     case DolphinView::CompactView:
         return QStringLiteral("compact");
+    case DolphinView::ColumnsView:
+        return QStringLiteral("columns");
     default:
         Q_ASSERT(false);
         break;
@@ -590,6 +593,26 @@ QString DolphinViewActionHandler::currentViewModeActionName() const
 KActionCollection *DolphinViewActionHandler::actionCollection()
 {
     return m_actionCollection;
+}
+
+void DolphinViewActionHandler::removeColumnsMode()
+{
+    QAction *columnsAction = m_actionCollection->action(QStringLiteral("columns"));
+    if (auto *viewModeActions = qobject_cast<KSelectAction *>(m_actionCollection->action(QStringLiteral("view_mode")))) {
+        viewModeActions->removeAction(columnsAction);
+    }
+    // Menus leave out a hidden action, and a disabled one ignores its shortcut.
+    columnsAction->setVisible(false);
+    columnsAction->setEnabled(false);
+}
+
+void DolphinViewActionHandler::updateIndexerRoleActions()
+{
+    const QString reason = KFileItemModel::indexerUnavailableReason(m_currentView->url());
+    for (QAction *action : std::as_const(m_indexerRoleActions)) {
+        action->setEnabled(reason.isEmpty());
+        action->setToolTip(reason);
+    }
 }
 
 void DolphinViewActionHandler::updateViewActions()
@@ -618,6 +641,8 @@ void DolphinViewActionHandler::updateViewActions()
 
     // Updates the "show_hidden_files" action state and icon
     slotHiddenFilesShownChanged(m_currentView->hiddenFilesShown());
+
+    updateIndexerRoleActions();
 }
 
 void DolphinViewActionHandler::zoomIn()
@@ -712,14 +737,15 @@ void DolphinViewActionHandler::slotVisibleRolesChanged(const QList<QByteArray> &
 void DolphinViewActionHandler::slotGroupByTriggered(QAction *action)
 {
     const QByteArray data = action->data().toByteArray();
+    // Set the group role before enabling the grouping, so that the items are resorted only once
     if (data.isEmpty()) {
         m_currentView->setGroupedSorting(false);
     } else if (data == "same_as_sort") {
-        m_currentView->setGroupedSorting(true);
         m_currentView->setGroupRole(QByteArray());
-    } else {
         m_currentView->setGroupedSorting(true);
+    } else {
         m_currentView->setGroupRole(data);
+        m_currentView->setGroupedSorting(true);
     }
 }
 
@@ -809,6 +835,17 @@ KToggleAction *DolphinViewActionHandler::detailsModeAction()
     return detailsView;
 }
 
+KToggleAction *DolphinViewActionHandler::columnsModeAction()
+{
+    KToggleAction *columnsView = m_actionCollection->add<KToggleAction>(QStringLiteral("columns"));
+    columnsView->setText(i18nc("@action:inmenu View Mode", "Columns"));
+    columnsView->setToolTip(i18nc("@info", "Columns view mode"));
+    m_actionCollection->setDefaultShortcut(columnsView, Qt::CTRL | Qt::Key_4);
+    columnsView->setIcon(QIcon::fromTheme(QStringLiteral("view-file-columns")));
+    columnsView->setData(QVariant::fromValue(DolphinView::ColumnsView));
+    return columnsView;
+}
+
 void DolphinViewActionHandler::slotSortRoleChanged(const QByteArray &role)
 {
     KToggleAction *action = m_sortByActions.value(role);
@@ -889,6 +926,11 @@ void DolphinViewActionHandler::slotAdjustViewProperties()
 {
     Q_EMIT actionBeingHandled();
     QPointer<ViewPropertiesDialog> dialog = new ViewPropertiesDialog(m_currentView);
+    connect(dialog, &ViewPropertiesDialog::viewModeChangeRequested, this, [this, dialog](DolphinView::Mode mode) {
+        Q_EMIT viewModeChangeRequested(mode);
+        // The receiver may have replaced the view, and setCurrentView() has been called for it.
+        dialog->setView(m_currentView);
+    });
     dialog->exec();
     delete dialog;
 }

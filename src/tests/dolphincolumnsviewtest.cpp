@@ -1,0 +1,3375 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Sebastian Englbrecht
+ * SPDX-FileCopyrightText: 2026 Méven Car <meven@kde.org>
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
+#include "views/dolphincolumnsview.h"
+#include "dolphin_columnsmodesettings.h"
+#include "dolphin_detailsmodesettings.h"
+#include "dolphin_generalsettings.h"
+#include "dolphin_iconsmodesettings.h"
+#include "kitemviews/kfileitemmodel.h"
+#include "kitemviews/kitemlistcontainer.h"
+#include "kitemviews/kitemlistcontroller.h"
+#include "kitemviews/kitemlistselectionmanager.h"
+#include "testdir.h"
+#include "views/dolphincolumnpane.h"
+#include "views/dolphinitemlistview.h"
+#include "views/viewproperties.h"
+#include "views/zoomlevelinfo.h"
+
+#include <KConfigGroup>
+#include <KProtocolManager>
+#include <KSharedConfig>
+
+#include <QApplication>
+#include <QCoreApplication>
+#include <QCursor>
+#include <QDBusConnection>
+#include <QDir>
+#include <QElapsedTimer>
+#include <QFile>
+#include <QGraphicsSceneDragDropEvent>
+#include <QGraphicsView>
+#include <QKeyEvent>
+#include <QLabel>
+#include <QLineEdit>
+#include <QMimeData>
+#include <QPointer>
+#include <QScrollArea>
+#include <QScrollBar>
+#include <QSignalSpy>
+#include <QSplitter>
+#include <QStandardPaths>
+#include <QTest>
+#include <QVBoxLayout>
+#include <QWindow>
+
+/**
+ * @brief Unit tests for DolphinColumnsView (Miller Columns).
+ *
+ * Test directory structure:
+ *   root/
+ *     alpha/
+ *       alpha-child/
+ *         deep-file.txt
+ *       file1.txt
+ *       file2.txt
+ *     beta/
+ *       beta-file.txt
+ *     gamma/           (empty directory)
+ *     single-file.txt
+ *
+ * DolphinColumnsView auto-selects the first item when a column loads.
+ * If the first item is a directory, a child column is opened automatically.
+ * This means the initial column count after construction may be > 1.
+ */
+class DolphinColumnsViewTest : public QObject
+{
+    Q_OBJECT
+
+private Q_SLOTS:
+    void initTestCase();
+    void init();
+    void cleanup();
+
+    void testInitialState();
+    void testColumnCountAfterNavigation();
+    void testPopAfterNavigation();
+
+    void testKeyRight_opensChild();
+    void testKeyRight_fileDoesNotOpen();
+    void testKeyLeft_activatesParent();
+    void testEnteringAColumnReportsItsSelection();
+    void testKeyLeft_atFirstColumn();
+
+    void testUrlUpdatesOnNavigation();
+    void testSetUrl_rebuildsColumns();
+
+    void testDefaultWidths();
+    void testCustomWidthPreserved();
+    void testCustomWidthCleanupOnPop();
+    void testColumnWidthMode();
+    void testAutoAdjustColumns();
+    void testDoubleClickOnAHandleFitsTheColumns();
+    void testDoubleClickRightOfTheLastColumnFitsIt();
+    void testFittingTheColumnsKeepsTheViewWhereItIs();
+    void testFittingTheColumnsShowsEveryColumnThatFits();
+    void testIconSizeFollowsSettings();
+    void testZoomingLeavesTheOtherViewModesAlone();
+    void testRenameRefitsColumnWhenAdjustingToContent();
+    void testNoJumpWhenSiblingSelectionReplacesWideColumn();
+    void testAColumnKeepsItsWidthWhenItIsEntered();
+    void testShownHiddenFileWidensColumn();
+    void testTheContentWidthFollowsInsertedAndRemovedNames();
+    void testTheBaseModelDoesNotListTheFolder();
+    void testColumnIsNeverWiderThanTheViewport();
+
+    void testSelectionMatchesActiveColumn();
+    void testModelMatchesActiveColumn();
+
+    void testEmptyDirectory();
+    void testAnEmptyFolderSaysSo();
+    void testTheShownFolderReportsItsListing();
+    void testAStoppedListingSaysSo();
+    void testReload();
+
+    void testKeyReturn_fileEmitsItemActivated();
+    void testKeyReturn_directoryOpensChild();
+    void testKeyReturn_opensEverySelectedItem();
+    void testCtrlOrShiftOpensAFolderElsewhere_data();
+    void testCtrlOrShiftOpensAFolderElsewhere();
+    void testKeyReturn_doesNotReloadAlreadyOpenChild();
+
+    void testShiftRight_navigatesBetweenColumns();
+    void testCtrlRight_navigatesBetweenColumns();
+
+    void testSelectionPreservedAcrossNavigation();
+    void testLeftKeyClearsChildSelection();
+    void testDirectorySelectionOpensChildOnce();
+    void testMouseClickOnDirectoryOpensChildOnce();
+    void testActivatingADirectoryStaysInItsColumn();
+    void testMouseClickOnNotCurrentDirectoryOpensChild();
+    void testRightClickKeepsTheChildColumns();
+    void testMouseClickOnAFileDropsTheColumnsAfterIt();
+    void testDraggingAFileLeavesTheColumnsOpen();
+    void testPressingAFolderLeavesTheColumnsOpen();
+    void testDroppingAFolderIntoTheNextColumnSelectsIt();
+    void testDroppingIntoAnEarlierColumnKeepsTheColumnsOpen();
+    void testAFolderOpensUnderADrag();
+    void testTheUrlIsTheSelectedFolder();
+    void testSetUrlActivatesAnOpenColumn();
+    void testSetUrlOpensTheColumnsDownToADescendant();
+    void testNameFilterAppliesToEveryColumn();
+    void testAColumnOpenedLaterInheritsTheFilter();
+    void testFilterCaseSensitivityAppliesToEveryColumn();
+    void testFilterModeAppliesToEveryColumn();
+    void testAColumnOpenedLaterInheritsTheFilterModeAndCase();
+    void testFilteringOutAFolderClosesItsColumn();
+    void testAListedColumnOpensNothing();
+    void testDeletingAnOpenFolderOpensNoOther();
+    void testAFileChangeOutsideDolphinOpensNothing();
+    void testClosingTheActiveColumnReportsTheSelectionLeft();
+    void testSeveralSelectedItemsShowNoFolder();
+    void testShiftArrowExtendsTheSelection();
+    void testACreatedFolderIsSelected();
+    void testItemsMarkedToSelectAreSelected();
+    void testDeletingSelectsTheNextItem();
+    void testEnteringAColumnShowsTheFirstFolder();
+    void testTheColumnLeftActiveAfterAClosedOneStillWorks();
+    void testAFolderCreatedBeforeAColumnClickIsNotSelectedLater();
+    void testOnlyTheShownFolderReportsItsListingDone();
+    void testEveryFolderOnThePathIsMarkedInItsParent();
+    void testSpaceIsAShortcutWhenAColumnHasTheFocus();
+    void testActivatingAnotherColumnKeepsWhatTheUserWasDoing();
+    void testShiftWheelScrollsTheColumns_data();
+    void testShiftWheelScrollsTheColumns();
+    void testClosingColumnsLeavesTheScrollPositionAlone();
+    void testAColumnWithNoWidthYetTakesUpNothing();
+    void testOpeningAColumnLeavesTheOnesBeforeItAlone();
+    void testTheFirstVisibleColumnIsShownWhole();
+    void testTheActiveColumnStaysInViewWhenTheNextOneOpens();
+    void testWideningTheWindowShowsTheParentColumns();
+    void testTheLastColumnShowsALongNameInFull();
+    void testShortNamesGiveANarrowColumn();
+    void testAPlaceIsTheFirstColumn();
+    void testTheViewStateReopensTheColumns();
+    void testTheViewStateKeepsTheUrlBeforeTheLastColumn();
+    void testASmallWindowKeepsTheWidthOfAFixedColumnForLongNames();
+    void testAColumnShowsItsNamesWhileTheColumnsFit();
+    void testANewFirstColumnTakesTheWidthOfItsContent();
+    void testAFolderThatCannotBeListedShowsAnError();
+    void testChangingTheUrlLeavesTheFocusOutsideTheView();
+    void testGoingUpKeepsTheFolderLeftCurrent();
+    void testGoingUpShowsTheColumnOfTheUrl();
+    void testAClickedItemTakesTheHighlightFromTheActiveOne();
+    void testGroupingAndSortingApplyToEveryColumn();
+    void testClickingEmptySpaceClosesTheColumnsAfterIt();
+    void testAColumnThatWaitedForItsWidthKeepsItsMinimum();
+    void testAnotherFolderOpensWithTheSettingsChangedInAColumn();
+    void testTheSortSettingsReachEveryColumn();
+    void testTheItemCountFollowsTheActiveColumn();
+    void testReadingSettingsKeepsTheColumnsMode();
+    void testTheDetailsSettingsDoNotReachTheColumns();
+    void testAnInvalidUrlKeepsTheColumnsWithAnError();
+
+    void testAnArchiveOpensAsAFolder();
+    void testEscape_clearsSelection();
+    void testHomeEnd_withinColumn();
+
+    void testBackButton_emitsGoBack();
+    void testForwardButton_emitsGoForward();
+    void testAReplacingColumnKeepsTheWidthWhenItsNamesDoNotFit();
+    void testALastColumnAlmostAtTheEdgeReachesIt();
+    void testDraggingAHandleResizesOnlyTheColumnOnItsLeft();
+    void testResizingKeepsTheWidthOfTheLastColumn();
+    void testALastColumnOfACustomWidthKeepsIt();
+    void testDoubleClickRightOfTheLastColumnKeepsItInView();
+
+private:
+    void waitForStableState();
+    void resetSettings();
+    static int indexOfName(const DolphinColumnPane *pane, const QString &name);
+    /// A left press and its release on the item at @p index, as a click delivers them.
+    void clickItem(DolphinColumnPane *pane, int index);
+    QUrl urlOf(const QString &relativePath) const;
+    void navigateRight();
+    void navigateLeft();
+    void selectItemInColumn(int columnIndex, const QString &name);
+    void activateColumn(int index);
+    void sendKeyToActivePane(Qt::Key key, Qt::KeyboardModifiers mod = Qt::NoModifier);
+
+    DolphinColumnsView *m_view = nullptr;
+    TestDir *m_testDir = nullptr;
+};
+
+void DolphinColumnsViewTest::initTestCase()
+{
+    QStandardPaths::setTestModeEnabled(true);
+}
+
+void DolphinColumnsViewTest::init()
+{
+    resetSettings();
+    m_testDir = new TestDir();
+
+    m_testDir->createDir("alpha");
+    m_testDir->createDir("alpha/alpha-child");
+    m_testDir->createFile("alpha/alpha-child/deep-file.txt");
+    m_testDir->createFile("alpha/file1.txt");
+    m_testDir->createFile("alpha/file2.txt");
+    m_testDir->createDir("beta");
+    m_testDir->createFile("beta/beta-file.txt");
+    m_testDir->createDir("gamma");
+    m_testDir->createFile("single-file.txt");
+
+    m_view = new DolphinColumnsView(m_testDir->url(), nullptr, DolphinView::ColumnsView);
+    m_view->resize(800, 400);
+
+    m_view->show();
+    QVERIFY(QTest::qWaitForWindowExposed(m_view));
+
+    waitForStableState();
+}
+
+void DolphinColumnsViewTest::cleanup()
+{
+    delete m_view;
+    m_view = nullptr;
+
+    delete m_testDir;
+    m_testDir = nullptr;
+
+    resetSettings();
+}
+
+void DolphinColumnsViewTest::resetSettings()
+{
+    // Every test starts from the default settings, whatever the one before it changed.
+    for (KCoreConfigSkeleton *settings : std::initializer_list<KCoreConfigSkeleton *>{ColumnsModeSettings::self(),
+                                                                                      IconsModeSettings::self(),
+                                                                                      DetailsModeSettings::self(),
+                                                                                      GeneralSettings::self()}) {
+        settings->setDefaults();
+        settings->save();
+    }
+    // A sort or group role set on the view is saved to the global view properties.
+    QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/view_properties")).removeRecursively();
+}
+
+int DolphinColumnsViewTest::indexOfName(const DolphinColumnPane *pane, const QString &name)
+{
+    for (int i = 0; i < pane->model()->count(); ++i) {
+        if (pane->model()->fileItem(i).name() == name) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+QUrl DolphinColumnsViewTest::urlOf(const QString &relativePath) const
+{
+    return QUrl::fromLocalFile(m_testDir->path() + QLatin1Char('/') + relativePath);
+}
+
+void DolphinColumnsViewTest::clickItem(DolphinColumnPane *pane, int index)
+{
+    m_view->handleMouseButtonPressed(pane, index, Qt::LeftButton);
+    m_view->handleMouseButtonReleased(pane, index);
+}
+
+void DolphinColumnsViewTest::waitForStableState()
+{
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnCount() >= 1, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnAt(0)->model()->count() > 0, 5000);
+
+    // Wait for any pending directory loads to complete
+    QSignalSpy loadSpy(m_view, &DolphinView::directoryLoadingCompleted);
+    QTRY_VERIFY_WITH_TIMEOUT(loadSpy.count() > 0 || m_view->columnAt(0)->model()->count() > 0, 5000);
+}
+
+void DolphinColumnsViewTest::navigateRight()
+{
+    const int activeBefore = m_view->activeColumnIndex();
+    QSignalSpy loadSpy(m_view, &DolphinView::directoryLoadingCompleted);
+
+    sendKeyToActivePane(Qt::Key_Right);
+
+    // Wait for active column to change
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->activeColumnIndex() > activeBefore, 5000);
+
+    // Wait for the child column's directory to finish loading
+    auto *childPane = m_view->columnAt(m_view->activeColumnIndex());
+    if (childPane && childPane->model()->count() == 0) {
+        QTRY_VERIFY_WITH_TIMEOUT(loadSpy.count() > 0 || childPane->model()->count() > 0, 5000);
+    }
+}
+
+void DolphinColumnsViewTest::navigateLeft()
+{
+    const int activeBefore = m_view->activeColumnIndex();
+    sendKeyToActivePane(Qt::Key_Left);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->activeColumnIndex() < activeBefore || activeBefore == 0, 5000);
+}
+
+void DolphinColumnsViewTest::selectItemInColumn(int columnIndex, const QString &name)
+{
+    auto *pane = m_view->columnAt(columnIndex);
+    QVERIFY2(pane, qPrintable(QStringLiteral("Column %1 does not exist").arg(columnIndex)));
+
+    QTRY_VERIFY2_WITH_TIMEOUT(indexOfName(pane, name) >= 0, qPrintable(QStringLiteral("Item '%1' not found in column %2").arg(name).arg(columnIndex)), 5000);
+    const int index = indexOfName(pane, name);
+    auto *selectionManager = pane->controller()->selectionManager();
+    // As KItemListController does for a click or an arrow key.
+    selectionManager->setCurrentItem(index);
+    selectionManager->clearSelection();
+    selectionManager->setSelected(index, 1, KItemListSelectionManager::Select);
+    QTRY_VERIFY_WITH_TIMEOUT(selectionManager->isSelected(index), 5000);
+}
+
+void DolphinColumnsViewTest::activateColumn(int index)
+{
+    QVERIFY(index >= 0 && index < m_view->columnCount());
+    m_view->setActiveColumn(index);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->activeColumnIndex(), index, 5000);
+}
+
+void DolphinColumnsViewTest::sendKeyToActivePane(Qt::Key key, Qt::KeyboardModifiers mod)
+{
+    auto *pane = m_view->columnAt(m_view->activeColumnIndex());
+    QVERIFY(pane);
+    QKeyEvent press(QEvent::KeyPress, key, mod);
+    QCoreApplication::sendEvent(pane->container()->viewport(), &press);
+    QCoreApplication::processEvents();
+}
+
+void DolphinColumnsViewTest::testInitialState()
+{
+    QVERIFY(m_view->columnCount() >= 1);
+    QVERIFY(m_view->activeColumnIndex() >= 0);
+    QVERIFY(m_view->activeColumnIndex() < m_view->columnCount());
+
+    auto *rootPane = m_view->columnAt(0);
+    QVERIFY(rootPane);
+    QVERIFY(rootPane->model()->count() == 4); // alpha, beta, gamma, single-file.txt
+}
+
+void DolphinColumnsViewTest::testColumnCountAfterNavigation()
+{
+    activateColumn(0);
+    selectItemInColumn(0, "beta");
+
+    navigateRight();
+
+    QVERIFY(m_view->columnCount() > 1);
+    QVERIFY(m_view->activeColumnIndex() >= 1);
+}
+
+void DolphinColumnsViewTest::testPopAfterNavigation()
+{
+    activateColumn(0);
+    selectItemInColumn(0, "alpha");
+    navigateRight();
+
+    QVERIFY(m_view->columnCount() >= 2);
+    QVERIFY(m_view->activeColumnIndex() >= 1);
+
+    navigateLeft();
+    QCOMPARE(m_view->activeColumnIndex(), 0);
+}
+
+void DolphinColumnsViewTest::testKeyRight_opensChild()
+{
+    activateColumn(0);
+    selectItemInColumn(0, "beta");
+    navigateRight();
+
+    QVERIFY(m_view->activeColumnIndex() >= 1);
+    auto *childPane = m_view->columnAt(m_view->activeColumnIndex());
+    QVERIFY(childPane);
+    QVERIFY(childPane->dirUrl().path().contains("beta"));
+}
+
+void DolphinColumnsViewTest::testKeyRight_fileDoesNotOpen()
+{
+    activateColumn(0);
+    selectItemInColumn(0, "single-file.txt");
+
+    const int before = m_view->columnCount();
+    sendKeyToActivePane(Qt::Key_Right);
+    // Pressing Right on a file opens no child column. The handler runs
+    // synchronously, so flushing pending events is enough to confirm that the
+    // column count does not change.
+    QCoreApplication::processEvents();
+
+    QCOMPARE(m_view->columnCount(), before);
+}
+
+void DolphinColumnsViewTest::testKeyLeft_activatesParent()
+{
+    activateColumn(0);
+    selectItemInColumn(0, "alpha");
+    navigateRight();
+    QVERIFY(m_view->activeColumnIndex() >= 1);
+
+    navigateLeft();
+    QCOMPARE(m_view->activeColumnIndex(), 0);
+}
+
+void DolphinColumnsViewTest::testEnteringAColumnReportsItsSelection()
+{
+    // Right selects the first item of the next column before it activates that column, and that
+    // folder becomes the url. The Information panel clears its selection on urlChanged(), so the
+    // selection of the column must be reported after the url of the view changes.
+    activateColumn(0);
+    selectItemInColumn(0, "alpha");
+    QTest::qWait(400); // UNAVOIDABLE: the selection of alpha is reported on a timer, let it go first
+    QStringList signalOrder;
+    connect(m_view, &DolphinView::urlChanged, this, [&signalOrder](const QUrl &url) {
+        signalOrder << QStringLiteral("url ") + url.fileName();
+    });
+    connect(m_view, &DolphinView::selectionChanged, this, [&signalOrder](const KFileItemList &selection) {
+        signalOrder << QStringLiteral("selection ") + (selection.count() == 1 ? selection.first().name() : QString::number(selection.count()));
+    });
+
+    navigateRight();
+    QCOMPARE(m_view->activeColumnIndex(), 1);
+    QTRY_VERIFY(signalOrder.contains(QStringLiteral("url alpha-child")));
+    QTRY_COMPARE(signalOrder.last(), QStringLiteral("selection alpha-child"));
+    QVERIFY(signalOrder.lastIndexOf(QStringLiteral("url alpha-child")) < signalOrder.lastIndexOf(QStringLiteral("selection alpha-child")));
+    disconnect(m_view, nullptr, this, nullptr);
+}
+
+void DolphinColumnsViewTest::testKeyLeft_atFirstColumn()
+{
+    activateColumn(0);
+    navigateLeft();
+
+    QCOMPARE(m_view->activeColumnIndex(), 0);
+    QVERIFY(m_view->columnCount() >= 1);
+}
+
+void DolphinColumnsViewTest::testUrlUpdatesOnNavigation()
+{
+    activateColumn(0);
+
+    selectItemInColumn(0, "beta");
+    navigateRight();
+
+    QVERIFY(m_view->url().path().contains("beta"));
+}
+
+void DolphinColumnsViewTest::testSetUrl_rebuildsColumns()
+{
+    // A url that sits under none of the open columns has no column to keep, so the view starts
+    // again from that url. A url under an open column extends the columns instead, which
+    // testSetUrlOpensTheColumnsDownToADescendant covers.
+    TestDir otherDir;
+    otherDir.createDir("other-child");
+
+    m_view->setUrl(otherDir.url());
+    waitForStableState();
+
+    QVERIFY(m_view->columnCount() >= 1);
+    QCOMPARE(m_view->columnAt(0)->dirUrl().adjusted(QUrl::StripTrailingSlash), otherDir.url().adjusted(QUrl::StripTrailingSlash));
+}
+
+void DolphinColumnsViewTest::testDefaultWidths()
+{
+    for (int i = 0; i < m_view->columnCount(); ++i) {
+        auto *pane = m_view->columnAt(i);
+        QVERIFY(pane);
+        QVERIFY(pane->width() > 0);
+    }
+}
+
+void DolphinColumnsViewTest::testCustomWidthPreserved()
+{
+    activateColumn(0);
+    selectItemInColumn(0, "alpha");
+    navigateRight();
+    QVERIFY(m_view->columnCount() >= 2);
+
+    auto *splitter = m_view->findChild<QSplitter *>();
+    QVERIFY(splitter);
+
+    QVERIFY(splitter->sizes().size() >= 2);
+    const int customWidth = 250;
+    m_view->resizeColumn(0, customWidth);
+
+    const int widthAfterCustom = splitter->sizes().at(0);
+    QVERIFY(qAbs(widthAfterCustom - customWidth) <= 10);
+}
+
+void DolphinColumnsViewTest::testCustomWidthCleanupOnPop()
+{
+    activateColumn(0);
+    selectItemInColumn(0, "alpha");
+    navigateRight();
+
+    const int colCount = m_view->columnCount();
+    QVERIFY(colCount >= 2);
+
+    auto *splitter = m_view->findChild<QSplitter *>();
+    QVERIFY(splitter);
+
+    m_view->resizeColumn(colCount - 2, 300);
+
+    navigateLeft();
+
+    QVERIFY(m_view->columnCount() >= 1);
+}
+
+void DolphinColumnsViewTest::testColumnWidthMode()
+{
+    // With "adjust to content" a column shrinks to fit its items; with "fixed" it
+    // takes an equal share of the viewport. A small minimum keeps the two modes
+    // clearly apart regardless of the viewport size.
+    auto *settings = ColumnsModeSettings::self();
+    settings->setMinColumnWidth(10);
+    settings->setMinContentColumnWidth(10);
+
+    activateColumn(0);
+    auto *splitter = m_view->findChild<QSplitter *>();
+    QVERIFY(splitter);
+
+    // Changing the width mode is one of the few things that may leave a column narrower than
+    // it was, so it refits. readSettings() passes the same policy when the dialog applies.
+    settings->setDynamicColumnWidth(false);
+    m_view->recalculateColumnWidths(DolphinColumnsView::WidthPolicy::Refit);
+    const int fixedWidth = splitter->sizes().at(0);
+
+    settings->setDynamicColumnWidth(true);
+    m_view->recalculateColumnWidths(DolphinColumnsView::WidthPolicy::Refit);
+    const int contentWidth = splitter->sizes().at(0);
+
+    QVERIFY(fixedWidth > 0);
+    QVERIFY(contentWidth >= 10); // never below the configured minimum
+    QVERIFY2(contentWidth < fixedWidth,
+             qPrintable(QStringLiteral("content-sized column (%1) should be narrower than the fixed one (%2)").arg(contentWidth).arg(fixedWidth)));
+}
+
+void DolphinColumnsViewTest::testAutoAdjustColumns()
+{
+    // A double-click on a splitter handle (which calls autoAdjustColumns) fits
+    // every column to its content and drops the widths the user dragged. How the
+    // fit is kept afterwards depends on the width mode.
+    auto *settings = ColumnsModeSettings::self();
+    settings->setMinColumnWidth(10);
+    settings->setMinContentColumnWidth(10);
+
+    activateColumn(0);
+    auto *splitter = m_view->findChild<QSplitter *>();
+    QVERIFY(splitter);
+
+    // Adjust-to-content mode: fitting drops the manual widths so the columns keep
+    // tracking their content, and nothing is pinned.
+    settings->setDynamicColumnWidth(true);
+    const int manualWidth = 600;
+    m_view->resizeColumn(0, manualWidth);
+    QVERIFY(!m_view->m_customColumnWidths.isEmpty());
+
+    m_view->autoAdjustColumns();
+    const int fittedDynamic = splitter->sizes().at(0);
+    QVERIFY2(fittedDynamic < manualWidth,
+             qPrintable(QStringLiteral("fitted column (%1) should be narrower than the manual width (%2)").arg(fittedDynamic).arg(manualWidth)));
+    QVERIFY(m_view->m_customColumnWidths.isEmpty());
+
+    // Fixed-width mode: the fixed layout would otherwise snap columns back to an
+    // equal share of the viewport, so the fit is pinned as a custom width and
+    // survives a relayout.
+    settings->setDynamicColumnWidth(false);
+    m_view->recalculateColumnWidths();
+    const int fixedWidth = splitter->sizes().at(0);
+
+    m_view->autoAdjustColumns();
+    const int fittedFixed = splitter->sizes().at(0);
+    QVERIFY2(fittedFixed < fixedWidth,
+             qPrintable(QStringLiteral("fitted column (%1) should be narrower than the fixed width (%2)").arg(fittedFixed).arg(fixedWidth)));
+    QVERIFY(!m_view->m_customColumnWidths.isEmpty());
+
+    // A later relayout keeps the fitted width instead of restoring the fixed one.
+    m_view->recalculateColumnWidths();
+    QCOMPARE(splitter->sizes().at(0), fittedFixed);
+}
+
+void DolphinColumnsViewTest::testDoubleClickOnAHandleFitsTheColumns()
+{
+    // The handle before a column only reacts once the view filters its events.
+    auto *settings = ColumnsModeSettings::self();
+    settings->setDynamicColumnWidth(true);
+
+    m_view->openChild(0, urlOf(QStringLiteral("alpha")));
+    waitForStableState();
+    QCOMPARE(m_view->columnCount(), 2);
+
+    auto *splitter = m_view->findChild<QSplitter *>();
+    QVERIFY(splitter);
+    m_view->resizeColumn(0, 600);
+    QVERIFY(!m_view->m_customColumnWidths.isEmpty());
+
+    QTest::mouseDClick(splitter->handle(1), Qt::LeftButton);
+    // mouseDClick() leaves the button held, and every later test would navigate with it down.
+    QTest::mouseRelease(splitter->handle(1), Qt::LeftButton);
+    QCOMPARE(QGuiApplication::mouseButtons(), Qt::NoButton);
+    QTRY_VERIFY(m_view->m_customColumnWidths.isEmpty());
+}
+
+void DolphinColumnsViewTest::testDoubleClickRightOfTheLastColumnFitsIt()
+{
+    // The border on the right of the last column is the handle of the filler, not of a column.
+    auto *settings = ColumnsModeSettings::self();
+    settings->setDynamicColumnWidth(true);
+
+    m_view->openChild(0, urlOf(QStringLiteral("alpha")));
+    waitForStableState();
+    QCOMPARE(m_view->columnCount(), 2);
+
+    auto *splitter = m_view->m_splitter;
+    QSplitterHandle *lastBorder = splitter->handle(splitter->indexOf(m_view->m_filler));
+    QVERIFY(lastBorder->isVisible());
+    m_view->resizeColumn(1, 700);
+    QVERIFY(m_view->m_customColumnWidths.contains(1));
+
+    QTest::mouseDClick(lastBorder, Qt::LeftButton);
+    // mouseDClick() leaves the button held, and every later test would navigate with it down.
+    QTest::mouseRelease(lastBorder, Qt::LeftButton);
+    QCOMPARE(QGuiApplication::mouseButtons(), Qt::NoButton);
+    QTRY_VERIFY(m_view->m_customColumnWidths.isEmpty());
+    QTRY_COMPARE(splitter->sizes().at(1), qMax(settings->minContentColumnWidth(), m_view->columnAt(1)->calculateOptimalWidth()));
+}
+
+void DolphinColumnsViewTest::testFittingTheColumnsKeepsTheViewWhereItIs()
+{
+    // The user double clicks a handle that they are looking at, which is often far from the
+    // active column. The fit used to scroll to the active column, the last one.
+    auto *settings = ColumnsModeSettings::self();
+    settings->setDynamicColumnWidth(true);
+    settings->setMinColumnWidth(10);
+    settings->setMinContentColumnWidth(10);
+    settings->setMaxVisibleColumns(1);
+    m_testDir->createFile(QStringLiteral("alpha/alpha-child/") + QString(200, QLatin1Char('w')) + QStringLiteral(".txt"));
+
+    m_view->resize(350, 400);
+    m_view->setUrl(urlOf(QStringLiteral("alpha/alpha-child")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+    QCOMPARE(m_view->activeColumnIndex(), 2);
+
+    // Until the columns have their widths, the range of the scrollbar still moves.
+    auto *scrollBar = m_view->m_scrollArea->horizontalScrollBar();
+    QTRY_VERIFY_WITH_TIMEOUT(scrollBar->maximum() > 0, 5000);
+    int stableChecks = 0;
+    for (int maximum = -1; stableChecks < 3;) {
+        stableChecks = scrollBar->maximum() == maximum ? stableChecks + 1 : 0;
+        maximum = scrollBar->maximum();
+        QTest::qWait(100); // UNAVOIDABLE: no signal marks the last change of the range
+    }
+
+    // Back at the first column, away from the active one.
+    scrollBar->setValue(0);
+    auto *viewport = m_view->m_scrollArea->viewport();
+    QCOMPARE(m_view->columnAt(0)->mapTo(viewport, QPoint(0, 0)).x(), 0);
+
+    auto *handle = m_view->m_splitter->handle(1);
+    QTest::mouseDClick(handle, Qt::LeftButton);
+    // mouseDClick() leaves the button held, and every later test would navigate with it down.
+    QTest::mouseRelease(handle, Qt::LeftButton);
+    QTRY_VERIFY(m_view->m_customColumnWidths.isEmpty());
+
+    // Also after the layout that the new sizes bring.
+    QTest::qWait(200); // UNAVOIDABLE: checks that a later layout does not move the columns
+    QCOMPARE(m_view->columnAt(0)->mapTo(viewport, QPoint(0, 0)).x(), 0);
+    QCOMPARE(scrollBar->value(), 0);
+}
+
+void DolphinColumnsViewTest::testFittingTheColumnsShowsEveryColumnThatFits()
+{
+    // After the fit the columns take less room than before. The view used to keep the scroll
+    // position, with empty space after the last column and the first one out of view.
+    auto *settings = ColumnsModeSettings::self();
+    settings->setDynamicColumnWidth(true);
+    settings->setMinColumnWidth(10);
+    settings->setMinContentColumnWidth(10);
+
+    m_view->resize(700, 400);
+    m_view->setUrl(urlOf(QStringLiteral("alpha/alpha-child")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+    auto *scrollBar = m_view->m_scrollArea->horizontalScrollBar();
+    auto *viewport = m_view->m_scrollArea->viewport();
+    // The three columns fit once fitted.
+    QTRY_COMPARE_WITH_TIMEOUT(scrollBar->maximum(), 0, 5000);
+
+    // The user widened the first column, and scrolled to the last one.
+    m_view->m_customColumnWidths[0] = 900;
+    m_view->recalculateColumnWidths();
+    QTRY_VERIFY_WITH_TIMEOUT(scrollBar->maximum() > 0, 5000);
+    scrollBar->setValue(scrollBar->maximum());
+    QTRY_VERIFY(m_view->columnAt(0)->mapTo(viewport, QPoint(0, 0)).x() < 0);
+
+    auto *handle = m_view->m_splitter->handle(1);
+    QTest::mouseDClick(handle, Qt::LeftButton);
+    QTest::mouseRelease(handle, Qt::LeftButton);
+    QTRY_VERIFY(m_view->m_customColumnWidths.isEmpty());
+
+    QTest::qWait(200); // UNAVOIDABLE: checks that a later layout does not move the columns
+    QCOMPARE(m_view->columnAt(0)->mapTo(viewport, QPoint(0, 0)).x(), 0);
+    auto *last = m_view->columnAt(2);
+    QVERIFY(last->mapTo(viewport, QPoint(0, 0)).x() + last->width() <= viewport->width());
+    QCOMPARE(scrollBar->value(), 0);
+}
+
+void DolphinColumnsViewTest::testIconSizeFollowsSettings()
+{
+    // With global view properties (the default) the icons are the size that is configured for
+    // the columns view mode, so changing that size resizes them.
+    auto *settings = ColumnsModeSettings::self();
+
+    const int levelA = ZoomLevelInfo::minimumLevel();
+    const int levelB = ZoomLevelInfo::minimumLevel() + 2;
+    QVERIFY(levelB <= ZoomLevelInfo::maximumLevel());
+
+    // Set both sizes so the result does not depend on whether previews are shown.
+    settings->setIconSize(ZoomLevelInfo::iconSizeForZoomLevel(levelA));
+    settings->setPreviewSize(ZoomLevelInfo::iconSizeForZoomLevel(levelA));
+    settings->save();
+    m_view->readSettings();
+    QCOMPARE(m_view->zoomLevel(), levelA);
+
+    settings->setIconSize(ZoomLevelInfo::iconSizeForZoomLevel(levelB));
+    settings->setPreviewSize(ZoomLevelInfo::iconSizeForZoomLevel(levelB));
+    settings->save();
+    m_view->readSettings();
+    QCOMPARE(m_view->zoomLevel(), levelB);
+}
+
+void DolphinColumnsViewTest::testZoomingLeavesTheOtherViewModesAlone()
+{
+    // Zooming keeps the new icon size for the columns view mode. The other view modes keep the
+    // size each of them is configured with.
+    auto *columns = ColumnsModeSettings::self();
+    auto *icons = IconsModeSettings::self();
+    auto *details = DetailsModeSettings::self();
+
+    const int otherModesLevel = ZoomLevelInfo::minimumLevel();
+    const int columnsLevel = ZoomLevelInfo::minimumLevel() + 2;
+    QVERIFY(columnsLevel <= ZoomLevelInfo::maximumLevel());
+    const int otherModesSize = ZoomLevelInfo::iconSizeForZoomLevel(otherModesLevel);
+    icons->setIconSize(otherModesSize);
+    details->setIconSize(otherModesSize);
+
+    m_view->setZoomLevel(columnsLevel);
+
+    QCOMPARE(m_view->zoomLevel(), columnsLevel);
+    const int columnsSize = ZoomLevelInfo::iconSizeForZoomLevel(columnsLevel);
+    QCOMPARE(m_view->previewsShown() ? columns->previewSize() : columns->iconSize(), columnsSize);
+    QCOMPARE(icons->iconSize(), otherModesSize);
+    QCOMPARE(details->iconSize(), otherModesSize);
+}
+
+void DolphinColumnsViewTest::testRenameRefitsColumnWhenAdjustingToContent()
+{
+    auto *settings = ColumnsModeSettings::self();
+    // A small minimum keeps the content width from being clamped, so the change is visible.
+    settings->setDynamicColumnWidth(true);
+    settings->setMinColumnWidth(10);
+    settings->setMinContentColumnWidth(10);
+    // Up to the whole viewport, the width of the content.
+    settings->setMaxVisibleColumns(1);
+
+    activateColumn(0);
+    m_view->recalculateColumnWidths();
+    auto *splitter = m_view->findChild<QSplitter *>();
+    QVERIFY(splitter);
+    const int widthBefore = splitter->sizes().at(0);
+
+    // Renaming a file to a much longer name widens the column it lives in.
+    const QString dir = m_testDir->url().toLocalFile();
+    const QString longName = QStringLiteral("single-file-") + QString(80, QLatin1Char('x')) + QStringLiteral(".txt");
+    QVERIFY(QFile::rename(dir + QStringLiteral("/single-file.txt"), dir + QLatin1Char('/') + longName));
+
+    QTRY_VERIFY_WITH_TIMEOUT(splitter->sizes().at(0) > widthBefore, 5000);
+}
+
+void DolphinColumnsViewTest::testShownHiddenFileWidensColumn()
+{
+    auto *settings = ColumnsModeSettings::self();
+    // A small minimum keeps the content width from being clamped, so the change is visible.
+    settings->setDynamicColumnWidth(true);
+    settings->setMinColumnWidth(10);
+    settings->setMinContentColumnWidth(10);
+    // Up to the whole viewport, the width of the content.
+    settings->setMaxVisibleColumns(1);
+    m_view->setHiddenFilesShown(false);
+
+    // A hidden file with a name far longer than any visible one.
+    const QString longHiddenName = QStringLiteral(".hidden-") + QString(80, QLatin1Char('x')) + QStringLiteral(".txt");
+    m_testDir->createFile(longHiddenName);
+
+    activateColumn(0);
+    m_view->recalculateColumnWidths();
+    auto *splitter = m_view->findChild<QSplitter *>();
+    QVERIFY(splitter);
+    const int widthWithoutTheFile = splitter->sizes().at(0);
+
+    // Showing the file makes the column wide enough for its name.
+    m_view->setHiddenFilesShown(true);
+    QTRY_VERIFY_WITH_TIMEOUT(splitter->sizes().at(0) > widthWithoutTheFile, 5000);
+}
+
+void DolphinColumnsViewTest::testTheContentWidthFollowsInsertedAndRemovedNames()
+{
+    // The column measures only the names that are inserted, and all of them again after a
+    // removal or a zoom change.
+    auto *pane = m_view->columnAt(0);
+    const int widthBefore = pane->calculateOptimalWidth();
+
+    const QString longName = QStringLiteral("long-") + QString(80, QLatin1Char('x')) + QStringLiteral(".txt");
+    m_testDir->createFile(longName);
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(pane, longName) >= 0, 5000);
+    const int widthWithTheName = pane->calculateOptimalWidth();
+    QVERIFY(widthWithTheName > widthBefore);
+
+    QVERIFY(QFile::remove(m_testDir->url().toLocalFile() + QLatin1Char('/') + longName));
+    QTRY_COMPARE_WITH_TIMEOUT(indexOfName(pane, longName), -1, 5000);
+    QCOMPARE(pane->calculateOptimalWidth(), widthBefore);
+
+    m_testDir->createFile(longName);
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(pane, longName) >= 0, 5000);
+    QCOMPARE(pane->calculateOptimalWidth(), widthWithTheName);
+
+    m_view->setZoomLevel(m_view->zoomLevel() + 2);
+    QTRY_VERIFY_WITH_TIMEOUT(pane->calculateOptimalWidth() > widthWithTheName, 5000);
+}
+
+void DolphinColumnsViewTest::testTheBaseModelDoesNotListTheFolder()
+{
+    // Each column lists its folder in its own model, so the base model lists nothing.
+    DolphinColumnsView view(urlOf(QStringLiteral("alpha")), nullptr, DolphinView::ColumnsView);
+    QVERIFY(view.m_baseModel->directory().isEmpty());
+    QCOMPARE(view.columnCount(), 1);
+    QCOMPARE(view.columnAt(0)->model()->directory().adjusted(QUrl::StripTrailingSlash), urlOf(QStringLiteral("alpha")));
+}
+
+void DolphinColumnsViewTest::testNoJumpWhenSiblingSelectionReplacesWideColumn()
+{
+    auto *settings = ColumnsModeSettings::self();
+    settings->setDynamicColumnWidth(true);
+    settings->setMinColumnWidth(10);
+    settings->setMinContentColumnWidth(10);
+    // Up to the whole viewport, the width of the content.
+    settings->setMaxVisibleColumns(1);
+
+    // alpha/alpha-child holds a name far wider than the window, and alpha has a second folder
+    // to move to.
+    m_testDir->createFile(QStringLiteral("alpha/alpha-child/") + QString(200, QLatin1Char('w')) + QStringLiteral(".txt"));
+    m_testDir->createDir(QStringLiteral("alpha/alpha-child2"));
+
+    // A window too narrow to hold every column at once.
+    m_view->resize(350, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+
+    auto activeScreenX = [this]() {
+        const int index = m_view->activeColumnIndex();
+        return m_view->columnAt(index)->mapTo(m_view->m_scrollArea->viewport(), QPoint(0, 0)).x();
+    };
+
+    // root -> alpha -> alpha-child, so the wide column is the third one.
+    activateColumn(0);
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnCount() > 1, 5000);
+    navigateRight();
+    selectItemInColumn(1, QStringLiteral("alpha-child"));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnCount() > 2, 5000);
+    navigateRight();
+
+    // The folder is listed after its column was added, so the column only takes its full width
+    // then. The view has to follow it, rather than being pulled there by a later keystroke.
+    QTRY_COMPARE_WITH_TIMEOUT(activeScreenX(), 0, 5000);
+
+    navigateLeft();
+    QTRY_COMPARE_WITH_TIMEOUT(activeScreenX(), 0, 5000);
+    const int screenXBefore = activeScreenX();
+    const int scrollBefore = m_view->m_scrollArea->horizontalScrollBar()->value();
+
+    const int childWidthBefore = m_view->m_splitter->sizes().at(2);
+
+    // Moving to the sibling folder replaces the wide column with one holding shorter names.
+    // The replacement keeps the width, so nothing shifts under the folder being looked at.
+    // alpha was listed before this test added the second folder, so wait for the watcher.
+    auto *alphaPane = m_view->columnAt(1);
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(alphaPane, QStringLiteral("alpha-child2")) >= 0, 10000);
+
+    selectItemInColumn(1, QStringLiteral("alpha-child2"));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnCount() > 2
+                                 && m_view->columnAt(2)->dirUrl().adjusted(QUrl::StripTrailingSlash).fileName() == QStringLiteral("alpha-child2"),
+                             5000);
+    // UNAVOIDABLE: the relayout is posted with a zero timer and emits no signal, and the checks below are that nothing moved
+    QTest::qWait(200); // UNAVOIDABLE: see above
+
+    QCOMPARE(m_view->m_splitter->sizes().at(2), childWidthBefore);
+    QCOMPARE(activeScreenX(), screenXBefore);
+    QCOMPARE(m_view->m_scrollArea->horizontalScrollBar()->value(), scrollBefore);
+}
+
+void DolphinColumnsViewTest::testAColumnKeepsItsWidthWhenItIsEntered()
+{
+    auto *settings = ColumnsModeSettings::self();
+    settings->setDynamicColumnWidth(true);
+    settings->setMinColumnWidth(10);
+    settings->setMinContentColumnWidth(10);
+    // Up to the whole viewport, the width of the content.
+    settings->setMaxVisibleColumns(1);
+
+    // One folder holds a name far wider than the other, so the width of the column to the right
+    // differs a great deal between the two.
+    m_testDir->createFile(QStringLiteral("wide-names/") + QString(120, QLatin1Char('w')) + QStringLiteral(".txt"));
+    m_testDir->createFile(QStringLiteral("short-names/s.txt"));
+
+    activateColumn(0);
+
+    // The root was listed before this test created the two folders, so wait for the watcher.
+    auto *rootPane = m_view->columnAt(0);
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(rootPane, QStringLiteral("wide-names")) >= 0 && indexOfName(rootPane, QStringLiteral("short-names")) >= 0, 10000);
+
+    selectItemInColumn(0, QStringLiteral("wide-names"));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnCount() > 1 && m_view->columnAt(1)->model()->count() > 0, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1) > 200, 5000);
+    const int wideWidth = m_view->m_splitter->sizes().at(1);
+
+    // The folder with the shorter name needs less room, and the column keeps the width it has.
+    selectItemInColumn(0, QStringLiteral("short-names"));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnCount() > 1
+                                 && m_view->columnAt(1)->dirUrl().adjusted(QUrl::StripTrailingSlash).fileName() == QStringLiteral("short-names"),
+                             5000);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnAt(1)->model()->count() > 0, 5000);
+    QTest::qWait(200); // UNAVOIDABLE: the relayout is posted with a zero timer and emits no signal
+    QCOMPARE(m_view->m_splitter->sizes().at(1), wideWidth);
+
+    // Entering the column is not the user asking for a narrower one either.
+    navigateRight();
+    QCOMPARE(m_view->activeColumnIndex(), 1);
+    QTest::qWait(200); // UNAVOIDABLE: see above
+    QCOMPARE(m_view->m_splitter->sizes().at(1), wideWidth);
+}
+
+void DolphinColumnsViewTest::testSelectionMatchesActiveColumn()
+{
+    auto *pane = m_view->columnAt(m_view->activeColumnIndex());
+    QVERIFY(pane);
+    auto *selectionManager = pane->controller()->selectionManager();
+    QVERIFY(selectionManager);
+
+    selectionManager->clearSelection();
+    selectionManager->setCurrentItem(0);
+    selectionManager->setSelected(0, 1, KItemListSelectionManager::Select);
+    QVERIFY(selectionManager->hasSelection());
+
+    KFileItemList selected = m_view->selectedItems();
+    QCOMPARE(selected.count(), 1);
+}
+
+void DolphinColumnsViewTest::testModelMatchesActiveColumn()
+{
+    auto *pane = m_view->columnAt(0);
+    QVERIFY(pane);
+
+    auto *model = pane->model();
+    QVERIFY(model);
+    QVERIFY(model->count() > 0);
+
+    QStringList names;
+    for (int i = 0; i < model->count(); ++i) {
+        names.append(model->fileItem(i).name());
+    }
+    QVERIFY(names.contains("alpha"));
+    QVERIFY(names.contains("beta"));
+    QVERIFY(names.contains("gamma"));
+    QVERIFY(names.contains("single-file.txt"));
+}
+
+void DolphinColumnsViewTest::testEmptyDirectory()
+{
+    activateColumn(0);
+    selectItemInColumn(0, "gamma");
+
+    const int before = m_view->columnCount();
+    navigateRight();
+
+    if (m_view->columnCount() > before) {
+        const int afterGamma = m_view->columnCount();
+        navigateRight();
+        QCOMPARE(m_view->columnCount(), afterGamma);
+    }
+}
+
+void DolphinColumnsViewTest::testAnEmptyFolderSaysSo()
+{
+    // As the other view modes do, a column of an empty folder says that it is empty instead of
+    // showing nothing at all.
+    auto placeholderOf = [](const DolphinColumnPane *pane) {
+        return pane->findChild<QLabel *>();
+    };
+    QVERIFY(placeholderOf(m_view->columnAt(0)));
+    QVERIFY(!placeholderOf(m_view->columnAt(0))->isVisible());
+
+    selectItemInColumn(0, QStringLiteral("gamma"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    auto *gammaPane = m_view->columnAt(1);
+    QTRY_VERIFY_WITH_TIMEOUT(placeholderOf(gammaPane)->isVisible(), 5000);
+    QCOMPARE(placeholderOf(gammaPane)->text(), QStringLiteral("Folder is empty"));
+
+    // A file created in the folder takes the place of the text.
+    m_testDir->createFile(QStringLiteral("gamma/new-file.txt"));
+    QTRY_VERIFY_WITH_TIMEOUT(gammaPane->model()->count() > 0, 10000);
+    QVERIFY(!placeholderOf(gammaPane)->isVisible());
+
+    // A filter that matches nothing says so.
+    m_view->setNameFilter(QStringLiteral("matches-nothing"));
+    QTRY_VERIFY_WITH_TIMEOUT(placeholderOf(m_view->columnAt(0))->isVisible(), 5000);
+    QCOMPARE(placeholderOf(m_view->columnAt(0))->text(), QStringLiteral("No items matching the filter"));
+}
+
+void DolphinColumnsViewTest::testTheShownFolderReportsItsListing()
+{
+    // The status bar says "Searching..." and the Stop action is enabled on the listing of the
+    // folder that the view shows, as in the other view modes.
+    QSignalSpy startedSpy(m_view, &DolphinView::directoryLoadingStarted);
+    QSignalSpy canceledSpy(m_view, &DolphinView::directoryLoadingCanceled);
+
+    const QUrl betaUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/beta"));
+    m_view->setUrl(betaUrl);
+    QTRY_COMPARE_WITH_TIMEOUT(startedSpy.count(), 1, 5000);
+    waitForStableState();
+
+    const QUrl gammaUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/gamma"));
+    m_view->setUrl(gammaUrl);
+    QCOMPARE(startedSpy.count(), 2);
+    m_view->stopLoading();
+    QCOMPARE(canceledSpy.count(), 1);
+}
+
+void DolphinColumnsViewTest::testAStoppedListingSaysSo()
+{
+    // As in the other view modes, the column says that its listing was stopped instead of
+    // saying that the folder is empty.
+    const QUrl gammaUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/gamma"));
+    m_view->setUrl(gammaUrl);
+    m_view->stopLoading();
+
+    auto *placeholder = m_view->columnAt(m_view->activeColumnIndex())->findChild<QLabel *>();
+    QVERIFY(placeholder->isVisible());
+    QCOMPARE(placeholder->text(), QStringLiteral("Loading canceled"));
+}
+
+void DolphinColumnsViewTest::testReload()
+{
+    const QUrl urlBefore = m_view->url();
+
+    m_view->reload();
+    waitForStableState();
+
+    QCOMPARE(m_view->url().adjusted(QUrl::StripTrailingSlash), urlBefore.adjusted(QUrl::StripTrailingSlash));
+    QVERIFY(m_view->columnAt(0)->model()->count() > 0);
+}
+
+void DolphinColumnsViewTest::testKeyReturn_fileEmitsItemActivated()
+{
+    activateColumn(0);
+    selectItemInColumn(0, "single-file.txt");
+
+    QSignalSpy spy(m_view, &DolphinView::itemActivated);
+    sendKeyToActivePane(Qt::Key_Return);
+
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(spy.at(0).at(0).value<KFileItem>().name(), QStringLiteral("single-file.txt"));
+}
+
+void DolphinColumnsViewTest::testKeyReturn_directoryOpensChild()
+{
+    activateColumn(0);
+    selectItemInColumn(0, "beta");
+
+    QSignalSpy spy(m_view, &DolphinView::itemActivated);
+    QSignalSpy loadSpy(m_view, &DolphinView::directoryLoadingCompleted);
+    sendKeyToActivePane(Qt::Key_Return);
+    QTRY_VERIFY_WITH_TIMEOUT(loadSpy.count() > 0 || m_view->activeColumnIndex() >= 1, 5000);
+
+    QCOMPARE(spy.count(), 0);
+    QVERIFY(m_view->activeColumnIndex() >= 1);
+}
+
+void DolphinColumnsViewTest::testCtrlOrShiftOpensAFolderElsewhere_data()
+{
+    QTest::addColumn<Qt::KeyboardModifier>("modifier");
+    QTest::newRow("Ctrl, a new tab") << Qt::ControlModifier;
+    QTest::newRow("Shift, a new window") << Qt::ShiftModifier;
+}
+
+void DolphinColumnsViewTest::testCtrlOrShiftOpensAFolderElsewhere()
+{
+    // As in the other view modes, a folder activated with Ctrl or Shift is handed to the view
+    // container, which opens it in a new tab or window. The columns stay as they are.
+    QFETCH(Qt::KeyboardModifier, modifier);
+    selectItemInColumn(0, QStringLiteral("beta"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    auto *pane = m_view->columnAt(0);
+    const int betaIndex = indexOfName(pane, QStringLiteral("beta"));
+
+    QSignalSpy spy(m_view, &DolphinView::itemActivated);
+    QTest::keyClick(pane->container()->viewport(), Qt::Key_Return, modifier);
+    QTRY_COMPARE_WITH_TIMEOUT(spy.count(), 1, 5000);
+    QCOMPARE(spy.at(0).at(0).value<KFileItem>().name(), QStringLiteral("beta"));
+
+    // A double click activates the item with the modifier still held.
+    QTest::keyPress(pane->container()->viewport(), modifier == Qt::ControlModifier ? Qt::Key_Control : Qt::Key_Shift, modifier);
+    QVERIFY(QGuiApplication::keyboardModifiers() & modifier);
+    Q_EMIT pane->controller()->itemActivated(betaIndex);
+    QTest::keyRelease(pane->container()->viewport(), modifier == Qt::ControlModifier ? Qt::Key_Control : Qt::Key_Shift);
+    QCOMPARE(spy.count(), 2);
+
+    QCOMPARE(m_view->activeColumnIndex(), 0);
+    QCOMPARE(m_view->columnCount(), 2);
+}
+
+void DolphinColumnsViewTest::testKeyReturn_opensEverySelectedItem()
+{
+    // As in the other view modes, Return opens the whole selection, not only the current item.
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    activateColumn(1);
+    selectItemInColumn(1, QStringLiteral("file1.txt"));
+    // Added to the selection without moving the current item, as a Ctrl+click does.
+    auto *selectionManager = m_view->columnAt(1)->controller()->selectionManager();
+    selectionManager->setSelected(indexOfName(m_view->columnAt(1), QStringLiteral("file2.txt")), 1, KItemListSelectionManager::Select);
+    QCOMPARE(selectionManager->selectedItems().count(), 2);
+
+    QSignalSpy itemActivated(m_view, &DolphinView::itemActivated);
+    QSignalSpy itemsActivated(m_view, &DolphinView::itemsActivated);
+    sendKeyToActivePane(Qt::Key_Return);
+
+    QCOMPARE(itemActivated.count(), 0);
+    QCOMPARE(itemsActivated.count(), 1);
+    QStringList names;
+    const auto activatedItems = itemsActivated.first().first().value<KFileItemList>();
+    for (const KFileItem &item : activatedItems) {
+        names << item.name();
+    }
+    names.sort();
+    QCOMPARE(names, QStringList({QStringLiteral("file1.txt"), QStringLiteral("file2.txt")}));
+}
+
+void DolphinColumnsViewTest::testKeyReturn_doesNotReloadAlreadyOpenChild()
+{
+    activateColumn(0);
+    selectItemInColumn(0, "beta");
+
+    // First Return opens beta's child column.
+    sendKeyToActivePane(Qt::Key_Return);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->activeColumnIndex() >= 1, 5000);
+
+    const int childCol = m_view->activeColumnIndex();
+    DolphinColumnPane *childBefore = m_view->columnAt(childCol);
+    QVERIFY(childBefore);
+    const QUrl childUrl = childBefore->dirUrl();
+
+    // Pressing Return again on the same folder should step into the existing
+    // child column, not tear it down and reload it.
+    activateColumn(0);
+    selectItemInColumn(0, "beta");
+    sendKeyToActivePane(Qt::Key_Return);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->activeColumnIndex(), childCol, 5000);
+
+    QCOMPARE(m_view->columnAt(childCol), childBefore);
+    QCOMPARE(m_view->columnAt(childCol)->dirUrl(), childUrl);
+}
+
+void DolphinColumnsViewTest::testShiftRight_navigatesBetweenColumns()
+{
+    activateColumn(0);
+    selectItemInColumn(0, "beta");
+
+    QSignalSpy loadSpy(m_view, &DolphinView::directoryLoadingCompleted);
+    sendKeyToActivePane(Qt::Key_Right, Qt::ShiftModifier);
+    QTRY_VERIFY_WITH_TIMEOUT(loadSpy.count() > 0 || m_view->activeColumnIndex() >= 1, 5000);
+
+    QVERIFY(m_view->activeColumnIndex() >= 1);
+}
+
+void DolphinColumnsViewTest::testCtrlRight_navigatesBetweenColumns()
+{
+    activateColumn(0);
+    selectItemInColumn(0, "beta");
+
+    QSignalSpy loadSpy(m_view, &DolphinView::directoryLoadingCompleted);
+    sendKeyToActivePane(Qt::Key_Right, Qt::ControlModifier);
+    QTRY_VERIFY_WITH_TIMEOUT(loadSpy.count() > 0 || m_view->activeColumnIndex() >= 1, 5000);
+
+    QVERIFY(m_view->activeColumnIndex() >= 1);
+}
+
+void DolphinColumnsViewTest::testSelectionPreservedAcrossNavigation()
+{
+    activateColumn(0);
+    selectItemInColumn(0, "beta");
+    navigateRight();
+
+    const int childIdx = m_view->activeColumnIndex();
+    QVERIFY(childIdx >= 1);
+    auto *childSelectionManager = m_view->columnAt(childIdx)->controller()->selectionManager();
+    childSelectionManager->setSelected(0, 1, KItemListSelectionManager::Select);
+    QVERIFY(childSelectionManager->hasSelection());
+
+    navigateLeft();
+    QCOMPARE(m_view->activeColumnIndex(), 0);
+
+    // Navigate forward again, child selection should still be intact
+    navigateRight();
+    QVERIFY(childSelectionManager->hasSelection());
+}
+
+void DolphinColumnsViewTest::testLeftKeyClearsChildSelection()
+{
+    activateColumn(0);
+    selectItemInColumn(0, "alpha");
+    navigateRight();
+
+    const int childIdx = m_view->activeColumnIndex();
+    QVERIFY(childIdx >= 1);
+
+    auto *childSelectionManager = m_view->columnAt(childIdx)->controller()->selectionManager();
+    childSelectionManager->setSelected(0, 1, KItemListSelectionManager::Select);
+    QVERIFY(childSelectionManager->hasSelection());
+
+    // Left key moves focus to parent column but preserves child selection
+    navigateLeft();
+    QCOMPARE(m_view->activeColumnIndex(), 0);
+    QVERIFY(childSelectionManager->hasSelection());
+}
+
+void DolphinColumnsViewTest::testAnArchiveOpensAsAFolder()
+{
+    // The mime type of a listed item is determined lazily, and an archive whose type is not known
+    // yet reads as a plain file.
+    if (KProtocolManager::protocolForArchiveMimetype(QStringLiteral("application/zip")).isEmpty()) {
+        QSKIP("No KIO worker opens zip archives here");
+    }
+    GeneralSettings::setBrowseThroughArchives(true);
+
+    // An empty zip archive: the end of central directory record alone.
+    QByteArray emptyZip("PK\x05\x06", 4);
+    emptyZip.append(18, '\0');
+    m_testDir->createFile(QStringLiteral("archive.zip"), emptyZip);
+
+    const KFileItem archive(urlOf(QStringLiteral("archive.zip")));
+    QVERIFY(archive.isFile());
+    QVERIFY(!archive.isMimeTypeKnown());
+
+    QCOMPARE(DolphinColumnPane::folderUrlFor(archive).scheme(), QStringLiteral("zip"));
+
+    GeneralSettings::setBrowseThroughArchives(false);
+    QVERIFY(DolphinColumnPane::folderUrlFor(archive).isEmpty());
+}
+
+void DolphinColumnsViewTest::testEscape_clearsSelection()
+{
+    auto *pane = m_view->columnAt(m_view->activeColumnIndex());
+    auto *selectionManager = pane->controller()->selectionManager();
+
+    selectionManager->setSelected(0, 1, KItemListSelectionManager::Select);
+    QVERIFY(selectionManager->hasSelection());
+
+    sendKeyToActivePane(Qt::Key_Escape);
+    QVERIFY(!selectionManager->hasSelection());
+}
+
+void DolphinColumnsViewTest::testHomeEnd_withinColumn()
+{
+    activateColumn(0);
+
+    auto *pane = m_view->columnAt(0);
+    auto *selectionManager = pane->controller()->selectionManager();
+    QVERIFY(pane->model()->count() >= 3);
+
+    selectionManager->setCurrentItem(2);
+    QCOMPARE(selectionManager->currentItem(), 2);
+
+    sendKeyToActivePane(Qt::Key_Home);
+    QCOMPARE(selectionManager->currentItem(), 0);
+
+    sendKeyToActivePane(Qt::Key_End);
+    QCOMPARE(selectionManager->currentItem(), pane->model()->count() - 1);
+}
+
+void DolphinColumnsViewTest::testBackButton_emitsGoBack()
+{
+    QSignalSpy spy(m_view, &DolphinView::goBackRequested);
+
+    // Emit mouseButtonPressed directly because QGraphicsView does not
+    // forward back/forward mouse buttons to the graphics scene.
+    auto *pane = m_view->columnAt(m_view->activeColumnIndex());
+    Q_EMIT pane->controller()->mouseButtonPressed(0, Qt::BackButton);
+    QTRY_COMPARE_WITH_TIMEOUT(spy.count(), 1, 5000);
+}
+
+void DolphinColumnsViewTest::testForwardButton_emitsGoForward()
+{
+    QSignalSpy spy(m_view, &DolphinView::goForwardRequested);
+
+    auto *pane = m_view->columnAt(m_view->activeColumnIndex());
+    Q_EMIT pane->controller()->mouseButtonPressed(0, Qt::ForwardButton);
+    QTRY_COMPARE_WITH_TIMEOUT(spy.count(), 1, 5000);
+}
+
+void DolphinColumnsViewTest::testDirectorySelectionOpensChildOnce()
+{
+    // Selecting a directory in the active, focused column changes both the
+    // current item and the selection. Verify that the child column is opened
+    // once, shows the right folder, does not reload, and is not torn down and
+    // rebuilt.
+    activateColumn(0);
+    auto *rootContainer = m_view->columnAt(0)->container();
+    rootContainer->setFocus();
+    if (!QTest::qWaitFor(
+            [&]() {
+                return rootContainer->hasFocus();
+            },
+            1000)) {
+        QSKIP("Could not give keyboard focus to the column in this environment");
+    }
+
+    // "beta" is a directory and not the auto-selected first item.
+    QSignalSpy loadSpy(m_view, &DolphinView::directoryLoadingCompleted);
+    selectItemInColumn(0, "beta");
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QCOMPARE(m_view->columnAt(1)->dirUrl().fileName(), QStringLiteral("beta"));
+
+    // Let any queued re-open/auto-select settle, then confirm the child column
+    // is the same object (not rebuilt) and beta was loaded only once.
+    auto *childPane = m_view->columnAt(1);
+    QTRY_VERIFY_WITH_TIMEOUT(loadSpy.count() >= 1, 5000);
+    // Settle briefly to confirm no second reload is queued; there is no signal for an event not happening.
+    QTest::qWait(300); // UNAVOIDABLE: no signal for the absence of a reload
+    QCOMPARE(m_view->columnCount(), 2);
+    QCOMPARE(m_view->columnAt(1), childPane);
+    // beta is loaded exactly once: no double pop-and-rebuild of the child column.
+    QCOMPARE(loadSpy.count(), 1);
+}
+
+void DolphinColumnsViewTest::testMouseClickOnDirectoryOpensChildOnce()
+{
+    // A left-click opens the child of the *current* item (handleMouseButtonPressed).
+    // openChild() then calls setActiveChildUrl() on the parent, which changes the
+    // parent's selection and re-emits selectionChanged. Without the m_blockNavigation
+    // guard on that handler this re-enters openChild() before the first call has
+    // appended its column, so both calls see no child and build one each - two
+    // columns for the same folder. Verify exactly one child column is created.
+    activateColumn(0);
+    auto *pane = m_view->columnAt(0);
+    auto *selectionManager = pane->controller()->selectionManager();
+
+    const int betaIndex = indexOfName(pane, QStringLiteral("beta"));
+    QVERIFY(betaIndex >= 0);
+
+    // Make "beta" the current item without opening its child yet. During a real
+    // click the mouse button is held, so slotActiveSelectionChanged()'s
+    // "mouseButtons() == NoButton" guard suppresses it and only
+    // handleMouseButtonPressed() opens the child. Offscreen there is no held
+    // button, so block signals while seeding the current item to reproduce that
+    // precondition (current == beta, no child column, selection differs from it).
+    selectionManager->blockSignals(true);
+    selectionManager->clearSelection();
+    selectionManager->setCurrentItem(betaIndex);
+    selectionManager->blockSignals(false);
+
+    // Simulate a left-click on the already-current "beta". This opens exactly one
+    // child column showing "beta"; the re-entrancy bug would open a second.
+    clickItem(pane, betaIndex);
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QCOMPARE(m_view->columnAt(1)->dirUrl().fileName(), QStringLiteral("beta"));
+
+    // Let any queued re-entrant open settle, then confirm still exactly one child.
+    QTest::qWait(100); // UNAVOIDABLE: no signal for the absence of a re-entrant open
+    QCOMPARE(m_view->columnCount(), 2);
+    QCOMPARE(m_view->columnAt(1)->dirUrl().fileName(), QStringLiteral("beta"));
+}
+
+// Activating a folder shows it in the next column but leaves the selection on the folder itself.
+// Moving into that column is the Right arrow's job, see
+// testKeyRight_opensChild().
+void DolphinColumnsViewTest::testActivatingADirectoryStaysInItsColumn()
+{
+    activateColumn(0);
+    selectItemInColumn(0, "beta");
+
+    // Selecting the folder already opens the column that previews it.
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QCOMPARE(m_view->columnAt(1)->dirUrl().fileName(), QStringLiteral("beta"));
+    QTRY_VERIFY(m_view->columnAt(1)->model()->count() > 0);
+
+    auto *pane = m_view->columnAt(0);
+    const int betaIndex = indexOfName(pane, QStringLiteral("beta"));
+    QVERIFY(betaIndex >= 0);
+
+    // What a click or a double click reaches, depending on the single click setting.
+    QVERIFY(QMetaObject::invokeMethod(pane, "slotItemActivated", Qt::DirectConnection, Q_ARG(int, betaIndex)));
+    QCoreApplication::processEvents();
+
+    QCOMPARE(m_view->activeColumnIndex(), 0);
+    QVERIFY(!m_view->columnAt(1)->controller()->selectionManager()->hasSelection());
+
+    // The column the selection opened is reused rather than torn down and built again.
+    QCOMPARE(m_view->columnCount(), 2);
+    QCOMPARE(m_view->columnAt(1)->dirUrl().fileName(), QStringLiteral("beta"));
+}
+
+void DolphinColumnsViewTest::testMouseClickOnNotCurrentDirectoryOpensChild()
+{
+    // The first click on an item that is not the current one has to open its child column.
+    // KItemListController::onPress() emits mouseButtonPressed before it moves the current item,
+    // so handleMouseButtonPressed() sees a clicked index that differs from the current one, and
+    // slotActiveSelectionChanged() is suppressed while the button is held.
+    activateColumn(0);
+    auto *pane = m_view->columnAt(0);
+    auto *selectionManager = pane->controller()->selectionManager();
+
+    int betaIndex = -1;
+    int otherIndex = -1;
+    for (int i = 0; i < pane->model()->count(); ++i) {
+        const QString name = pane->model()->fileItem(i).name();
+        if (name == QStringLiteral("beta")) {
+            betaIndex = i;
+        } else if (otherIndex < 0) {
+            otherIndex = i;
+        }
+    }
+    QVERIFY(betaIndex >= 0);
+    QVERIFY(otherIndex >= 0);
+
+    // Current is some other item, which is what a first click on "beta" starts from.
+    selectionManager->blockSignals(true);
+    selectionManager->clearSelection();
+    selectionManager->setCurrentItem(otherIndex);
+    selectionManager->blockSignals(false);
+    QVERIFY(selectionManager->currentItem() != betaIndex);
+
+    clickItem(pane, betaIndex);
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QCOMPARE(m_view->columnAt(1)->dirUrl().fileName(), QStringLiteral("beta"));
+}
+
+void DolphinColumnsViewTest::testRightClickKeepsTheChildColumns()
+{
+    // A right click opens the context menu, whose actions act on the folder of the column that
+    // was clicked. Opening the child of the item under the cursor would take that folder away
+    // before the menu is even shown.
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    activateColumn(1);
+
+    auto *pane = m_view->columnAt(0);
+    const int betaIndex = indexOfName(pane, QStringLiteral("beta"));
+    QVERIFY(betaIndex >= 0);
+
+    m_view->handleMouseButtonPressed(pane, betaIndex, Qt::RightButton);
+
+    // The column that was clicked becomes the active one, so the menu acts on the right folder.
+    QCOMPARE(m_view->activeColumnIndex(), 0);
+    QCOMPARE(m_view->columnCount(), 2);
+    QCOMPARE(m_view->columnAt(1)->dirUrl().adjusted(QUrl::StripTrailingSlash).fileName(), QStringLiteral("alpha"));
+}
+
+void DolphinColumnsViewTest::testMouseClickOnAFileDropsTheColumnsAfterIt()
+{
+    // The columns to the right of a click belong to a folder that is no longer the selected item,
+    // so clicking a file closes them and the url goes back to the folder holding the file.
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+
+    auto *pane = m_view->columnAt(0);
+    const int fileIndex = indexOfName(pane, QStringLiteral("single-file.txt"));
+    QVERIFY(fileIndex >= 0);
+
+    QSignalSpy urlSpy(m_view, &DolphinView::urlChanged);
+    clickItem(pane, fileIndex);
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 1, 5000);
+    QCOMPARE(m_view->url().adjusted(QUrl::StripTrailingSlash), m_testDir->url().adjusted(QUrl::StripTrailingSlash));
+    QCOMPARE(urlSpy.count(), 1);
+}
+
+void DolphinColumnsViewTest::testDraggingAFileLeavesTheColumnsOpen()
+{
+    // Dragging a file to a folder shown further right needs that column to still be there when
+    // the drag arrives, so a press that becomes a drag closes nothing.
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+
+    auto *pane = m_view->columnAt(0);
+    const int fileIndex = indexOfName(pane, QStringLiteral("single-file.txt"));
+    QVERIFY(fileIndex >= 0);
+
+    QSignalSpy urlSpy(m_view, &DolphinView::urlChanged);
+    m_view->handleMouseButtonPressed(pane, fileIndex, Qt::LeftButton);
+    QCOMPARE(m_view->columnCount(), 2);
+
+    Q_EMIT pane->controller()->draggingStarted();
+    QTest::qWait(100); // UNAVOIDABLE: proving that nothing closes needs time for it to happen
+    QCOMPARE(m_view->columnCount(), 2);
+
+    // The release that ends the drag is not a click on the file either.
+    m_view->handleMouseButtonReleased(pane, fileIndex);
+    QTest::qWait(100); // UNAVOIDABLE: see above
+    QCOMPARE(m_view->columnCount(), 2);
+    QCOMPARE(urlSpy.count(), 0);
+}
+
+void DolphinColumnsViewTest::testPressingAFolderLeavesTheColumnsOpen()
+{
+    // A folder dragged to a folder in the next column needs that column to still be there, so a
+    // press on a folder opens nothing until its release. The press goes through the controller,
+    // which selects the pressed item.
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QCOMPARE(m_view->activeColumnIndex(), 0);
+
+    auto *pane = m_view->columnAt(0);
+    const int betaIndex = indexOfName(pane, QStringLiteral("beta"));
+    QVERIFY(betaIndex >= 0);
+    auto *graphicsView = qobject_cast<QGraphicsView *>(pane->container()->viewport());
+    QVERIFY(graphicsView);
+    const QPoint betaPos = graphicsView->mapFromScene(pane->itemListView()->itemRect(betaIndex).center());
+
+    QTest::mousePress(graphicsView->viewport(), Qt::LeftButton, Qt::NoModifier, betaPos);
+    QVERIFY(pane->controller()->selectionManager()->isSelected(betaIndex));
+    QTest::qWait(100); // UNAVOIDABLE: proving that nothing opens needs time for it to happen
+    QCOMPARE(m_view->columnCount(), 2);
+    QCOMPARE(m_view->columnAt(1)->dirUrl(), urlOf(QStringLiteral("alpha")));
+
+    QTest::mouseRelease(graphicsView->viewport(), Qt::LeftButton, Qt::NoModifier, betaPos);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(1)->dirUrl(), urlOf(QStringLiteral("beta")), 5000);
+    QCOMPARE(m_view->columnCount(), 2);
+}
+
+void DolphinColumnsViewTest::testDroppingAFolderIntoTheNextColumnSelectsIt()
+{
+    // beta is pressed, which selects it, and dragged into the column of alpha. Moving it away
+    // leaves nothing selected in the first column, and alpha must stay shown.
+    if (!QDBusConnection::sessionBus().isConnected()) {
+        QSKIP("The first column only sees beta leave through KDirNotify, which needs a D-Bus session");
+    }
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+
+    auto *rootPane = m_view->columnAt(0);
+    const int betaIndex = indexOfName(rootPane, QStringLiteral("beta"));
+    auto *graphicsView = qobject_cast<QGraphicsView *>(rootPane->container()->viewport());
+    QVERIFY(graphicsView);
+    const QPoint betaPos = graphicsView->mapFromScene(rootPane->itemListView()->itemRect(betaIndex).center());
+    QTest::mousePress(graphicsView->viewport(), Qt::LeftButton, Qt::NoModifier, betaPos);
+    QVERIFY(rootPane->controller()->selectionManager()->isSelected(betaIndex));
+    Q_EMIT rootPane->controller()->draggingStarted();
+    QTest::mouseRelease(graphicsView->viewport(), Qt::LeftButton, Qt::NoModifier, betaPos);
+
+    // Shift moves without asking.
+    QMimeData mimeData;
+    mimeData.setUrls({urlOf(QStringLiteral("beta"))});
+    QGraphicsSceneDragDropEvent dropEvent(QEvent::GraphicsSceneDrop);
+    dropEvent.setMimeData(&mimeData);
+    dropEvent.setModifiers(Qt::ShiftModifier);
+    dropEvent.setPossibleActions(Qt::CopyAction | Qt::MoveAction);
+    dropEvent.setDropAction(Qt::MoveAction);
+    QPointer<DolphinColumnPane> alphaPane = m_view->columnAt(1);
+    Q_EMIT alphaPane->controller()->itemDropEvent(-1, &dropEvent);
+
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(rootPane, QStringLiteral("beta")) < 0, 10000);
+    QTest::qWait(100); // UNAVOIDABLE: proving that the column does not close needs time for it to happen
+    QVERIFY(alphaPane);
+    QCOMPARE(m_view->columnAt(1), alphaPane.data());
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(alphaPane, QStringLiteral("beta")) >= 0, 10000);
+    const int alphaIndex = indexOfName(rootPane, QStringLiteral("alpha"));
+    QVERIFY(rootPane->controller()->selectionManager()->isSelected(alphaIndex));
+
+    // The column that received beta is active, with beta selected in it.
+    QCOMPARE(m_view->activeColumnIndex(), 1);
+    QTRY_VERIFY_WITH_TIMEOUT(alphaPane->controller()->selectionManager()->isSelected(indexOfName(alphaPane, QStringLiteral("beta"))), 5000);
+}
+
+void DolphinColumnsViewTest::testAFolderOpensUnderADrag()
+{
+    // With "Open folders during drag operations", a folder that a drag stays over opens in the
+    // next column, as it opens in the other view modes. The setting applies to the open columns.
+    GeneralSettings::setAutoExpandFolders(true);
+    GeneralSettings::self()->save();
+    m_view->readSettings();
+    QCOMPARE(m_view->columnCount(), 1);
+
+    DolphinColumnPane *rootPane = m_view->columnAt(0);
+    const int alphaIndex = indexOfName(rootPane, QStringLiteral("alpha"));
+    QVERIFY(alphaIndex >= 0);
+    KItemListView *itemView = rootPane->itemListView();
+    const QPointF alphaCenter = itemView->itemRect(alphaIndex).center();
+
+    // The folder opens only while the mouse is still over the column.
+    auto *graphicsView = rootPane->findChild<QGraphicsView *>();
+    QVERIFY(graphicsView);
+    const QPoint alphaPos = graphicsView->mapFromScene(itemView->mapToScene(alphaCenter));
+    QCursor::setPos(graphicsView->viewport()->mapToGlobal(alphaPos));
+    QTest::mouseMove(graphicsView->viewport(), alphaPos);
+
+    QMimeData mimeData;
+    mimeData.setUrls({urlOf(QStringLiteral("single-file.txt"))});
+    for (const QEvent::Type type : {QEvent::GraphicsSceneDragEnter, QEvent::GraphicsSceneDragMove}) {
+        QGraphicsSceneDragDropEvent event(type);
+        event.setPos(alphaCenter);
+        event.setMimeData(&mimeData);
+        event.setPossibleActions(Qt::CopyAction | Qt::MoveAction);
+        event.setProposedAction(Qt::MoveAction);
+        QCoreApplication::sendEvent(itemView, &event);
+    }
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QCOMPARE(m_view->url().adjusted(QUrl::StripTrailingSlash), urlOf(QStringLiteral("alpha")));
+
+    QGraphicsSceneDragDropEvent leave(QEvent::GraphicsSceneDragLeave);
+    leave.setMimeData(&mimeData);
+    QCoreApplication::sendEvent(itemView, &leave);
+}
+
+void DolphinColumnsViewTest::testDroppingIntoAnEarlierColumnKeepsTheColumnsOpen()
+{
+    // Moving an item back to the folder of an earlier column keeps the folder that the column
+    // shows, so the user can move or copy the next item between the same folders.
+    if (!QDBusConnection::sessionBus().isConnected()) {
+        QSKIP("A column only sees an item leave through KDirNotify, which needs a D-Bus session");
+    }
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    activateColumn(1);
+    selectItemInColumn(1, QStringLiteral("alpha-child"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+
+    auto *rootPane = m_view->columnAt(0);
+    QPointer<DolphinColumnPane> alphaPane = m_view->columnAt(1);
+    auto dropOnRootColumn = [rootPane](const QUrl &url, QMimeData &mimeData, QGraphicsSceneDragDropEvent &dropEvent) {
+        mimeData.setUrls({url});
+        dropEvent.setMimeData(&mimeData);
+        // Shift moves without asking.
+        dropEvent.setModifiers(Qt::ShiftModifier);
+        dropEvent.setPossibleActions(Qt::CopyAction | Qt::MoveAction);
+        dropEvent.setDropAction(Qt::MoveAction);
+        Q_EMIT rootPane->controller()->itemDropEvent(-1, &dropEvent);
+    };
+
+    // From the active column, which shows alpha-child in the next one.
+    QMimeData childMimeData;
+    QGraphicsSceneDragDropEvent childDrop(QEvent::GraphicsSceneDrop);
+    dropOnRootColumn(urlOf(QStringLiteral("alpha/alpha-child")), childMimeData, childDrop);
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(rootPane, QStringLiteral("alpha-child")) >= 0, 10000);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 10000);
+    QTest::qWait(100); // UNAVOIDABLE: proving that the column does not close needs time for it to happen
+    QCOMPARE(m_view->columnAt(1), alphaPane.data());
+    QCOMPARE(m_view->activeColumnIndex(), 1);
+    QCOMPARE(rootPane->controller()->selectionManager()->selectedItems().count(), 1);
+    QVERIFY(rootPane->controller()->selectionManager()->isSelected(indexOfName(rootPane, QStringLiteral("alpha"))));
+
+    // From the next column into the active one, which shows alpha.
+    activateColumn(0);
+    QMimeData fileMimeData;
+    QGraphicsSceneDragDropEvent fileDrop(QEvent::GraphicsSceneDrop);
+    dropOnRootColumn(urlOf(QStringLiteral("alpha/file1.txt")), fileMimeData, fileDrop);
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(rootPane, QStringLiteral("file1.txt")) >= 0, 10000);
+    QTest::qWait(100); // UNAVOIDABLE: as above
+    QCOMPARE(m_view->columnCount(), 2);
+    QCOMPARE(m_view->columnAt(1), alphaPane.data());
+    QCOMPARE(rootPane->controller()->selectionManager()->selectedItems().count(), 1);
+    QVERIFY(rootPane->controller()->selectionManager()->isSelected(indexOfName(rootPane, QStringLiteral("alpha"))));
+}
+
+void DolphinColumnsViewTest::testTheUrlIsTheSelectedFolder()
+{
+    // The url names the folder that the last column shows: the selected folder, not
+    // the column with the focus. The url bar, New Folder, Paste and the terminal follow it.
+    QSignalSpy urlSpy(m_view, &DolphinView::urlChanged);
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QCOMPARE(m_view->activeColumnIndex(), 0);
+    QCOMPARE(m_view->url().adjusted(QUrl::StripTrailingSlash), urlOf(QStringLiteral("alpha")));
+    QCOMPARE(urlSpy.count(), 1);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->rootItem().url().adjusted(QUrl::StripTrailingSlash), urlOf(QStringLiteral("alpha")), 5000);
+
+    // Entering the column keeps the url, and a selected file leaves it on its column.
+    activateColumn(1);
+    QCOMPARE(m_view->url().adjusted(QUrl::StripTrailingSlash), urlOf(QStringLiteral("alpha")));
+    selectItemInColumn(1, QStringLiteral("file1.txt"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QCOMPARE(m_view->url().adjusted(QUrl::StripTrailingSlash), urlOf(QStringLiteral("alpha")));
+
+    // Left moves the focus only. alpha stays selected and shown, so the url stays.
+    navigateLeft();
+    QCOMPARE(m_view->activeColumnIndex(), 0);
+    QCOMPARE(m_view->url().adjusted(QUrl::StripTrailingSlash), urlOf(QStringLiteral("alpha")));
+
+    // A file selected in the first column closes the others, and the url is that column.
+    selectItemInColumn(0, QStringLiteral("single-file.txt"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 1, 5000);
+    QCOMPARE(m_view->url().adjusted(QUrl::StripTrailingSlash), m_testDir->url().adjusted(QUrl::StripTrailingSlash));
+}
+
+void DolphinColumnsViewTest::testSetUrlActivatesAnOpenColumn()
+{
+    // Going back to a folder that one of the columns already shows activates that column, which
+    // is what Back does. The url is the folder of the last column, so the columns after it close.
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    activateColumn(1);
+    selectItemInColumn(1, QStringLiteral("alpha-child"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+
+    QPointer<DolphinColumnPane> alphaPane = m_view->columnAt(1);
+    m_view->setUrl(urlOf(QStringLiteral("alpha")));
+    waitForStableState();
+
+    QCOMPARE(m_view->columnCount(), 2);
+    QCOMPARE(m_view->activeColumnIndex(), 1);
+    QCOMPARE(m_view->columnAt(1), alphaPane.data());
+}
+
+void DolphinColumnsViewTest::testSetUrlOpensTheColumnsDownToADescendant()
+{
+    // A url below the column that is open opens the folders in between rather than becoming the
+    // only column, so the breadcrumb and the Places panel land where the columns already are.
+    // The fixture auto-selects the first item, so a preview column may be open already.
+    QVERIFY(m_view->columnCount() >= 1);
+    QCOMPARE(m_view->columnAt(0)->dirUrl().adjusted(QUrl::StripTrailingSlash), m_testDir->url().adjusted(QUrl::StripTrailingSlash));
+
+    m_view->setUrl(urlOf(QStringLiteral("alpha/alpha-child")));
+    waitForStableState();
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+    QCOMPARE(m_view->columnAt(1)->dirUrl().adjusted(QUrl::StripTrailingSlash).fileName(), QStringLiteral("alpha"));
+    QCOMPARE(m_view->columnAt(2)->dirUrl().adjusted(QUrl::StripTrailingSlash).fileName(), QStringLiteral("alpha-child"));
+}
+
+void DolphinColumnsViewTest::testNameFilterAppliesToEveryColumn()
+{
+    // The filter belongs to the view, so it reaches every column and not only the active one.
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnAt(1)->model()->count() > 0, 5000);
+
+    const int unfilteredRootCount = m_view->columnAt(0)->model()->count();
+    const int unfilteredChildCount = m_view->columnAt(1)->model()->count();
+
+    // "al" matches alpha in the root and alpha-child in alpha. It has to keep alpha itself
+    // visible, because filtering the folder a column was opened from closes that column.
+    m_view->setNameFilter(QStringLiteral("al"));
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(0)->model()->count(), 1, 5000);
+    QCOMPARE(m_view->columnCount(), 2);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(1)->model()->count(), 1, 5000);
+    QCOMPARE(m_view->columnAt(1)->model()->fileItem(0).name(), QStringLiteral("alpha-child"));
+
+    m_view->setNameFilter(QString());
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(0)->model()->count(), unfilteredRootCount, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(1)->model()->count(), unfilteredChildCount, 5000);
+}
+
+void DolphinColumnsViewTest::testAColumnOpenedLaterInheritsTheFilter()
+{
+    // A column opened while a filter is set is filtered as well.
+    m_view->setNameFilter(QStringLiteral("a"));
+    // alpha, beta and gamma carry an "a", single-file.txt does not.
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(0)->model()->count(), 3, 5000);
+
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+
+    // alpha holds alpha-child, file1.txt and file2.txt, and only the first carries an "a".
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(1)->model()->count(), 1, 5000);
+    QCOMPARE(m_view->columnAt(1)->model()->fileItem(0).name(), QStringLiteral("alpha-child"));
+
+    m_view->setNameFilter(QString());
+}
+
+void DolphinColumnsViewTest::testFilterCaseSensitivityAppliesToEveryColumn()
+{
+    // Case sensitivity belongs to the view, so it reaches the columns that are already open.
+    m_testDir->createFile("alpha/ALPHA-UPPER.txt");
+
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(1)->model()->count(), 4, 5000);
+
+    m_view->setFilterCaseSensitive(false);
+    m_view->setNameFilter(QStringLiteral("alpha"));
+
+    // alpha in the root, and alpha-child plus ALPHA-UPPER.txt in alpha.
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(0)->model()->count(), 1, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(1)->model()->count(), 2, 5000);
+
+    m_view->setFilterCaseSensitive(true);
+
+    QCOMPARE(m_view->columnAt(0)->model()->isFilterCaseSensitive(), true);
+    QCOMPARE(m_view->columnAt(1)->model()->isFilterCaseSensitive(), true);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(1)->model()->count(), 1, 5000);
+    QCOMPARE(m_view->columnAt(1)->model()->fileItem(0).name(), QStringLiteral("alpha-child"));
+}
+
+void DolphinColumnsViewTest::testFilterModeAppliesToEveryColumn()
+{
+    // The filter mode reaches the columns that are already open. "^alpha" matches as a regular
+    // expression and matches nothing as a glob, where both characters are literal.
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+
+    m_view->setFilterMode(KFileItemModelFilter::Regex);
+    m_view->setNameFilter(QStringLiteral("^alpha"));
+
+    QCOMPARE(m_view->columnAt(0)->model()->filterMode(), KFileItemModelFilter::Regex);
+    QCOMPARE(m_view->columnAt(1)->model()->filterMode(), KFileItemModelFilter::Regex);
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(0)->model()->count(), 1, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(1)->model()->count(), 1, 5000);
+    QCOMPARE(m_view->columnAt(1)->model()->fileItem(0).name(), QStringLiteral("alpha-child"));
+}
+
+void DolphinColumnsViewTest::testAColumnOpenedLaterInheritsTheFilterModeAndCase()
+{
+    // appendPane() gives a new column the whole filter, and not only the name.
+    m_view->setFilterMode(KFileItemModelFilter::Regex);
+    m_view->setFilterCaseSensitive(true);
+    m_view->setNameFilter(QStringLiteral("^alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(0)->model()->count(), 1, 5000);
+
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+
+    QCOMPARE(m_view->columnAt(1)->model()->filterMode(), KFileItemModelFilter::Regex);
+    QCOMPARE(m_view->columnAt(1)->model()->isFilterCaseSensitive(), true);
+    QCOMPARE(m_view->columnAt(1)->model()->nameFilter(), QStringLiteral("^alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(1)->model()->count(), 1, 5000);
+}
+
+void DolphinColumnsViewTest::testFilteringOutAFolderClosesItsColumn()
+{
+    // A column stands for an item of the column to its left. Filtering that item away leaves the
+    // column with nothing to stand for, so it closes.
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    waitForStableState();
+
+    // "file" matches single-file.txt in the root and leaves out alpha.
+    m_view->setNameFilter(QStringLiteral("file"));
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 1, 5000);
+    QCOMPARE(m_view->columnAt(0)->model()->count(), 1);
+}
+
+void DolphinColumnsViewTest::testEnteringAColumnShowsTheFirstFolder()
+{
+    // alpha holds alpha-child, a folder, as its first item. Entering alpha selects alpha-child,
+    // which shows its content in the next column, as Down to another folder does.
+    activateColumn(0);
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    navigateRight();
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->activeColumnIndex(), 1, 5000);
+
+    auto *selectionManager = m_view->columnAt(1)->controller()->selectionManager();
+    QTRY_VERIFY_WITH_TIMEOUT(selectionManager->selectedItems().count() == 1, 5000);
+    QCOMPARE(m_view->columnAt(1)->model()->fileItem(selectionManager->currentItem()).name(), QStringLiteral("alpha-child"));
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+    QCOMPARE(m_view->columnAt(2)->dirUrl().adjusted(QUrl::StripTrailingSlash), urlOf(QStringLiteral("alpha/alpha-child")));
+    // The column entered stays the active one.
+    QCOMPARE(m_view->activeColumnIndex(), 1);
+}
+
+void DolphinColumnsViewTest::testEveryFolderOnThePathIsMarkedInItsParent()
+{
+    // Restoring a session opens the columns for a url that is already several folders deep, so
+    // each of them is asked to mark its child before it has listed and the item does not exist
+    // yet. The mark has to be put on once the listing arrives.
+    m_view->setUrl(urlOf(QStringLiteral("alpha/alpha-child")));
+    waitForStableState();
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+
+    auto markedNameIn = [this](int column) {
+        auto *selectionManager = m_view->columnAt(column)->controller()->selectionManager();
+        const int current = selectionManager->currentItem();
+        if (current < 0 || !selectionManager->isSelected(current)) {
+            return QString();
+        }
+        return m_view->columnAt(column)->model()->fileItem(current).name();
+    };
+
+    QTRY_COMPARE_WITH_TIMEOUT(markedNameIn(0), QStringLiteral("alpha"), 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(markedNameIn(1), QStringLiteral("alpha-child"), 5000);
+}
+
+void DolphinColumnsViewTest::testSpaceIsAShortcutWhenAColumnHasTheFocus()
+{
+    // DolphinMainWindow asks this before letting Space through as a shortcut, and the answer has
+    // to be about the column that holds the focus. The base view asks its own container, which
+    // no column ever is, so Space always arrived as a normal key and selection mode never came on.
+    activateColumn(0);
+    m_view->columnAt(0)->container()->setFocus();
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnAt(0)->container()->hasFocus(), 5000);
+
+    QCOMPARE(m_view->handleSpaceAsNormalKey(), false);
+}
+
+void DolphinColumnsViewTest::testReadingSettingsKeepsTheColumnsMode()
+{
+    // Applying anything in the settings dialog has every view re-read the view properties of its
+    // folder. Those hold the mode the folder was last shown in, which is not the columns mode,
+    // and taking it left the view reporting that mode while it still drew columns.
+    // Written out, because readSettings() loads GeneralSettings from disk again.
+    GeneralSettings::setGlobalViewProps(false);
+    QVERIFY(GeneralSettings::self()->save());
+    {
+        ViewProperties props(m_testDir->url());
+        props.setViewMode(DolphinView::DetailsView);
+        props.save();
+    }
+    QCOMPARE(ViewProperties(m_testDir->url()).viewMode(), DolphinView::DetailsView);
+
+    m_view->readSettings();
+
+    QCOMPARE(m_view->viewMode(), DolphinView::ColumnsView);
+    QVERIFY(m_view->columnCount() >= 1);
+}
+
+void DolphinColumnsViewTest::testTheDetailsSettingsDoNotReachTheColumns()
+{
+    // Each column draws with the details layout, and DolphinItemListView::readSettings() reads
+    // the settings that go with the layout it finds. The details view's own settings would then
+    // decide how a column looks, so a change made for the details view showed up here.
+    DetailsModeSettings::setHighlightEntireRow(false);
+    DetailsModeSettings::setExpandableFolders(true);
+    QVERIFY(DetailsModeSettings::self()->save());
+
+    m_view->readSettings();
+
+    auto *paneView = m_view->columnAt(0)->itemListView();
+    QVERIFY(paneView);
+    // A column is one row wide, and it never expands a folder in place.
+    QCOMPARE(paneView->highlightEntireRow(), true);
+    QCOMPARE(paneView->supportsItemExpanding(), false);
+}
+
+void DolphinColumnsViewTest::testActivatingAnotherColumnKeepsWhatTheUserWasDoing()
+{
+    // DolphinViewContainer leaves selection mode when the url changes, because what the user had
+    // selected is gone. Selecting a folder in a column changes the url too, and closing selection
+    // mode then took it away from under them. The view answers for the url change it is emitting.
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+
+    bool leavesBehindOnColumnSwitch = true;
+    auto columnSwitch = connect(m_view, &DolphinView::urlChanged, this, [this, &leavesBehindOnColumnSwitch]() {
+        leavesBehindOnColumnSwitch = m_view->urlChangeLeavesTheSelectionBehind();
+    });
+    selectItemInColumn(0, QStringLiteral("beta"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->url().adjusted(QUrl::StripTrailingSlash), urlOf(QStringLiteral("beta")), 5000);
+    disconnect(columnSwitch);
+    QCOMPARE(leavesBehindOnColumnSwitch, false);
+
+    // A url that none of the columns shows is somewhere else, and there selection mode goes.
+    TestDir otherDir;
+    bool leavesBehindOnNavigation = false;
+    auto navigation = connect(m_view, &DolphinView::urlChanged, this, [this, &leavesBehindOnNavigation]() {
+        leavesBehindOnNavigation = m_view->urlChangeLeavesTheSelectionBehind();
+    });
+    m_view->setUrl(otherDir.url());
+    disconnect(navigation);
+    QCOMPARE(leavesBehindOnNavigation, true);
+}
+
+void DolphinColumnsViewTest::testShiftWheelScrollsTheColumns_data()
+{
+    QTest::addColumn<int>("extraFiles");
+
+    QTest::newRow("short column") << 0;
+    QTest::newRow("column that scrolls vertically") << 200;
+}
+
+void DolphinColumnsViewTest::testShiftWheelScrollsTheColumns()
+{
+    QFETCH(int, extraFiles);
+    for (int i = 0; i < extraFiles; ++i) {
+        m_testDir->createFile(QStringLiteral("alpha/alpha-child/file%1.txt").arg(i, 3, 10, QLatin1Char('0')));
+    }
+
+    m_view->resize(350, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+
+    activateColumn(0);
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnCount() > 1, 5000);
+    navigateRight();
+    selectItemInColumn(1, QStringLiteral("alpha-child"));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnCount() > 2, 5000);
+    waitForStableState();
+
+    auto *container = m_view->columnAt(m_view->columnCount() - 1)->container();
+    if (extraFiles > 0) {
+        // Halfway down, so that the wheel could scroll the column either way.
+        QTRY_VERIFY_WITH_TIMEOUT(container->verticalScrollBar()->maximum() > 0, 5000);
+        container->verticalScrollBar()->setValue(container->verticalScrollBar()->maximum() / 2);
+    }
+    const int columnScrollBefore = container->verticalScrollBar()->value();
+
+    // Until the columns have their widths, the range of the scrollbar still moves.
+    auto *scrollBar = m_view->m_scrollArea->horizontalScrollBar();
+    QTRY_VERIFY_WITH_TIMEOUT(scrollBar->maximum() > 0, 5000);
+    int stableChecks = 0;
+    for (int maximum = -1; stableChecks < 3;) {
+        stableChecks = scrollBar->maximum() == maximum ? stableChecks + 1 : 0;
+        maximum = scrollBar->maximum();
+        QTest::qWait(100); // UNAVOIDABLE: no signal marks the last change of the range
+    }
+    scrollBar->setValue(scrollBar->maximum());
+    const int scrollBefore = scrollBar->value();
+
+    // Shift and the wheel turned up, over the last column, scroll towards the first column.
+    auto *target = container->viewport();
+    const QPointF position(target->width() / 2, target->height() / 2);
+    QWheelEvent event(position, target->mapToGlobal(position), QPoint(), QPoint(0, 120), Qt::NoButton, Qt::ShiftModifier, Qt::NoScrollPhase, false);
+    QApplication::sendEvent(target, &event);
+
+    QTRY_VERIFY_WITH_TIMEOUT(scrollBar->value() < scrollBefore, 2000);
+    // Less than a page: the scrollbar did not take Shift for a page step.
+    QVERIFY(scrollBefore - scrollBar->value() < scrollBar->pageStep());
+    // The column does not scroll, also not once a smooth scroll would have ended.
+    QTest::qWait(300); // UNAVOIDABLE: checks that the column does not scroll
+    QCOMPARE(container->verticalScrollBar()->value(), columnScrollBefore);
+}
+
+void DolphinColumnsViewTest::testClosingColumnsLeavesTheScrollPositionAlone()
+{
+    // Clicking a file closes the columns that stood for a folder, and the content is then
+    // narrower than where the view is scrolled to. Pulling the scroll position back slides
+    // everything sideways under the user, so the filler takes up what the position needs.
+    auto *settings = ColumnsModeSettings::self();
+    settings->setDynamicColumnWidth(true);
+    settings->setMinColumnWidth(10);
+    settings->setMinContentColumnWidth(10);
+    // Up to the whole viewport, the width of the content.
+    settings->setMaxVisibleColumns(1);
+
+    // A name far wider than the window, so the columns do not fit and the view has somewhere to
+    // scroll to.
+    m_testDir->createFile(QStringLiteral("alpha/alpha-child/") + QString(200, QLatin1Char('w')) + QStringLiteral(".txt"));
+    m_testDir->createDir(QStringLiteral("alpha/alpha-child2"));
+
+    m_view->resize(350, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+
+    activateColumn(0);
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnCount() > 1, 5000);
+    navigateRight();
+    selectItemInColumn(1, QStringLiteral("alpha-child"));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnCount() > 2, 5000);
+    navigateRight();
+
+    auto *scrollBar = m_view->m_scrollArea->horizontalScrollBar();
+    QTRY_VERIFY_WITH_TIMEOUT(scrollBar->maximum() > 0, 5000);
+
+    // Put alpha at the left edge: the user is looking at it, which is why they can click in it.
+    auto *viewport = m_view->m_scrollArea->viewport();
+    scrollBar->setValue(scrollBar->value() + m_view->columnAt(1)->mapTo(viewport, QPoint(0, 0)).x());
+    QVERIFY(scrollBar->value() > 0);
+    const int scrollBefore = scrollBar->value();
+
+    // A file in alpha, the column the user is looking at, closes the one to its right.
+    auto *pane = m_view->columnAt(1);
+    const int fileIndex = indexOfName(pane, QStringLiteral("file1.txt"));
+    QVERIFY(fileIndex >= 0);
+    clickItem(pane, fileIndex);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+
+    QCOMPARE(scrollBar->value(), scrollBefore);
+    // The filler holds the width open, so the position is not merely set back and then clamped
+    // away once the layout settles.
+    const int neededWidth = scrollBefore + viewport->width();
+    QVERIFY2(
+        m_view->m_splitter->minimumWidth() >= neededWidth,
+        qPrintable(QStringLiteral("splitter keeps %1, which is below the %2 the position needs").arg(m_view->m_splitter->minimumWidth()).arg(neededWidth)));
+}
+
+void DolphinColumnsViewTest::testAColumnWithNoWidthYetTakesUpNothing()
+{
+    // A column sized before its folder has listed takes the width of an empty model and then
+    // resizes to the width of its content, which the user sees as the column jumping as it
+    // opens. A column whose width is still pending takes up nothing at all, handle included.
+    auto *settings = ColumnsModeSettings::self();
+    settings->setDynamicColumnWidth(true);
+    settings->setMinColumnWidth(10);
+    settings->setMinContentColumnWidth(10);
+
+    m_view->resize(900, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1) > 0, 5000);
+    const int rootWidth = m_view->m_splitter->sizes().at(0);
+
+    m_view->columnAt(1)->setWidthPending(true);
+    m_view->recalculateColumnWidths();
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1), 0, 5000);
+    QVERIFY(!m_view->m_splitter->handle(1)->isVisible());
+    // The column it was opened from keeps its place.
+    QCOMPARE(m_view->m_splitter->sizes().at(0), rootWidth);
+
+    m_view->columnAt(1)->setWidthPending(false);
+    m_view->recalculateColumnWidths();
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1) > 0, 5000);
+    QVERIFY(m_view->m_splitter->handle(1)->isVisible());
+}
+
+void DolphinColumnsViewTest::testAColumnThatWaitedForItsWidthKeepsItsMinimum()
+{
+    // A column has no width while its folder lists, and takes back the minimum of every column
+    // after that, so a drag cannot make it narrower than the others.
+    ColumnsModeSettings::self()->setDynamicColumnWidth(true);
+
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    auto *child = m_view->columnAt(1);
+    QTRY_VERIFY_WITH_TIMEOUT(!child->isWidthPending(), 5000);
+
+    QCOMPARE(child->minimumWidth(), m_view->columnAt(0)->minimumWidth());
+    QVERIFY(child->minimumWidth() > 0);
+}
+
+void DolphinColumnsViewTest::testAListedColumnOpensNothing()
+{
+    // A column that lists its folder makes its first item current. Nobody chose that item, so
+    // nothing opens and nothing is selected, even with the focus in that column. A reload lists
+    // the folder again.
+    activateColumn(0);
+    m_view->columnAt(0)->container()->setFocus();
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnAt(0)->container()->hasFocus(), 5000);
+    QCOMPARE(m_view->columnCount(), 1);
+
+    m_view->reload();
+    waitForStableState();
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnAt(0)->model()->count() > 0, 5000);
+    QTest::qWait(200); // UNAVOIDABLE: the check below is that nothing opens afterwards
+
+    QCOMPARE(m_view->columnCount(), 1);
+    QVERIFY(!m_view->columnAt(0)->controller()->selectionManager()->hasSelection());
+}
+
+void DolphinColumnsViewTest::testDeletingAnOpenFolderOpensNoOther()
+{
+    // The folder after the deleted one becomes the current item of the column. Nobody chose it,
+    // so the column of the deleted folder closes and no other column opens.
+    m_view->columnAt(0)->container()->setFocus();
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnAt(0)->container()->hasFocus(), 5000);
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+
+    QVERIFY(QDir(m_testDir->path() + QStringLiteral("/alpha")).removeRecursively());
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 1, 10000);
+    QTest::qWait(200); // UNAVOIDABLE: the check below is that no other column opens afterwards
+    QCOMPARE(m_view->columnCount(), 1);
+}
+
+void DolphinColumnsViewTest::testAFileChangeOutsideDolphinOpensNothing()
+{
+    // An item created before the current one moves the current item to another index. Nobody
+    // moved there, so nothing is selected and no column opens.
+    m_view->setUrl(urlOf(QStringLiteral("alpha")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    auto *alphaPane = m_view->columnAt(1);
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(alphaPane, QStringLiteral("alpha-child")) >= 0, 5000);
+    alphaPane->container()->setFocus();
+    QTRY_VERIFY(alphaPane->container()->hasFocus());
+    QVERIFY(!alphaPane->controller()->selectionManager()->hasSelection());
+
+    m_testDir->createDir("alpha/aaa");
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(alphaPane, QStringLiteral("aaa")) >= 0, 10000);
+    QTest::qWait(200); // UNAVOIDABLE: proving that nothing opens needs time for it to happen
+    QVERIFY(!alphaPane->controller()->selectionManager()->hasSelection());
+    QCOMPARE(m_view->columnCount(), 2);
+
+    // Renaming the shown folder removes it from the listing, and the item after it becomes
+    // current. That item is neither selected nor shown.
+    activateColumn(0);
+    auto *rootPane = m_view->columnAt(0);
+    rootPane->container()->setFocus();
+    QTRY_VERIFY(rootPane->container()->hasFocus());
+    selectItemInColumn(0, QStringLiteral("beta"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(1)->dirUrl(), urlOf(QStringLiteral("beta")), 5000);
+
+    QVERIFY(QFile::rename(m_testDir->path() + QStringLiteral("/beta"), m_testDir->path() + QStringLiteral("/beta-renamed")));
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(rootPane, QStringLiteral("beta-renamed")) >= 0, 10000);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 1, 5000);
+    QTest::qWait(200); // UNAVOIDABLE: see above
+    QVERIFY(!rootPane->controller()->selectionManager()->hasSelection());
+    QCOMPARE(m_view->columnCount(), 1);
+}
+
+void DolphinColumnsViewTest::testClosingTheActiveColumnReportsTheSelectionLeft()
+{
+    // The folder of the active column is deleted, and the column before it becomes active. The
+    // Information panel and the status bar follow selectionChanged(), so the selection of that
+    // column is reported, not the one of the closed column.
+    QStringList reported{QStringLiteral("<none>")};
+    connect(m_view, &DolphinView::selectionChanged, this, [&reported](const KFileItemList &selection) {
+        reported.clear();
+        for (const KFileItem &item : selection) {
+            reported << item.name();
+        }
+    });
+    activateColumn(0);
+    selectItemInColumn(0, QStringLiteral("beta"));
+    navigateRight();
+    QCOMPARE(m_view->activeColumnIndex(), 1);
+    QTRY_COMPARE(reported, QStringList{QStringLiteral("beta-file.txt")});
+
+    QVERIFY(QDir(m_testDir->path() + QStringLiteral("/beta")).removeRecursively());
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 1, 10000);
+    QCOMPARE(m_view->activeColumnIndex(), 0);
+    QTRY_COMPARE(reported, QStringList());
+    disconnect(m_view, nullptr, this, nullptr);
+}
+
+void DolphinColumnsViewTest::testSeveralSelectedItemsShowNoFolder()
+{
+    // A column with several selected items shows none of them, so the columns after
+    // it close. Going to a folder from outside then leaves only that folder selected.
+    ColumnsModeSettings::self()->setMinColumnWidth(150);
+    ColumnsModeSettings::self()->setMinContentColumnWidth(150);
+    m_view->setUrl(urlOf(QStringLiteral("alpha/alpha-child")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+    auto *rootPane = m_view->columnAt(0);
+    auto *rootSelection = rootPane->controller()->selectionManager();
+    auto *graphicsView = qobject_cast<QGraphicsView *>(rootPane->container()->viewport());
+    QVERIFY(graphicsView);
+    const QPoint gammaPos = graphicsView->mapFromScene(rootPane->itemListView()->itemRect(indexOfName(rootPane, QStringLiteral("gamma"))).center());
+
+    QTest::mouseClick(graphicsView->viewport(), Qt::LeftButton, Qt::ControlModifier, gammaPos);
+    QTRY_COMPARE(rootSelection->selectedItems().count(), 2);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 1, 5000);
+    QCOMPARE(m_view->activeColumnIndex(), 0);
+
+    m_view->setUrl(urlOf(QStringLiteral("alpha/alpha-child")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+    QCOMPARE(rootSelection->selectedItems().count(), 1);
+    QVERIFY(rootSelection->isSelected(indexOfName(rootPane, QStringLiteral("alpha"))));
+}
+
+void DolphinColumnsViewTest::testShiftArrowExtendsTheSelection()
+{
+    // Shift+Down selects a range, as in the other view modes, and a range shows no folder.
+    // A folder before alpha, for the range that Shift+Up selects.
+    m_testDir->createDir("aardvark");
+    m_view->setUrl(urlOf(QStringLiteral("alpha/alpha-child")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+    activateColumn(0);
+    auto *rootPane = m_view->columnAt(0);
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(rootPane, QStringLiteral("aardvark")) >= 0, 10000);
+    auto *rootSelection = rootPane->controller()->selectionManager();
+    const int alphaIndex = indexOfName(rootPane, QStringLiteral("alpha"));
+    QVERIFY(alphaIndex > 0 && alphaIndex + 1 < rootPane->model()->count());
+    QVERIFY(rootSelection->isSelected(alphaIndex));
+    QCOMPARE(rootSelection->currentItem(), alphaIndex);
+
+    // A key sent to the window sets QGuiApplication::keyboardModifiers(), as a real key press does.
+    QWindow *window = m_view->window()->windowHandle();
+    QTest::keyClick(window, Qt::Key_Down, Qt::ShiftModifier);
+    QTRY_COMPARE(rootSelection->selectedItems().count(), 2);
+    QVERIFY(rootSelection->isSelected(alphaIndex));
+    QVERIFY(rootSelection->isSelected(alphaIndex + 1));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 1, 5000);
+    QCOMPARE(m_view->activeColumnIndex(), 0);
+
+    QTest::keyClick(window, Qt::Key_Up, Qt::ShiftModifier);
+    QTest::keyClick(window, Qt::Key_Up, Qt::ShiftModifier);
+    QTRY_COMPARE(rootSelection->selectedItems().count(), 2);
+    QVERIFY(rootSelection->isSelected(alphaIndex - 1));
+    QVERIFY(rootSelection->isSelected(alphaIndex));
+    QCOMPARE(m_view->columnCount(), 1);
+
+    // Ctrl moves only the current item, so the selection and the columns stay.
+    QTest::keyClick(window, Qt::Key_Down, Qt::ControlModifier);
+    QCOMPARE(rootSelection->currentItem(), alphaIndex);
+    QCOMPARE(rootSelection->selectedItems().count(), 2);
+    QCOMPARE(m_view->columnCount(), 1);
+
+    // An arrow key alone selects one item, and a folder shows its content.
+    QTest::keyClick(window, Qt::Key_Down);
+    QCOMPARE(rootSelection->selectedItems().count(), 1);
+    QVERIFY(rootSelection->isSelected(alphaIndex + 1));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QCOMPARE(m_view->columnAt(1)->dirUrl(), urlOf(QStringLiteral("beta")));
+    QTest::keyClick(window, Qt::Key_Up);
+    QCOMPARE(rootSelection->selectedItems().count(), 1);
+    QVERIFY(rootSelection->isSelected(alphaIndex));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QCOMPARE(m_view->columnAt(1)->dirUrl(), urlOf(QStringLiteral("alpha")));
+}
+
+void DolphinColumnsViewTest::testACreatedFolderIsSelected()
+{
+    // "Create New" creates in the url, the folder of the last column, and selects the folder it
+    // created there, as in the other view modes. That column becomes the active one.
+    m_view->setUrl(urlOf(QStringLiteral("alpha")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    selectItemInColumn(1, QStringLiteral("alpha-child"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+    QCOMPARE(m_view->activeColumnIndex(), 1);
+    QCOMPARE(m_view->url().adjusted(QUrl::StripTrailingSlash), urlOf(QStringLiteral("alpha/alpha-child")));
+
+    const QUrl createdUrl = urlOf(QStringLiteral("alpha/alpha-child/created"));
+    m_testDir->createDir("alpha/alpha-child/created");
+    QMetaObject::invokeMethod(m_view, "observeCreatedDirectory", Q_ARG(QUrl, createdUrl));
+    QCOMPARE(m_view->activeColumnIndex(), 2);
+
+    auto *childPane = m_view->columnAt(2);
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(childPane, QStringLiteral("created")) >= 0, 10000);
+    const int createdIndex = indexOfName(childPane, QStringLiteral("created"));
+    QTRY_VERIFY_WITH_TIMEOUT(childPane->controller()->selectionManager()->isSelected(createdIndex), 5000);
+    QCOMPARE(childPane->controller()->selectionManager()->selectedItems().count(), 1);
+    QCOMPARE(childPane->controller()->selectionManager()->currentItem(), createdIndex);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(m_view->columnCount() - 1)->dirUrl(), createdUrl, 5000);
+}
+
+void DolphinColumnsViewTest::testItemsMarkedToSelectAreSelected()
+{
+    // "Show in folder" and dolphin --select mark the item before they set the url.
+    m_view->markUrlsAsSelected({urlOf(QStringLiteral("alpha/file2.txt"))});
+    m_view->markUrlAsCurrent(urlOf(QStringLiteral("alpha/file2.txt")));
+    m_view->setUrl(urlOf(QStringLiteral("alpha")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    auto *alphaPane = m_view->columnAt(1);
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(alphaPane, QStringLiteral("file2.txt")) >= 0, 5000);
+    const int fileIndex = indexOfName(alphaPane, QStringLiteral("file2.txt"));
+    QTRY_VERIFY_WITH_TIMEOUT(alphaPane->controller()->selectionManager()->isSelected(fileIndex), 5000);
+    QCOMPARE(alphaPane->controller()->selectionManager()->currentItem(), fileIndex);
+    QCOMPARE(m_view->activeColumnIndex(), 1);
+}
+
+void DolphinColumnsViewTest::testDeletingSelectsTheNextItem()
+{
+    // After Delete, the item after the deleted one is selected, as in the other view modes (bug 419914).
+    KConfigGroup confirmations = KSharedConfig::openConfig(QStringLiteral("kiorc"), KConfig::NoGlobals)->group(QStringLiteral("Confirmations"));
+    confirmations.writeEntry("ConfirmDelete", false);
+    m_view->setUrl(urlOf(QStringLiteral("alpha")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    auto *alphaPane = m_view->columnAt(1);
+    QTRY_COMPARE_WITH_TIMEOUT(alphaPane->model()->count(), 3, 5000);
+    // The first file, whichever the sorting puts first, so that another item follows it.
+    int deletedIndex = 0;
+    while (alphaPane->model()->fileItem(deletedIndex).isDir()) {
+        ++deletedIndex;
+    }
+    QVERIFY(deletedIndex + 1 < alphaPane->model()->count());
+    const QString deletedName = alphaPane->model()->fileItem(deletedIndex).name();
+    const QString nextName = alphaPane->model()->fileItem(deletedIndex + 1).name();
+    selectItemInColumn(1, deletedName);
+    QCOMPARE(m_view->activeColumnIndex(), 1);
+
+    m_view->deleteSelectedItems();
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(alphaPane, deletedName) < 0, 10000);
+    QTRY_VERIFY_WITH_TIMEOUT(alphaPane->controller()->selectionManager()->isSelected(indexOfName(alphaPane, nextName)), 5000);
+    confirmations.deleteEntry("ConfirmDelete");
+}
+
+void DolphinColumnsViewTest::testTheColumnLeftActiveAfterAClosedOneStillWorks()
+{
+    // The folder of the active column is deleted, and the column before it becomes active. A
+    // selection in that column is reported and opens the folder it selects, as in any active column.
+    QStringList reported;
+    connect(m_view, &DolphinView::selectionChanged, this, [&reported](const KFileItemList &selection) {
+        reported.clear();
+        for (const KFileItem &item : selection) {
+            reported << item.name();
+        }
+    });
+    activateColumn(0);
+    selectItemInColumn(0, QStringLiteral("beta"));
+    navigateRight();
+    QCOMPARE(m_view->activeColumnIndex(), 1);
+
+    QVERIFY(QDir(m_testDir->path() + QStringLiteral("/beta")).removeRecursively());
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 1, 10000);
+    QCOMPARE(m_view->activeColumnIndex(), 0);
+
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE(reported, QStringList{QStringLiteral("alpha")});
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QCOMPARE(m_view->columnAt(1)->dirUrl(), urlOf(QStringLiteral("alpha")));
+    disconnect(m_view, nullptr, this, nullptr);
+}
+
+void DolphinColumnsViewTest::testOnlyTheShownFolderReportsItsListingDone()
+{
+    // The status bar and the Stop action follow the listing of the folder that the view shows. A
+    // parent column that finishes listing first does not end the progress of that folder.
+    QSignalSpy viewDone(m_view, &DolphinView::directoryLoadingCompleted);
+    m_view->setUrl(urlOf(QStringLiteral("alpha/alpha-child")));
+    QCOMPARE(m_view->columnCount(), 3);
+    QSignalSpy parentDone(m_view->columnAt(1), &DolphinColumnPane::directoryLoadingCompleted);
+    QSignalSpy shownDone(m_view->columnAt(2), &DolphinColumnPane::directoryLoadingCompleted);
+
+    QTRY_VERIFY_WITH_TIMEOUT(parentDone.count() >= 1 && shownDone.count() >= 1, 5000);
+    QCOMPARE(viewDone.count(), 1);
+}
+
+void DolphinColumnsViewTest::testAFolderCreatedBeforeAColumnClickIsNotSelectedLater()
+{
+    // A click in another column before the created folder is listed: the folder is not selected,
+    // neither then nor when an item of the same name appears in that column later.
+    m_view->setUrl(urlOf(QStringLiteral("alpha")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    selectItemInColumn(1, QStringLiteral("alpha-child"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+
+    const QUrl createdUrl = urlOf(QStringLiteral("alpha/alpha-child/created"));
+    m_testDir->createDir("alpha/alpha-child/created");
+    QMetaObject::invokeMethod(m_view, "observeCreatedDirectory", Q_ARG(QUrl, createdUrl));
+    QCOMPARE(m_view->activeColumnIndex(), 2);
+    activateColumn(1);
+
+    auto *childPane = m_view->columnAt(2);
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(childPane, QStringLiteral("created")) >= 0, 10000);
+    QVERIFY(childPane->controller()->selectionManager()->selectedItems().isEmpty());
+
+    QVERIFY(QDir(createdUrl.toLocalFile()).removeRecursively());
+    QTRY_COMPARE_WITH_TIMEOUT(indexOfName(childPane, QStringLiteral("created")), -1, 10000);
+    activateColumn(2);
+    m_testDir->createDir("alpha/alpha-child/created");
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(childPane, QStringLiteral("created")) >= 0, 10000);
+    QTest::qWait(100); // UNAVOIDABLE: checks that no selection is made after the insertion
+    QVERIFY(childPane->controller()->selectionManager()->selectedItems().isEmpty());
+}
+
+void DolphinColumnsViewTest::testOpeningAColumnLeavesTheOnesBeforeItAlone()
+{
+    // The width the splitter is held at has to cover every column, the filler and every handle
+    // that is drawn. One pixel short and the splitter takes that pixel out of one of the columns,
+    // which moves every column after it as the new one opens.
+    auto *settings = ColumnsModeSettings::self();
+    settings->setDynamicColumnWidth(true);
+    settings->setMinColumnWidth(200);
+    settings->setMinContentColumnWidth(200);
+
+    m_testDir->createDir("alpha/alpha-child/deep");
+    m_testDir->createFile("alpha/alpha-child/deep/deep-file.txt");
+
+    // Narrow enough that the columns overflow it, so the splitter is held at the width they take.
+    m_view->resize(420, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+
+    m_view->openChild(0, urlOf(QStringLiteral("alpha")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1) > 0, 5000);
+    m_view->openChild(1, urlOf(QStringLiteral("alpha/alpha-child")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(2) > 0, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->minimumWidth() > 0, 5000);
+
+    const QList<int> before = m_view->m_splitter->sizes().mid(0, 3);
+
+    m_view->openChild(2, urlOf(QStringLiteral("alpha/alpha-child/deep")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(3) > 0, 5000);
+
+    QCOMPARE(m_view->m_splitter->sizes().mid(0, 3), before);
+
+    // What the splitter is held at has to cover every column, the filler and every handle it
+    // draws. A pixel short and it takes that pixel back out of a column, so no column ends up
+    // with less than the width it asked for.
+    auto *splitter = m_view->m_splitter;
+    QVERIFY(splitter->minimumWidth() > 0); // The columns overflow, so it is held open.
+    const int viewportWidth = m_view->m_scrollArea->viewport()->width();
+    const QList<int> applied = splitter->sizes();
+    for (int i = 0; i < m_view->columnCount(); ++i) {
+        const int asked = qMin(viewportWidth, qMax(settings->minContentColumnWidth(), m_view->columnAt(i)->calculateOptimalWidth()));
+        QVERIFY2(applied.at(i) == asked, qPrintable(QStringLiteral("column %1 asked for %2 and was given %3").arg(i).arg(asked).arg(applied.at(i))));
+    }
+}
+
+void DolphinColumnsViewTest::testTheFirstVisibleColumnIsShownWhole()
+{
+    // When the columns do not fit, the view scrolls to the left edge of a column. A column cut on
+    // its left shows its selection without the name of the folder it leads to.
+    auto *settings = ColumnsModeSettings::self();
+    settings->setDynamicColumnWidth(true);
+    settings->setMinColumnWidth(200);
+    settings->setMinContentColumnWidth(200);
+    m_testDir->createDir("alpha/alpha-child/deep");
+
+    m_view->resize(500, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+
+    auto noColumnIsCut = [this]() {
+        for (int i = 0; i < m_view->columnCount(); ++i) {
+            const int left = m_view->columnAt(i)->mapTo(m_view->m_scrollArea->viewport(), QPoint(0, 0)).x();
+            if (left < 0 && left + m_view->columnAt(i)->width() > 0) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    m_view->openChild(0, urlOf(QStringLiteral("alpha")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1) > 0, 5000);
+    m_view->openChild(1, urlOf(QStringLiteral("alpha/alpha-child")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(2) > 0, 5000);
+    m_view->openChild(2, urlOf(QStringLiteral("alpha/alpha-child/deep")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(3) > 0, 5000);
+    m_view->setActiveColumn(3);
+
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->horizontalScrollBar()->value() > 0, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(noColumnIsCut(), 5000);
+}
+
+void DolphinColumnsViewTest::testTheActiveColumnStaysInViewWhenTheNextOneOpens()
+{
+    // In a split view one column can be all that fits, and showing the column that a click opened
+    // moved the column with the focus out of view.
+    auto *settings = ColumnsModeSettings::self();
+    settings->setDynamicColumnWidth(false);
+    settings->setMinColumnWidth(300);
+    settings->setMinContentColumnWidth(300);
+
+    m_view->resize(350, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+
+    auto activeColumnIsInView = [this]() {
+        const int left = m_view->columnAt(m_view->activeColumnIndex())->mapTo(m_view->m_scrollArea->viewport(), QPoint(0, 0)).x();
+        return left >= 0 && left < m_view->m_scrollArea->viewport()->width();
+    };
+
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(m_view->columnAt(0), QStringLiteral("alpha")) >= 0, 5000);
+    clickItem(m_view->columnAt(0), indexOfName(m_view->columnAt(0), QStringLiteral("alpha")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(m_view->columnAt(1), QStringLiteral("alpha-child")) >= 0, 5000);
+    QTest::qWait(50); // UNAVOIDABLE: checks that the active column does not change
+    QCOMPARE(m_view->activeColumnIndex(), 0);
+    QVERIFY(activeColumnIsInView());
+
+    clickItem(m_view->columnAt(1), indexOfName(m_view->columnAt(1), QStringLiteral("alpha-child")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+    QTest::qWait(50); // UNAVOIDABLE: checks that the active column does not change
+    QCOMPARE(m_view->activeColumnIndex(), 1);
+    QVERIFY(activeColumnIsInView());
+}
+
+void DolphinColumnsViewTest::testWideningTheWindowShowsTheParentColumns()
+{
+    // A wider window shows the parent columns again instead of empty room after the last column.
+    auto *settings = ColumnsModeSettings::self();
+    settings->setDynamicColumnWidth(true);
+    settings->setMinColumnWidth(200);
+    settings->setMinContentColumnWidth(200);
+    m_testDir->createDir("alpha/alpha-child/deep");
+
+    m_view->resize(500, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+
+    m_view->openChild(0, urlOf(QStringLiteral("alpha")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1) > 0, 5000);
+    m_view->openChild(1, urlOf(QStringLiteral("alpha/alpha-child")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(2) > 0, 5000);
+    m_view->openChild(2, urlOf(QStringLiteral("alpha/alpha-child/deep")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(3) > 0, 5000);
+    m_view->setActiveColumn(3);
+
+    QScrollBar *scrollBar = m_view->m_scrollArea->horizontalScrollBar();
+    QTRY_VERIFY_WITH_TIMEOUT(scrollBar->value() > 0, 5000);
+    const int narrowScrollValue = scrollBar->value();
+
+    // Dragging the window edge widens it a few pixels at a time.
+    for (int width = 510; width <= 750; width += 10) {
+        m_view->resize(width, 400);
+        QCoreApplication::processEvents();
+    }
+
+    QWidget *viewport = m_view->m_scrollArea->viewport();
+    auto lastRight = [this, viewport]() {
+        QWidget *last = m_view->columnAt(m_view->columnCount() - 1);
+        return last->mapTo(viewport, QPoint(last->width(), 0)).x();
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(scrollBar->value() < narrowScrollValue, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(lastRight() <= viewport->width(), 5000);
+    // No whole column fits in the room left after the last one.
+    QTRY_VERIFY_WITH_TIMEOUT(scrollBar->value() == 0 || viewport->width() - lastRight() < m_view->columnAt(0)->width(), 5000);
+    for (int i = 0; i < m_view->columnCount(); ++i) {
+        const int left = m_view->columnAt(i)->mapTo(viewport, QPoint(0, 0)).x();
+        QVERIFY(left >= 0 || left + m_view->columnAt(i)->width() <= 0);
+    }
+}
+
+void DolphinColumnsViewTest::testTheLastColumnShowsALongNameInFull()
+{
+    // The last column shows a long name in full, within the view.
+    auto *settings = ColumnsModeSettings::self();
+    settings->setDynamicColumnWidth(true);
+    settings->setMinColumnWidth(100);
+    settings->setMinContentColumnWidth(100);
+    settings->setMaxVisibleColumns(4);
+    m_testDir->createFile(QStringLiteral("alpha/alpha-child/deep/") + QString(80, QLatin1Char('x')) + QStringLiteral(".txt"));
+
+    m_view->resize(1000, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+
+    m_view->openChild(0, urlOf(QStringLiteral("alpha")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1) > 0, 5000);
+    m_view->openChild(1, urlOf(QStringLiteral("alpha/alpha-child")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(2) > 0, 5000);
+    m_view->openChild(2, urlOf(QStringLiteral("alpha/alpha-child/deep")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(3) > 0, 5000);
+
+    const int viewportWidth = m_view->m_scrollArea->viewport()->width();
+    QWidget *last = m_view->columnAt(3);
+    QTRY_COMPARE_WITH_TIMEOUT(last->width(), qMin(viewportWidth, m_view->columnAt(3)->calculateOptimalWidth()), 5000);
+    // The view scrolls to a new column once it is active.
+    m_view->setActiveColumn(3);
+    QTRY_VERIFY_WITH_TIMEOUT(last->mapTo(m_view->m_scrollArea->viewport(), QPoint(last->width(), 0)).x() <= viewportWidth, 5000);
+}
+
+void DolphinColumnsViewTest::testShortNamesGiveANarrowColumn()
+{
+    // With the default settings, a column adjusted to its content is narrower than a fixed one
+    // when its names are short.
+    auto *settings = ColumnsModeSettings::self();
+    QVERIFY(settings->dynamicColumnWidth());
+
+    m_view->resize(1600, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+
+    m_view->openChild(0, urlOf(QStringLiteral("alpha")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1) > 0, 5000);
+
+    DolphinColumnPane *column = m_view->columnAt(1);
+    QVERIFY(column->calculateOptimalWidth() < settings->minColumnWidth());
+    QTRY_COMPARE_WITH_TIMEOUT(column->width(), qMax(settings->minContentColumnWidth(), column->calculateOptimalWidth()), 5000);
+    QVERIFY(column->width() < settings->minColumnWidth());
+
+    settings->setDynamicColumnWidth(false);
+    m_view->recalculateColumnWidths(DolphinColumnsView::WidthPolicy::Refit);
+    QTRY_VERIFY_WITH_TIMEOUT(column->width() >= settings->minColumnWidth(), 5000);
+}
+
+void DolphinColumnsViewTest::testANewFirstColumnTakesTheWidthOfItsContent()
+{
+    // A column that is inserted in a shown splitter has a size before the view gives it one. The
+    // first column of a new place took that size as the width it could not go below.
+    m_testDir->createFile(QStringLiteral("downloads/a-download-with-a-really-really-long-file-name-v2.tar.gz"));
+    m_testDir->createDir("home/Desktop");
+    const QUrl downloads = urlOf(QStringLiteral("downloads"));
+    const QUrl home = urlOf(QStringLiteral("home"));
+    DolphinColumnsView view(downloads, nullptr, DolphinView::ColumnsView);
+    view.resize(1600, 400);
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    DolphinColumnPane *column = view.columnAt(0);
+    QTRY_COMPARE_WITH_TIMEOUT(view.m_splitter->sizes().at(0), qBound(150, column->calculateOptimalWidth(), view.m_scrollArea->viewport()->width() / 4), 5000);
+
+    view.setUrl(home);
+    QTRY_COMPARE_WITH_TIMEOUT(view.columnAt(0)->dirUrl(), home, 5000);
+    column = view.columnAt(0);
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(column, QStringLiteral("Desktop")) >= 0, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(view.m_splitter->sizes().at(0), qMax(150, column->calculateOptimalWidth()), 5000);
+}
+
+void DolphinColumnsViewTest::testASmallWindowKeepsTheWidthOfAFixedColumnForLongNames()
+{
+    // When the columns do not fit, a new column adjusted to its content stops at a quarter of the
+    // view, but not below the width of a fixed column. Below that, names that a fixed column shows in
+    // full were elided. The columns that had room for their names when they opened keep it, and the
+    // last column shows its names in full.
+    auto *settings = ColumnsModeSettings::self();
+    QVERIFY(settings->dynamicColumnWidth());
+    const QString longName = QStringLiteral("a-fairly-long-document-name-with-a-version-v3-final.odt");
+    m_testDir->createFile(QStringLiteral("names/") + longName);
+    m_testDir->createFile(QStringLiteral("names/more/") + longName);
+    m_testDir->createFile(QStringLiteral("names/more/deeper/") + longName);
+
+    m_view->resize(1000, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+
+    m_view->openChild(0, urlOf(QStringLiteral("names")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1) > 0, 5000);
+
+    // The width of the long name depends on the font. The view holds the first column and two
+    // columns of the long name, and not a third.
+    const int nameWidth = m_view->columnAt(1)->calculateOptimalWidth();
+    const int viewportWidth = m_view->m_splitter->sizes().at(0) + 2 * nameWidth + nameWidth / 2;
+    m_view->resize(m_view->width() - m_view->m_scrollArea->viewport()->width() + viewportWidth, 400);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width(), viewportWidth, 5000);
+    QVERIFY(viewportWidth / settings->maxVisibleColumns() < settings->minColumnWidth());
+
+    m_view->openChild(1, urlOf(QStringLiteral("names/more")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(2) > 0, 5000);
+    m_view->openChild(2, urlOf(QStringLiteral("names/more/deeper")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(3) > 0, 5000);
+
+    for (int i = 1; i < 3; ++i) {
+        QTRY_COMPARE_WITH_TIMEOUT(m_view->m_splitter->sizes().at(i), m_view->columnAt(i)->calculateOptimalWidth(), 5000);
+    }
+    DolphinColumnPane *last = m_view->columnAt(3);
+    QVERIFY(last->calculateOptimalWidth() > settings->minColumnWidth());
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->m_splitter->sizes().at(3), last->calculateOptimalWidth(), 5000);
+}
+
+void DolphinColumnsViewTest::testAColumnShowsItsNamesWhileTheColumnsFit()
+{
+    // A column takes the width of its longest name while there is room for it in the view, and keeps
+    // it when more columns open. A new column that finds no room stops at the cap, or at the room
+    // left after the columns before it.
+    auto *settings = ColumnsModeSettings::self();
+    QVERIFY(settings->dynamicColumnWidth());
+    const QString longName = QStringLiteral("A Material Analysis of Earthbag Housing - Nikul Vadgama - revised edition.pdf");
+    m_testDir->createFile(QStringLiteral("books/") + longName);
+    m_testDir->createFile(QStringLiteral("books/sub/") + longName);
+    m_testDir->createFile(QStringLiteral("books/sub/deep/") + longName);
+
+    m_view->resize(1600, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+    const int viewportWidth = m_view->m_scrollArea->viewport()->width();
+    const int maxVisible = settings->maxVisibleColumns();
+    const int cap = qMax(settings->minColumnWidth(), (viewportWidth - (maxVisible - 1) * m_view->m_splitter->handleWidth()) / maxVisible);
+
+    m_view->openChild(0, urlOf(QStringLiteral("books")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1) > 0, 5000);
+    DolphinColumnPane *books = m_view->columnAt(1);
+    QVERIFY(books->calculateOptimalWidth() > cap);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1), books->calculateOptimalWidth(), 5000);
+
+    m_view->openChild(1, urlOf(QStringLiteral("books/sub")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(2) > 0, 5000);
+    m_view->openChild(2, urlOf(QStringLiteral("books/sub/deep")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(3) > 0, 5000);
+    QTest::qWait(200); // UNAVOIDABLE: the relayout is posted with a zero timer and emits no signal
+    QCOMPARE(m_view->m_splitter->sizes().at(1), books->calculateOptimalWidth());
+    DolphinColumnPane *deep = m_view->columnAt(3);
+    QWidget *viewport = m_view->m_scrollArea->viewport();
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(3) == deep->calculateOptimalWidth()
+                                 || deep->mapTo(viewport, QPoint(deep->width(), 0)).x() == viewport->width(),
+                             5000);
+    QVERIFY(m_view->m_splitter->sizes().at(3) >= cap);
+}
+
+void DolphinColumnsViewTest::testAFolderThatCannotBeListedShowsAnError()
+{
+    // Like the other view modes, the view reports the error of the folder it shows, for the
+    // container to explain it, and only that one.
+    QSignalSpy errorSpy(m_view, &DolphinView::errorMessage);
+    m_view->setUrl(urlOf(QStringLiteral("gone/missing")));
+
+    QTRY_COMPARE_WITH_TIMEOUT(errorSpy.count(), 1, 5000);
+    QCOMPARE(errorSpy.constFirst().at(1).toInt(), static_cast<int>(KIO::ERR_DOES_NOT_EXIST));
+    QTest::qWait(200); // UNAVOIDABLE: checks that no second error arrives
+    QCOMPARE(errorSpy.count(), 1);
+}
+
+void DolphinColumnsViewTest::testTheViewStateReopensTheColumns()
+{
+    // As the details view does with its expanded folders, a saved view state brings back the
+    // columns that were open.
+    const QUrl root = m_testDir->url();
+    const QUrl alpha = urlOf(QStringLiteral("alpha"));
+    const QUrl alphaChild = urlOf(QStringLiteral("alpha/alpha-child"));
+    m_view->setUrl(alpha);
+    m_view->setUrl(alphaChild);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+
+    QByteArray state;
+    {
+        QDataStream out(&state, QIODevice::WriteOnly);
+        m_view->saveState(out);
+    }
+
+    DolphinColumnsView view(alphaChild, nullptr, DolphinView::ColumnsView);
+    view.resize(800, 400);
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    QCOMPARE(view.columnCount(), 1);
+
+    QDataStream in(&state, QIODevice::ReadOnly);
+    view.restoreState(in);
+    QCOMPARE(view.columnCount(), 3);
+    QCOMPARE(view.columnAt(0)->dirUrl().adjusted(QUrl::StripTrailingSlash), root.adjusted(QUrl::StripTrailingSlash));
+    QCOMPARE(view.columnAt(1)->dirUrl(), alpha);
+    QCOMPARE(view.columnAt(2)->dirUrl(), alphaChild);
+    QCOMPARE(view.url(), alphaChild);
+}
+
+void DolphinColumnsViewTest::testTheViewStateKeepsTheUrlBeforeTheLastColumn()
+{
+    // Going up to a folder that is not open adds it in front and keeps the columns after it. The
+    // view state brings back those columns, and the url stays on the parent.
+    const QUrl alpha = urlOf(QStringLiteral("alpha"));
+    const QUrl alphaChild = urlOf(QStringLiteral("alpha/alpha-child"));
+    DolphinColumnsView source(alphaChild, nullptr, DolphinView::ColumnsView);
+    source.resize(800, 400);
+    source.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&source));
+    source.setUrl(alpha);
+    QTRY_COMPARE_WITH_TIMEOUT(source.columnCount(), 2, 5000);
+    QCOMPARE(source.url(), alpha);
+
+    QByteArray state;
+    {
+        QDataStream out(&state, QIODevice::WriteOnly);
+        source.saveState(out);
+    }
+
+    DolphinColumnsView view(alpha, nullptr, DolphinView::ColumnsView);
+    view.resize(800, 400);
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    QDataStream in(&state, QIODevice::ReadOnly);
+    view.restoreState(in);
+    QCOMPARE(view.columnCount(), 2);
+    QCOMPARE(view.columnAt(0)->dirUrl(), alpha);
+    QCOMPARE(view.columnAt(1)->dirUrl(), alphaChild);
+    QCOMPARE(view.url(), alpha);
+}
+
+void DolphinColumnsViewTest::testAPlaceIsTheFirstColumn()
+{
+    // A place opens as the first column, as on a new start, also below a column already open.
+    const QUrl root = m_testDir->url();
+    const QUrl alpha = urlOf(QStringLiteral("alpha"));
+    const QUrl alphaChild = urlOf(QStringLiteral("alpha/alpha-child"));
+    m_view->setUrl(alpha);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+
+    m_view->markNextUrlAsPlace(alphaChild);
+    m_view->setUrl(alphaChild);
+    QCOMPARE(m_view->columnCount(), 1);
+    QCOMPARE(m_view->columnAt(0)->dirUrl(), alphaChild);
+    QCOMPARE(m_view->url(), alphaChild);
+
+    // Other urls follow the open columns again.
+    m_view->setUrl(root);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnAt(0)->dirUrl(), root, 5000);
+    m_view->setUrl(alphaChild);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+
+    // The place that the view already shows, deeper than the first column.
+    m_view->markNextUrlAsPlace(alphaChild);
+    QCOMPARE(m_view->columnCount(), 1);
+    QCOMPARE(m_view->columnAt(0)->dirUrl(), alphaChild);
+    QCOMPARE(m_view->url(), alphaChild);
+}
+
+void DolphinColumnsViewTest::testChangingTheUrlLeavesTheFocusOutsideTheView()
+{
+    // A cd in the terminal panel sets the url of the view, and the terminal keeps the focus.
+    QWidget host;
+    auto *layout = new QVBoxLayout(&host);
+    auto *terminal = new QLineEdit(&host);
+    layout->addWidget(terminal);
+    layout->addWidget(m_view);
+    host.resize(800, 500);
+    host.show();
+    QVERIFY(QTest::qWaitForWindowActive(&host));
+    terminal->setFocus();
+    QTRY_VERIFY_WITH_TIMEOUT(terminal->hasFocus(), 5000);
+
+    // A folder below the open columns.
+    m_view->setUrl(urlOf(QStringLiteral("alpha/alpha-child")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->activePane()->dirUrl().adjusted(QUrl::StripTrailingSlash), urlOf(QStringLiteral("alpha/alpha-child")), 5000);
+    QVERIFY(terminal->hasFocus());
+
+    // A folder in no open column, for which the columns are rebuilt.
+    TestDir otherDir;
+    m_view->setUrl(otherDir.url());
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->activePane()->dirUrl().adjusted(QUrl::StripTrailingSlash), otherDir.url().adjusted(QUrl::StripTrailingSlash), 5000);
+    QVERIFY(terminal->hasFocus());
+
+    // With the focus in a column, the new active column takes it.
+    m_view->activePane()->container()->setFocus();
+    m_view->setUrl(urlOf(QStringLiteral("alpha")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->activePane()->dirUrl().adjusted(QUrl::StripTrailingSlash), urlOf(QStringLiteral("alpha")), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->activePane()->container()->hasFocus(), 5000);
+
+    m_view->setParent(nullptr);
+}
+
+void DolphinColumnsViewTest::testGoingUpKeepsTheFolderLeftCurrent()
+{
+    // A cd .. in the terminal panel sets the url to the folder of an open column. The url is the
+    // folder of the last column, so the columns after it close. The folder that was left stays
+    // the current item, without the selection that would show its content again.
+    m_testDir->createDir("alpha/alpha-child/deep");
+    m_view->setUrl(urlOf(QStringLiteral("alpha/alpha-child")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+    selectItemInColumn(2, QStringLiteral("deep"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 4, 5000);
+
+    QSignalSpy urlSpy(m_view, &DolphinView::urlChanged);
+    m_view->setUrl(urlOf(QStringLiteral("alpha")));
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QCOMPARE(m_view->activeColumnIndex(), 1);
+    QCOMPARE(m_view->url().adjusted(QUrl::StripTrailingSlash), urlOf(QStringLiteral("alpha")));
+    auto *alphaPane = m_view->columnAt(1);
+    QVERIFY(!alphaPane->controller()->selectionManager()->hasSelection());
+    QCOMPARE(alphaPane->controller()->selectionManager()->currentItem(), indexOfName(alphaPane, QStringLiteral("alpha-child")));
+    // The location goes to alpha only, never through a column that closes.
+    for (const QList<QVariant> &arguments : std::as_const(urlSpy)) {
+        QCOMPARE(arguments.constFirst().toUrl().adjusted(QUrl::StripTrailingSlash), urlOf(QStringLiteral("alpha")));
+    }
+}
+
+void DolphinColumnsViewTest::testClickingEmptySpaceClosesTheColumnsAfterIt()
+{
+    // A column shows the folder selected in the column before it. A click on empty space clears
+    // that selection, and the column closes.
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+
+    auto *pane = m_view->columnAt(0);
+    auto *graphicsView = qobject_cast<QGraphicsView *>(pane->container()->viewport());
+    QVERIFY(graphicsView);
+    const QPoint emptyPos(graphicsView->viewport()->width() / 2, graphicsView->viewport()->height() - 10);
+    QVERIFY(!pane->itemListView()->itemAt(graphicsView->mapToScene(emptyPos)).has_value());
+
+    QTest::mouseClick(graphicsView->viewport(), Qt::LeftButton, Qt::NoModifier, emptyPos);
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 1, 5000);
+    QVERIFY(!pane->controller()->selectionManager()->hasSelection());
+    QCOMPARE(m_view->url().adjusted(QUrl::StripTrailingSlash), m_testDir->url().adjusted(QUrl::StripTrailingSlash));
+}
+
+void DolphinColumnsViewTest::testGoingUpShowsTheColumnOfTheUrl()
+{
+    // After a cd .., the column of the url is in view, scrolled back from the columns that closed.
+    auto *settings = ColumnsModeSettings::self();
+    settings->setDynamicColumnWidth(true);
+    settings->setMinColumnWidth(200);
+    settings->setMinContentColumnWidth(200);
+    m_testDir->createDir("alpha/alpha-child/deep/deeper");
+    m_view->resize(500, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+
+    m_view->setUrl(urlOf(QStringLiteral("alpha/alpha-child/deep/deeper")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 5, 5000);
+    QScrollBar *scrollBar = m_view->m_scrollArea->horizontalScrollBar();
+    QTRY_VERIFY_WITH_TIMEOUT(scrollBar->value() > 0, 5000);
+
+    m_view->setUrl(urlOf(QStringLiteral("alpha")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+
+    QWidget *viewport = m_view->m_scrollArea->viewport();
+    auto isShownWhole = [viewport](QWidget *column) {
+        const int left = column->mapTo(viewport, QPoint(0, 0)).x();
+        return left >= 0 && left + column->width() <= viewport->width();
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(isShownWhole(m_view->columnAt(1)), 5000);
+}
+
+void DolphinColumnsViewTest::testAClickedItemTakesTheHighlightFromTheActiveOne()
+{
+    // A clicked item becomes the active one. The item that was active before stays selected, in
+    // the colour of an inactive column, only as an ancestor of the clicked item.
+    // Narrow columns, so all three are in view to be clicked.
+    ColumnsModeSettings::self()->setMinColumnWidth(150);
+    ColumnsModeSettings::self()->setMinContentColumnWidth(150);
+    m_view->setUrl(urlOf(QStringLiteral("alpha/alpha-child")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+    auto *rootPane = m_view->columnAt(0);
+    auto *alphaPane = m_view->columnAt(1);
+    auto *childPane = m_view->columnAt(2);
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(childPane, QStringLiteral("deep-file.txt")) >= 0, 5000);
+    auto mouseClick = [](DolphinColumnPane *pane, const QString &name) {
+        auto *graphicsView = qobject_cast<QGraphicsView *>(pane->container()->viewport());
+        const QPoint pos = graphicsView->mapFromScene(pane->itemListView()->itemRect(indexOfName(pane, name)).center());
+        QTest::mouseClick(graphicsView->viewport(), Qt::LeftButton, Qt::NoModifier, pos);
+    };
+
+    // Further right: the items that lead to it stay selected.
+    m_view->setActiveColumn(0);
+    mouseClick(childPane, QStringLiteral("deep-file.txt"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->activeColumnIndex(), 2, 5000);
+    QVERIFY(childPane->controller()->selectionManager()->isSelected(indexOfName(childPane, QStringLiteral("deep-file.txt"))));
+    QVERIFY(rootPane->controller()->selectionManager()->isSelected(indexOfName(rootPane, QStringLiteral("alpha"))));
+    QVERIFY(alphaPane->controller()->selectionManager()->isSelected(indexOfName(alphaPane, QStringLiteral("alpha-child"))));
+
+    // Further left: the item that was active is not an ancestor, so it loses its selection.
+    mouseClick(rootPane, QStringLiteral("alpha"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->activeColumnIndex(), 0, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(!childPane->controller()->selectionManager()->hasSelection(), 5000);
+    QVERIFY(rootPane->controller()->selectionManager()->isSelected(indexOfName(rootPane, QStringLiteral("alpha"))));
+    QVERIFY(alphaPane->controller()->selectionManager()->isSelected(indexOfName(alphaPane, QStringLiteral("alpha-child"))));
+    QCOMPARE(m_view->columnCount(), 3);
+}
+
+void DolphinColumnsViewTest::testGroupingAndSortingApplyToEveryColumn()
+{
+    // The columns share the sorting and grouping of the view, whichever column is active.
+    m_view->setUrl(urlOf(QStringLiteral("alpha/alpha-child")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+
+    auto everyColumn = [this](auto check) {
+        for (int i = 0; i < m_view->columnCount(); ++i) {
+            if (!check(m_view->columnAt(i)->model())) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    m_view->setGroupedSorting(true);
+    QVERIFY(everyColumn([](KFileItemModel *model) {
+        return model->groupedSorting();
+    }));
+
+    m_view->setGroupRole("size");
+    QCOMPARE(m_view->rawGroupRole(), QByteArray("size"));
+    QVERIFY(everyColumn([](KFileItemModel *model) {
+        return model->rawGroupRole() == "size";
+    }));
+
+    // From another column, and back to a role that an earlier change already set.
+    m_view->setActiveColumn(0);
+    m_view->setGroupRole("type");
+    m_view->setGroupRole("size");
+    QCOMPARE(m_view->rawGroupRole(), QByteArray("size"));
+    QVERIFY(everyColumn([](KFileItemModel *model) {
+        return model->rawGroupRole() == "size";
+    }));
+
+    m_view->setSortRole("modificationtime");
+    QCOMPARE(m_view->sortRole(), QByteArray("modificationtime"));
+    QVERIFY(everyColumn([](KFileItemModel *model) {
+        return model->sortRole() == "modificationtime";
+    }));
+}
+
+void DolphinColumnsViewTest::testColumnIsNeverWiderThanTheViewport()
+{
+    // A column that fits its content stops at the width of the viewport, so scrolling to it always
+    // reaches its right edge, where its vertical scrollbar is.
+    auto *settings = ColumnsModeSettings::self();
+    settings->setDynamicColumnWidth(true);
+    settings->setMinColumnWidth(10);
+    settings->setMinContentColumnWidth(10);
+
+    // A name far longer than the window is wide.
+    m_testDir->createFile(QString(200, QLatin1Char('x')) + QStringLiteral(".txt"));
+    m_view->resize(400, 400);
+
+    auto *scrollArea = m_view->findChild<QScrollArea *>();
+    QVERIFY(scrollArea);
+    auto *splitter = m_view->findChild<QSplitter *>();
+    QVERIFY(splitter);
+
+    activateColumn(0);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnAt(0)->calculateOptimalWidth() > scrollArea->viewport()->width(), 5000);
+    m_view->recalculateColumnWidths();
+
+    const int columnWidth = splitter->sizes().at(0);
+    const int viewportWidth = scrollArea->viewport()->width();
+    QVERIFY2(columnWidth <= viewportWidth, qPrintable(QStringLiteral("column (%1) should fit the viewport (%2)").arg(columnWidth).arg(viewportWidth)));
+}
+
+// A column that replaces another keeps its width, also when the names of its folder need more room
+// than the view has: they elide, rather than the column dropping to the cap.
+void DolphinColumnsViewTest::testAReplacingColumnKeepsTheWidthWhenItsNamesDoNotFit()
+{
+    auto *settings = ColumnsModeSettings::self();
+    QVERIFY(settings->dynamicColumnWidth());
+    m_testDir->createFile(QStringLiteral("fits/") + QString(70, QLatin1Char('f')) + QStringLiteral(".epub"));
+    m_testDir->createFile(QStringLiteral("too-wide/") + QString(150, QLatin1Char('w')) + QStringLiteral(".epub"));
+
+    m_view->resize(966, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+    activateColumn(0);
+    auto *rootPane = m_view->columnAt(0);
+    QTRY_VERIFY_WITH_TIMEOUT(indexOfName(rootPane, QStringLiteral("fits")) >= 0 && indexOfName(rootPane, QStringLiteral("too-wide")) >= 0, 10000);
+
+    selectItemInColumn(0, QStringLiteral("fits"));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnCount() > 1 && m_view->columnAt(1)->model()->count() == 1, 5000);
+    const int cap = qMax(settings->minColumnWidth(),
+                         (m_view->m_scrollArea->viewport()->width() - (settings->maxVisibleColumns() - 1) * m_view->m_splitter->handleWidth())
+                             / settings->maxVisibleColumns());
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1), m_view->columnAt(1)->calculateOptimalWidth(), 5000);
+    const int fitsWidth = m_view->m_splitter->sizes().at(1);
+    QVERIFY(fitsWidth > cap);
+
+    selectItemInColumn(0, QStringLiteral("too-wide"));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->columnCount() > 1
+                                 && m_view->columnAt(1)->dirUrl().adjusted(QUrl::StripTrailingSlash).fileName() == QStringLiteral("too-wide")
+                                 && m_view->columnAt(1)->model()->count() == 1,
+                             5000);
+    QTest::qWait(200); // UNAVOIDABLE: the relayout is posted with a zero timer and emits no signal
+    QVERIFY(m_view->columnAt(1)->calculateOptimalWidth() > m_view->m_scrollArea->viewport()->width());
+    // As the last column, it does not narrow and shows as much of its names as the view can.
+    QVERIFY(fitsWidth < m_view->m_scrollArea->viewport()->width());
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1), m_view->m_scrollArea->viewport()->width(), 5000);
+}
+
+// A gap after the last column that is too narrow to show anything is taken by the last column, rather
+// than showing a sliver of the window background next to it.
+void DolphinColumnsViewTest::testALastColumnAlmostAtTheEdgeReachesIt()
+{
+    m_view->resize(1000, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+    m_view->openChild(0, urlOf(QStringLiteral("alpha")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1) > 0, 5000);
+
+    const int viewportWidth = m_view->m_scrollArea->viewport()->width();
+    const int handles = 2 * m_view->m_splitter->handleWidth();
+    // As after dragging the handle on the right of the last column nearly to the edge.
+    const int almostAll = viewportWidth - m_view->m_splitter->sizes().at(0) - handles - 3;
+    m_view->m_customColumnWidths[1] = almostAll;
+    m_view->recalculateColumnWidths();
+    QCOMPARE(m_view->m_splitter->sizes().at(2), 0);
+    QCOMPARE(m_view->m_splitter->sizes().at(1), almostAll + 3);
+
+    // A gap a column could use stays.
+    m_view->m_customColumnWidths[1] = almostAll - 200;
+    m_view->recalculateColumnWidths();
+    QCOMPARE(m_view->m_splitter->sizes().at(1), almostAll - 200);
+    QCOMPARE(m_view->m_splitter->sizes().at(2), 203);
+}
+
+// A handle belongs to the column on its left. The columns after it move, and the total width follows.
+void DolphinColumnsViewTest::testDraggingAHandleResizesOnlyTheColumnOnItsLeft()
+{
+    m_view->resize(1000, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+    m_view->setUrl(urlOf(QStringLiteral("alpha/alpha-child")));
+    waitForStableState();
+    QCOMPARE(m_view->columnCount(), 3);
+
+    auto *splitter = m_view->m_splitter;
+    QTRY_VERIFY_WITH_TIMEOUT(splitter->sizes().at(2) > 0, 5000);
+    const QList<int> before = splitter->sizes();
+    QSplitterHandle *handle = splitter->handle(1);
+    // Through the QWindow, so the press reaches the handle under it and the handle keeps the moves.
+    QWindow *window = m_view->window()->windowHandle();
+    QVERIFY(window);
+    const QPoint pressPos = handle->mapTo(m_view->window(), QPoint(handle->width() / 2, handle->height() / 2));
+
+    QTest::mousePress(window, Qt::LeftButton, Qt::NoModifier, pressPos);
+    QTest::mouseMove(window, pressPos + QPoint(-40, 0));
+    QCOMPARE(splitter->sizes().at(0), before.at(0) - 40);
+    QCOMPARE(splitter->sizes().at(1), before.at(1));
+    QCOMPARE(splitter->sizes().at(2), before.at(2));
+
+    QTest::mouseMove(window, pressPos + QPoint(60, 0));
+    QTest::mouseRelease(window, Qt::LeftButton, Qt::NoModifier, pressPos + QPoint(60, 0));
+    QCOMPARE(QGuiApplication::mouseButtons(), Qt::NoButton);
+    QCOMPARE(splitter->sizes().at(0), before.at(0) + 60);
+    QCOMPARE(splitter->sizes().at(1), before.at(1));
+    QCOMPARE(splitter->sizes().at(2), before.at(2));
+    QCOMPARE(m_view->m_customColumnWidths.keys(), QList<int>{0});
+}
+
+void DolphinColumnsViewTest::testResizingKeepsTheWidthOfTheLastColumn()
+{
+    // While the window shrinks and grows, the last column keeps the width of its names, and the same
+    // width of the window gives the same columns in both directions.
+    const QString longName = QStringLiteral("A Material Analysis of Earthbag Housing - Nikul Vadgama - revised edition.pdf");
+    m_testDir->createFile(QStringLiteral("books/") + longName);
+    m_testDir->createFile(QStringLiteral("books/sub/") + longName);
+
+    m_view->resize(1400, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+    m_view->openChild(0, urlOf(QStringLiteral("books")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1) > 0, 5000);
+    m_view->openChild(1, urlOf(QStringLiteral("books/sub")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(2) > 0, 5000);
+    m_view->setActiveColumn(2);
+    DolphinColumnPane *last = m_view->columnAt(2);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->m_splitter->sizes().at(2), last->calculateOptimalWidth(), 5000);
+
+    QWidget *viewport = m_view->m_scrollArea->viewport();
+    QScrollBar *scrollBar = m_view->m_scrollArea->horizontalScrollBar();
+    const int sliver = m_view->style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, m_view);
+    QHash<int, std::pair<QList<int>, int>> layouts;
+    auto step = [&](int width) {
+        m_view->resize(width, 400);
+        QCoreApplication::processEvents();
+        const int lastWidth = m_view->m_splitter->sizes().at(2);
+        QVERIFY2(lastWidth >= last->calculateOptimalWidth() && lastWidth < last->calculateOptimalWidth() + sliver, qPrintable(QString::number(width)));
+        QVERIFY(last->mapTo(viewport, QPoint(last->width(), 0)).x() <= viewport->width());
+        const auto layout = std::make_pair(m_view->m_splitter->sizes(), scrollBar->value());
+        if (layouts.contains(width)) {
+            QCOMPARE(layout, layouts.value(width));
+        }
+        layouts.insert(width, layout);
+    };
+    for (int width = 1400; width >= 700; width -= 25) {
+        step(width);
+    }
+    for (int width = 700; width <= 1400; width += 25) {
+        step(width);
+    }
+}
+
+void DolphinColumnsViewTest::testALastColumnOfACustomWidthKeepsIt()
+{
+    // A width that the user gave to the last column stays through a resize of the window.
+    const QString longName = QStringLiteral("A Material Analysis of Earthbag Housing - Nikul Vadgama - revised edition.pdf");
+    m_testDir->createFile(QStringLiteral("books/") + longName);
+
+    m_view->resize(1400, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+    m_view->openChild(0, urlOf(QStringLiteral("books")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1) > 0, 5000);
+    m_view->resizeColumn(1, 250);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1), 250, 5000);
+
+    for (int width : {900, 600, 1200}) {
+        m_view->resize(width, 400);
+        QCoreApplication::processEvents();
+        QCOMPARE(m_view->m_splitter->sizes().at(1), 250);
+    }
+}
+
+void DolphinColumnsViewTest::testDoubleClickRightOfTheLastColumnKeepsItInView()
+{
+    // Fitting the last column to its names keeps its right edge in the view, without empty room after it.
+    const QString longName = QStringLiteral("A Material Analysis of Earthbag Housing - Nikul Vadgama - revised edition.pdf");
+    m_testDir->createFile(QStringLiteral("books/") + longName);
+    m_testDir->createFile(QStringLiteral("books/sub/") + longName);
+
+    m_view->resize(900, 400);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_scrollArea->viewport()->width() > 0, 5000);
+    m_view->openChild(0, urlOf(QStringLiteral("books")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(1) > 0, 5000);
+    m_view->openChild(1, urlOf(QStringLiteral("books/sub")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(2) > 0, 5000);
+    DolphinColumnPane *last = m_view->columnAt(2);
+    m_view->resizeColumn(2, 200);
+    QTRY_VERIFY_WITH_TIMEOUT(m_view->m_splitter->sizes().at(2) < last->calculateOptimalWidth(), 5000);
+
+    auto *splitter = m_view->m_splitter;
+    QSplitterHandle *lastBorder = splitter->handle(splitter->indexOf(m_view->m_filler));
+    QTest::mouseDClick(lastBorder, Qt::LeftButton);
+    // mouseDClick() leaves the button held, and every later test would navigate with it down.
+    QTest::mouseRelease(lastBorder, Qt::LeftButton);
+
+    QWidget *viewport = m_view->m_scrollArea->viewport();
+    QTRY_COMPARE_WITH_TIMEOUT(splitter->sizes().at(2), last->calculateOptimalWidth(), 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(last->mapTo(viewport, QPoint(last->width(), 0)).x(), viewport->width(), 5000);
+}
+
+void DolphinColumnsViewTest::testAnotherFolderOpensWithTheSettingsChangedInAColumn()
+{
+    // The settings changed while a column is active apply to a folder outside the open columns
+    // opened after, which replaces every column.
+    m_view->setUrl(urlOf(QStringLiteral("alpha")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    activateColumn(1);
+    m_view->setHiddenFilesShown(true);
+    m_view->setSortOrder(Qt::DescendingOrder);
+    m_view->setGroupedSorting(true);
+
+    TestDir otherDir;
+    otherDir.createFile("other-file.txt");
+    m_view->setUrl(otherDir.url());
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 1, 5000);
+    QCOMPARE(m_view->columnAt(0)->dirUrl().adjusted(QUrl::StripTrailingSlash), otherDir.url().adjusted(QUrl::StripTrailingSlash));
+
+    KFileItemModel *model = m_view->columnAt(0)->model();
+    QVERIFY(model->showHiddenFiles());
+    QCOMPARE(model->sortOrder(), Qt::DescendingOrder);
+    QVERIFY(model->groupedSorting());
+    QVERIFY(m_view->hiddenFilesShown());
+    QCOMPARE(m_view->sortOrder(), Qt::DescendingOrder);
+    QVERIFY(m_view->groupedSorting());
+}
+
+void DolphinColumnsViewTest::testTheSortSettingsReachEveryColumn()
+{
+    // Folders first and hidden files last sort every column the same way, the columns open and
+    // the columns opened after the change.
+    m_view->setUrl(urlOf(QStringLiteral("alpha")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    activateColumn(1);
+    QVERIFY(m_view->sortFoldersFirst());
+    QVERIFY(!m_view->sortHiddenLast());
+
+    m_view->setSortFoldersFirst(false);
+    m_view->setSortHiddenLast(true);
+    for (int i = 0; i < m_view->columnCount(); ++i) {
+        QVERIFY2(!m_view->columnAt(i)->model()->sortDirectoriesFirst(), qPrintable(QString::number(i)));
+        QVERIFY2(m_view->columnAt(i)->model()->sortHiddenLast(), qPrintable(QString::number(i)));
+    }
+
+    m_view->setUrl(urlOf(QStringLiteral("alpha/alpha-child")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 3, 5000);
+    QVERIFY(!m_view->columnAt(2)->model()->sortDirectoriesFirst());
+    QVERIFY(m_view->columnAt(2)->model()->sortHiddenLast());
+}
+
+void DolphinColumnsViewTest::testTheItemCountFollowsTheActiveColumn()
+{
+    // The status bar counts the items of the active column. A file that appears in its folder, or
+    // leaves it, updates the count. A change in another column does not.
+    m_view->setUrl(urlOf(QStringLiteral("alpha")));
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    activateColumn(1);
+    QSignalSpy itemCountChanged(m_view, &DolphinView::itemCountChanged);
+
+    m_testDir->createFile("alpha/new-file.txt");
+    QTRY_VERIFY_WITH_TIMEOUT(itemCountChanged.count() > 0, 5000);
+
+    itemCountChanged.clear();
+    m_testDir->removeFile(QStringLiteral("alpha/new-file.txt"));
+    QTRY_VERIFY_WITH_TIMEOUT(itemCountChanged.count() > 0, 5000);
+
+    itemCountChanged.clear();
+    m_testDir->createFile("beta/another-file.txt");
+    QTest::qWait(500); // UNAVOIDABLE: nothing is expected to happen
+    QCOMPARE(itemCountChanged.count(), 0);
+}
+
+void DolphinColumnsViewTest::testAnInvalidUrlKeepsTheColumnsWithAnError()
+{
+    // An empty location reports the error of the other view modes, and the columns stay.
+    const QUrl alpha = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/alpha"));
+    m_view->setUrl(alpha);
+    QTRY_COMPARE_WITH_TIMEOUT(m_view->columnCount(), 2, 5000);
+    QSignalSpy errorMessage(m_view, &DolphinView::errorMessage);
+
+    m_view->setUrl(QUrl());
+
+    QCOMPARE(errorMessage.count(), 1);
+    QCOMPARE(errorMessage.first().first().toString(), QStringLiteral("The location is empty."));
+    QCOMPARE(m_view->columnCount(), 2);
+    QCOMPARE(m_view->url(), alpha);
+}
+
+QTEST_MAIN(DolphinColumnsViewTest)
+
+#include "dolphincolumnsviewtest.moc"

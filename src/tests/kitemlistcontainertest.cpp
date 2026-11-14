@@ -15,6 +15,7 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QProxyStyle>
+#include <QScopeGuard>
 #include <QScrollBar>
 #include <QSignalSpy>
 #include <QStandardPaths>
@@ -47,6 +48,9 @@ class KItemListContainerTest : public QObject
 private Q_SLOTS:
     void initTestCase();
     void testScrollBarCatchesUpWithAViewWhichGrewWhileScrolling();
+    void testItemsFollowThePaletteOfTheViewWidget();
+    void testBackgroundOfTheViewWidgetLeavesItemsAlone();
+    void testFramelessTextFollowsTheApplicationPalette();
 };
 
 void KItemListContainerTest::initTestCase()
@@ -125,6 +129,62 @@ void KItemListContainerTest::testScrollBarCatchesUpWithAViewWhichGrewWhileScroll
     // having to come along and ask.
     QTRY_VERIFY_WITH_TIMEOUT(scrollBar->maximum() > maximumBefore, 10000);
     QCOMPARE(scrollBar->maximum(), qMax(0, int(view->maximumScrollOffset() - view->size().height())));
+}
+
+void KItemListContainerTest::testItemsFollowThePaletteOfTheViewWidget()
+{
+    // The palette of the widget that shows the items can change after the items took it, for
+    // example when the application palette changes before the event loop runs.
+    auto *view = new KFileItemListView();
+    auto *controller = new KItemListController(new KFileItemModel(), view, this);
+    KItemListContainer container(controller);
+
+    QWidget *viewWidget = container.viewport();
+    QPalette palette = viewWidget->palette();
+    palette.setColor(QPalette::Text, Qt::red);
+    palette.setColor(QPalette::AlternateBase, Qt::green);
+    viewWidget->setPalette(palette);
+
+    QCOMPARE(view->styleOption().palette.color(QPalette::Active, QPalette::Text), QColor(Qt::red));
+    QCOMPARE(view->styleOption().palette.color(QPalette::Active, QPalette::AlternateBase), QColor(Qt::green));
+}
+
+void KItemListContainerTest::testBackgroundOfTheViewWidgetLeavesItemsAlone()
+{
+    // A view gives the widget its background color when the window is activated, or when a pane of
+    // the split view gains or loses the focus. The items keep their style option, so they are not
+    // laid out again.
+    auto *view = new KFileItemListView();
+    auto *controller = new KItemListController(new KFileItemModel(), view, this);
+    KItemListContainer container(controller);
+    const KItemListStyleOption before = view->styleOption();
+
+    QWidget *viewWidget = container.viewport();
+    QPalette palette;
+    palette.setColor(viewWidget->backgroundRole(), Qt::blue);
+    viewWidget->setPalette(palette);
+
+    QVERIFY(view->styleOption() == before);
+}
+
+void KItemListContainerTest::testFramelessTextFollowsTheApplicationPalette()
+{
+    // Without a frame the text of the items takes the window text color, and it keeps doing so
+    // when the color scheme changes.
+    auto *view = new KFileItemListView();
+    auto *controller = new KItemListController(new KFileItemModel(), view, this);
+    KItemListContainer container(controller);
+    container.setEnabledFrame(false);
+
+    const QPalette applicationPalette = QApplication::palette();
+    auto restorePalette = qScopeGuard([&applicationPalette] {
+        QApplication::setPalette(applicationPalette);
+    });
+    QPalette changed = applicationPalette;
+    changed.setColor(QPalette::WindowText, Qt::magenta);
+    QApplication::setPalette(changed);
+
+    QTRY_COMPARE(view->styleOption().palette.color(QPalette::Active, QPalette::Text), QColor(Qt::magenta));
 }
 
 QTEST_MAIN(KItemListContainerTest)

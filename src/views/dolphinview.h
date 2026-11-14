@@ -25,15 +25,18 @@
 #include <QWidget>
 
 #include <memory>
+#include <optional>
 
 using CommandType = KIO::FileUndoManager::CommandType;
 class QVBoxLayout;
 class DolphinItemListView;
 class KFileItemModel;
 class KItemListContainer;
+class KItemListController;
 class KItemModelBase;
 class KItemSet;
 class ToolTipManager;
+class KItemListSelectionManager;
 class VersionControlObserver;
 class ViewProperties;
 class QLabel;
@@ -79,14 +82,23 @@ public:
          * The items are shown as icons with the name-label aligned
          * to the right side.
          */
-        CompactView
+        CompactView,
+
+        /**
+         * Miller columns: one column per folder, drawn by DolphinColumnsView.
+         */
+        ColumnsView
     };
 
     /**
      * @param url              Specifies the content which should be shown.
      * @param parent           Parent widget of the view.
      */
-    DolphinView(const QUrl &url, QWidget *parent);
+    /**
+     * @p canDisplayColumns is true for a subclass that draws the columns mode. The base
+     * constructor needs it, so it cannot be a virtual.
+     */
+    explicit DolphinView(const QUrl &url, QWidget *parent, std::optional<Mode> initialMode = std::nullopt, bool canDisplayColumns = false);
 
     ~DolphinView() override;
 
@@ -100,16 +112,9 @@ public:
      * If \a active is true, the view will marked as active. The active
      * view is defined as view where all actions are applied to.
      */
-    void setActive(bool active);
+    virtual void setActive(bool active);
     bool isActive() const;
 
-    /**
-     * Changes the view mode for the current directory to \a mode.
-     * If the view properties should be remembered for each directory
-     * (GeneralSettings::globalViewProps() returns false), then the
-     * changed view mode will be stored automatically.
-     */
-    void setViewMode(Mode mode);
     Mode viewMode() const;
 
     /**
@@ -117,6 +122,11 @@ public:
      */
     void setSelectionModeEnabled(bool enabled);
     bool selectionMode() const;
+
+    /**
+     * The controller that runs a drag of items from this view, or nullptr when no drag runs.
+     */
+    virtual KItemListController *draggingController() const;
 
     /**
      * Turns on the file preview for the all files of the current directory,
@@ -185,6 +195,9 @@ public:
      * current item after directory DolphinView::url() has been loaded.
      */
     void markUrlAsCurrent(const QUrl &url);
+
+    /// Gives the selection to the part of the view that shows url(), where marked and created items are selected.
+    virtual void activateUrlFolder();
 
     /**
      * All items that match the regular expression \a regexp will get selected
@@ -259,7 +272,7 @@ public:
      * Refreshes the view to get synchronized with the settings (e.g. icons size,
      * font, ...).
      */
-    void readSettings();
+    virtual void readSettings();
 
     /**
      * Saves the current settings (e.g. icons size, font, ..).
@@ -270,7 +283,7 @@ public:
      * Filters the currently shown items by \a nameFilter. All items
      * which contain the given filter string will be shown.
      */
-    void setNameFilter(const QString &nameFilter);
+    virtual void setNameFilter(const QString &nameFilter);
     QString nameFilter() const;
 
     /**
@@ -284,13 +297,13 @@ public:
     /**
      * Sets the filtering mode of the currently used nameFilter.
      */
-    void setFilterMode(KFileItemModelFilter::FilterMode mode);
+    virtual void setFilterMode(KFileItemModelFilter::FilterMode mode);
     KFileItemModelFilter::FilterMode filterMode() const;
 
     /**
      * Enables or disable the caseSensitive matching of the currently used nameFilter.
      */
-    void setFilterCaseSensitive(bool caseSensitive);
+    virtual void setFilterCaseSensitive(bool caseSensitive);
     bool isFilterCaseSensitive() const;
 
     /**
@@ -338,19 +351,19 @@ public:
     bool isExpanded(const KFileItem &item) const;
 
     /**
-     * Restores the view state (current item, contents position, details view expansion state)
+     * Restores the view state (current item, contents position, open folders)
      */
     void restoreState(QDataStream &stream);
 
     /**
-     * Saves the view state (current item, contents position, details view expansion state)
+     * Saves the view state (current item, contents position, open folders)
      */
     void saveState(QDataStream &stream);
 
     /**
      * Returns the root item which represents the current URL.
      */
-    KFileItem rootItem() const;
+    virtual KFileItem rootItem() const;
 
     /**
      * Sets a context that is used for remembering the view-properties.
@@ -370,6 +383,12 @@ public:
      */
     static QUrl openItemAsFolderUrl(const KFileItem &item, const bool browseThroughArchives = true);
 
+    /** The text that an empty listing of @p url shows, which names @p nameFilter when it is set. */
+    static QString emptyFolderText(const QUrl &url, const QString &nameFilter);
+
+    /** A label for that text, centered in @p container. */
+    static QLabel *createPlaceholderLabel(QWidget *container);
+
     /**
      * Set the default order for a given sort role.
      * Time-based roles, size/dimension roles, and quality/quantity roles
@@ -388,7 +407,10 @@ public:
      *
      * See BUG 465489
      */
-    bool handleSpaceAsNormalKey() const;
+    virtual bool handleSpaceAsNormalKey() const;
+
+    /// Whether a change of url leaves the selection behind, which ends selection mode.
+    virtual bool urlChangeLeavesTheSelectionBehind() const;
 
     /** Activates the view if the item list container gets focus. */
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -401,14 +423,14 @@ public:
     /**
      * @returns the height of the scrollbar at the bottom of the view or zero if no such scroll bar is visible.
      */
-    int horizontalScrollBarHeight() const;
+    virtual int horizontalScrollBarHeight() const;
 
     /**
      * Set the offset for any view items that small statusbar would otherwise
      * cover. For example, in compact view this is used to make sure no
      * item is covered by statusbar.
      */
-    void setStatusBarOffset(int offset);
+    virtual void setStatusBarOffset(int offset);
 
     /**
      * Expands to directory if in detail mode
@@ -417,13 +439,13 @@ public:
 
 public Q_SLOTS:
 
-    void reload();
+    virtual void reload();
 
     /**
      * Changes the directory to \a url. If the current directory is equal to
      * \a url, nothing will be done (use DolphinView::reload() instead).
      */
-    void setUrl(const QUrl &url);
+    virtual void setUrl(const QUrl &url);
 
     /**
      * Selects all items.
@@ -476,7 +498,7 @@ public Q_SLOTS:
     void moveSelectedItems(const KFileItemList &selection, const QUrl &destinationUrl);
 
     /** Pastes the clipboard data to this view. */
-    void paste();
+    virtual void paste();
 
     /**
      * Pastes the clipboard data into the currently selected
@@ -501,7 +523,7 @@ public Q_SLOTS:
      */
     void dropUrls(const QUrl &destUrl, QDropEvent *dropEvent, QWidget *dropWidget);
 
-    void stopLoading();
+    virtual void stopLoading();
 
     /**
      * Applies the state that has been restored by restoreViewState()
@@ -777,6 +799,102 @@ protected:
     void hideEvent(QHideEvent *event) override;
     bool event(QEvent *event) override;
 
+    /** @internal Accessors for subclasses (e.g. DolphinColumnsView). */
+    QVBoxLayout *topLayout() const;
+    KItemListContainer *itemListContainer() const;
+    /** Connects the signals of @p controller that every item view of this view forwards. */
+    QList<QMetaObject::Connection> connectItemController(KItemListController *controller);
+    /** Shows the tooltip and the information for @p item, hovered at @p index in @p container. */
+    void showHoveredItem(KItemListContainer *container, const KFileItem &item, int index);
+    void setBaseModel(KFileItemModel *model)
+    {
+        m_model = model;
+    }
+
+    /**
+     * Helper method for DolphinView::paste() and DolphinView::pasteIntoFolder().
+     * Pastes the clipboard data into the URL \a url.
+     */
+    void pasteToUrl(const QUrl &url);
+
+    /** Updates the url without loading it, for a subclass that loads its own folders. */
+    void updateUrl(const QUrl &url);
+
+    /** Emits errorMessage() for an empty or invalid @p url, and returns whether @p url is valid. */
+    bool reportInvalidUrl(const QUrl &url);
+
+    /**
+     * Changes the view mode for the current directory to \a mode. If the view
+     * properties should be remembered for each directory
+     * (GeneralSettings::globalViewProps() returns false), then the changed view
+     * mode will be stored automatically.
+     *
+     * Only DolphinViewContainer (a friend) may call this: switching to or from
+     * the columns view mode requires swapping the DolphinView for a different
+     * subclass, which only the container can do.
+     */
+    void setViewMode(Mode mode);
+
+    /**
+     * Applies the m_mode property to the corresponding
+     * itemlayout-property of the KItemListView.
+     */
+    virtual void applyModeToView();
+
+    /// Whether this view is able to draw @p mode. See the constructor.
+    bool canDisplayMode(Mode mode) const;
+
+    /**
+     * The folders that the view state keeps open next to the url: the expanded folders of the
+     * details view. Empty when no folder is open.
+     */
+    virtual QSet<QUrl> openFolders() const;
+
+    /**
+     * Opens the @p folders of a restored view state. @p currentItemUrl is the current item of
+     * that state.
+     */
+    virtual void restoreOpenFolders(const QSet<QUrl> &folders, const QUrl &currentItemUrl);
+
+    /**
+     * Returns the MIME data for all selected items.
+     */
+    QMimeData *selectionMimeData() const;
+
+    /** As the public dropUrls(), and the dropped items are selected when @p selectDroppedItems is true. */
+    void dropUrls(const QUrl &destUrl, QDropEvent *dropEvent, QWidget *dropWidget, bool selectDroppedItems);
+
+    /**
+     * Drops on item @p index of @p model, or on @p fallbackUrl when that is not a folder.
+     * The dropped items are selected when they land in the folder of the view and
+     * @p selectDroppedItems is true.
+     */
+    void handleItemDropEvent(KFileItemModel *model, const QUrl &fallbackUrl, int index, QGraphicsSceneDragDropEvent *event, bool selectDroppedItems = true);
+
+    /**
+     * Returns the selection manager for the currently active view.
+     */
+    virtual KItemListSelectionManager *activeSelectionManager() const;
+
+    /**
+     * Returns the model for the currently active view.
+     */
+    virtual KFileItemModel *activeModel() const;
+
+    /**
+     * Returns the item list view of the currently active view, such as the active column.
+     */
+    virtual DolphinItemListView *activeItemListView() const;
+
+    /** Updates m_isFolderWritable from the folder of the active view, emitting writeStateChanged(). */
+    void updateWritableState();
+
+    /** Emits selectionChanged() once the current event is handled, together with any selection change it makes. */
+    void scheduleSelectionChangedSignal();
+
+protected Q_SLOTS:
+    void slotItemUnhovered(int index);
+
 private Q_SLOTS:
     /**
      * Marks the view as active (DolphinView:isActive() will return true)
@@ -793,7 +911,6 @@ private Q_SLOTS:
     void slotHeaderColumnWidthChangeFinished(const QByteArray &role, qreal current);
     void slotSidePaddingWidthChanged(qreal leftPaddingWidth, qreal rightPaddingWidth);
     void slotItemHovered(int index);
-    void slotItemUnhovered(int index);
     void slotItemDropEvent(int index, QGraphicsSceneDragDropEvent *event);
     void slotModelChanged(KItemModelBase *current, KItemModelBase *previous);
     void slotMouseButtonPressed(int itemIndex, Qt::MouseButtons buttons);
@@ -956,12 +1073,6 @@ private:
     void applyViewProperties(const ViewProperties &props);
 
     /**
-     * Applies the m_mode property to the corresponding
-     * itemlayout-property of the KItemListView.
-     */
-    void applyModeToView();
-
-    /**
      * Changes the current view based on the content of the directory.
      */
     void applyDynamicView();
@@ -981,29 +1092,11 @@ private:
     void emitStatusBarText(const int folderCount, const int fileCount, KIO::filesize_t totalFileSize, const Selection selection);
 
     /**
-     * Helper method for DolphinView::paste() and DolphinView::pasteIntoFolder().
-     * Pastes the clipboard data into the URL \a url.
-     */
-    void pasteToUrl(const QUrl &url);
-
-    /**
      * Returns a list of URLs for all selected items. The list is
      * simplified, so that when the URLs are part of different tree
      * levels, only the parent is returned.
      */
     QList<QUrl> simplifiedSelectedUrls() const;
-
-    /**
-     * Returns the MIME data for all selected items.
-     */
-    QMimeData *selectionMimeData() const;
-
-    /**
-     * Updates m_isFolderWritable dependent on whether the folder represented by
-     * the current URL is writable. If the state has changed, the signal
-     * writeStateChanged() will be emitted.
-     */
-    void updateWritableState();
 
     /**
      * @return The current URL if no viewproperties-context is given (see
@@ -1040,6 +1133,7 @@ private:
     void showLoadingPlaceholder();
 
     bool m_active;
+    const bool m_canDisplayColumns;
     bool m_tabsForFiles;
     bool m_assureVisibleCurrentIndex;
     bool m_isFolderWritable;
@@ -1109,7 +1203,9 @@ private:
     friend class TestBase;
     friend class DolphinDetailsViewTest;
     friend class DolphinMainWindowTest;
+    friend class DolphinViewTest; // Calls the protected setViewMode()
     friend class DolphinPart; // Accesses m_model
+    friend class DolphinViewContainer; // Calls the protected setViewMode()
     void updateSelectionState();
 };
 

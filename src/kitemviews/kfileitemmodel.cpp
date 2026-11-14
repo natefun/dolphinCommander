@@ -8,6 +8,7 @@
 
 #include "kfileitemmodel.h"
 
+#include "config-dolphin.h"
 #include "dolphin_contentdisplaysettings.h"
 #include "dolphin_generalsettings.h"
 #include "dolphindebug.h"
@@ -20,6 +21,10 @@
 #include <KIO/ListJob>
 #include <KLocalizedString>
 #include <KUrlMimeData>
+
+#if HAVE_BALOO
+#include <Baloo/IndexerConfig>
+#endif
 
 #ifndef QT_NO_ACCESSIBILITY
 #include <QAccessible>
@@ -233,6 +238,11 @@ Qt::strong_ordering compareNumericChains(QStringView a, int startA, int endA, in
 int findExtensionSeparator(QStringView text)
 {
     for (int i = text.length() - 1; i > 0; --i) {
+        // A suffix containing whitespace, such as ". Eleven", is part of the name.
+        if (text.at(i).isSpace()) {
+            return -1;
+        }
+
         if (text.at(i) != QLatin1Char('.')) {
             continue;
         }
@@ -1302,10 +1312,35 @@ QList<KFileItemModel::RoleInfo> KFileItemModel::rolesInformation()
     return rolesInfo;
 }
 
+QString KFileItemModel::indexerUnavailableReason(const QUrl &folder)
+{
+#if HAVE_BALOO
+    const Baloo::IndexerConfig config;
+    if (!config.fileIndexingEnabled()) {
+        return i18nc("@info:tooltip", "File Search is disabled. Enable it in System Settings to see this information.");
+    }
+    if (config.onlyBasicIndexing()) {
+        return i18nc("@info:tooltip", "File Search indexes only file names. Enable indexing of file content in System Settings to see this information.");
+    }
+    if (folder.isLocalFile() && !config.shouldBeIndexed(folder.toLocalFile())) {
+        return i18nc("@info:tooltip", "This folder is not indexed by File Search.");
+    }
+    return QString();
+#else
+    Q_UNUSED(folder)
+    return i18nc("@info:tooltip", "This information comes from File Search, which this version of Dolphin was built without.");
+#endif
+}
+
 void KFileItemModel::onGroupedSortingChanged(bool current)
 {
     Q_UNUSED(current)
     m_groups.clear();
+
+    // The group role is only part of the sort order while grouping is enabled
+    if (!rawGroupRole().isEmpty() && groupRole() != sortRole()) {
+        resortAllItems();
+    }
 }
 
 void KFileItemModel::onGroupRoleChanged(const QByteArray &current, const QByteArray &previous, bool resortItems)
@@ -1321,7 +1356,7 @@ void KFileItemModel::onGroupRoleChanged(const QByteArray &current, const QByteAr
 
     m_groups.clear();
 
-    if (resortItems) {
+    if (resortItems && groupedSorting()) {
         resortAllItems();
     }
 }
@@ -2063,6 +2098,7 @@ void KFileItemModel::prepareItemsForSorting(QList<ItemData *> &itemDataList)
     case PathRole:
     case FolderRole:
     case DeletionTimeRole:
+    case RatingRole:
         // These roles can be determined with retrieveData, and they have to be stored
         // in the QHash "values" for the sorting.
         for (ItemData *itemData : std::as_const(itemDataList)) {
@@ -2100,6 +2136,12 @@ void KFileItemModel::prepareItemsForSorting(QList<ItemData *> &itemDataList)
                 if (item.isDir() || item.isMimeTypeKnown()) {
                     itemData->values = retrieveData(itemData->item, itemData->parent);
                 }
+            }
+        }
+    } else if (typeForRole(rawGroupRole()) == RatingRole && m_sortRole != RatingRole) {
+        for (ItemData *itemData : std::as_const(itemDataList)) {
+            if (itemData->values.isEmpty()) {
+                itemData->values = retrieveData(itemData->item, itemData->parent);
             }
         }
     }
@@ -2424,10 +2466,7 @@ SmallHash KFileItemModel::retrieveData(const KFileItem &item, const ItemData *pa
 
     if (m_requestRole[RatingRole] && item.isLocalFile()) {
         KFileMetaData::UserMetaData md(item.localPath());
-        const int rating = md.rating();
-        if (rating > 0) {
-            data.insert(sharedValue("rating"), rating);
-        }
+        data.insert(sharedValue("rating"), md.rating());
     }
 
     return data;
@@ -2442,6 +2481,10 @@ QString KFileItemModel::groupKeyForItem(const ItemData *item, const QByteArray &
         return QDateTime::fromSecsSinceEpoch(item->values.value(role).toLongLong()).date().toString(Qt::ISODate);
     case DeletionTimeRole:
         return item->values.value("deletiontime").toDateTime().date().toString(Qt::ISODate);
+    case PermissionsRole:
+        return item->item.permissionsString();
+    case RatingRole:
+        return QString::number(item->values.value(role, 0).toInt());
     default:
         return item->values.value(role).toString();
     }
@@ -2506,12 +2549,20 @@ bool KFileItemModel::lessThan(const ItemData *a, const ItemData *b, const QColla
 
     if (groupedSorting() && !rawGroupRole().isEmpty() && groupRole() != sortRole()) {
         const QByteArray gRole = groupRole();
-        const QString groupValueA = groupKeyForItem(a, gRole);
-        const QString groupValueB = groupKeyForItem(b, gRole);
-        const int groupResult = stringCompare(groupValueA, groupValueB, collator);
-        if (groupResult != 0) {
-            // Groups are always in ascending order regardless of the sort order setting.
-            return groupResult < 0;
+        if (typeForRole(gRole) == RatingRole) {
+            const int ratingA = a->values.value(gRole, 0).toInt();
+            const int ratingB = b->values.value(gRole, 0).toInt();
+            if (ratingA != ratingB) {
+                return ratingA < ratingB;
+            }
+        } else {
+            const QString groupValueA = groupKeyForItem(a, gRole);
+            const QString groupValueB = groupKeyForItem(b, gRole);
+            const int groupResult = stringCompare(groupValueA, groupValueB, collator);
+            if (groupResult != 0) {
+                // Groups are always in ascending order regardless of the sort order setting.
+                return groupResult < 0;
+            }
         }
     }
 
@@ -2641,6 +2692,10 @@ int KFileItemModel::sortRoleCompare(const ItemData *a, const ItemData *b, const 
         }
         break;
     }
+
+    case PermissionsRole:
+        result = QString::compare(itemA.permissionsString(), itemB.permissionsString());
+        break;
 
     case RatingRole:
     case WidthRole:
@@ -3077,7 +3132,7 @@ QList<QPair<int, QVariant>> KFileItemModel::permissionRoleGroups() const
         }
 
         const ItemData *itemData = m_itemData.at(i);
-        const QString newPermissionsString = itemData->values.value("permissions").toString();
+        const QString newPermissionsString = itemData->item.permissionsString();
         if (newPermissionsString == permissionsString) {
             continue;
         }
@@ -3145,6 +3200,9 @@ QList<QPair<int, QVariant>> KFileItemModel::ratingRoleGroups() const
     for (int i = 0; i <= maxIndex; ++i) {
         if (isChildItem(i)) {
             continue;
+        }
+        if (m_itemData.at(i)->values.isEmpty()) {
+            m_itemData[i]->values = retrieveData(m_itemData.at(i)->item, m_itemData.at(i)->parent);
         }
         const int newGroupValue = m_itemData.at(i)->values.value("rating", 0).toInt();
         if (newGroupValue != groupValue) {

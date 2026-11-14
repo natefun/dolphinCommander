@@ -1,0 +1,1217 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Sebastian Englbrecht
+ * SPDX-FileCopyrightText: 2026 Méven Car <meven@kde.org>
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
+#include "dolphinviewcontainer.h"
+#include "dolphin_columnsmodesettings.h"
+#include "dolphin_detailsmodesettings.h"
+#include "dolphin_generalsettings.h"
+#include "dolphin_iconsmodesettings.h"
+#include "dolphintabpage.h"
+#include "dolphinurlnavigator.h"
+#include "kitemviews/kfileitemmodel.h"
+#include "kitemviews/kitemlistcontainer.h"
+#include "kitemviews/kitemlistcontroller.h"
+#include "kitemviews/kitemlistselectionmanager.h"
+#include "kitemviews/kitemliststyleoption.h"
+#include "kitemviews/kitemlistview.h"
+#include "kitemviews/private/kfileitemmodelfilter.h"
+#include "statusbar/dolphinstatusbar.h"
+
+#include "settings/viewpropertiesdialog.h"
+#include "testdir.h"
+#include "views/dolphincolumnpane.h"
+#include "views/dolphincolumnsview.h"
+#include "views/dolphinitemlistview.h"
+#include "views/dolphinview.h"
+#include "views/dolphinviewactionhandler.h"
+#include "views/viewproperties.h"
+#include "views/zoomlevelinfo.h"
+#include <KActionCollection>
+#include <KConfigGroup>
+#include <KCoreDirLister>
+#include <KMessageWidget>
+#include <KSharedConfig>
+#include <KUrlComboBox>
+
+#include <QApplication>
+#include <QComboBox>
+#include <QCoreApplication>
+#include <QDialogButtonBox>
+#include <QDir>
+#include <QGraphicsView>
+#include <QLineEdit>
+#include <QPointer>
+#include <QPushButton>
+#include <QScopeGuard>
+#include <QSignalSpy>
+#include <QStandardPaths>
+#include <QTest>
+#include <QTimer>
+
+class DolphinViewContainerTest : public QObject
+{
+    Q_OBJECT
+
+private Q_SLOTS:
+    void initTestCase();
+    void init();
+    void cleanup();
+
+    void testSetViewMode_iconsToDetails();
+    void testSetViewMode_iconsToColumns();
+    void testTabUrlFollowsColumnsViewAfterSwap();
+    void testSetViewMode_columnsToIcons();
+    void testSetViewMode_fullCycle();
+    void testSetViewMode_columnsToDetailsThenBackToColumns();
+    void testSetViewMode_sameModeTwice();
+    void testAReplacedViewNoLongerMovesTheUrlNavigator();
+    void testColumnsIconSizeStaysNonZeroOnPreviewToggle();
+    void testSwapDoesNotPersistOutgoingMode();
+    void testNavigatorFollowsViewAfterModeSwap();
+    void testSwapAdoptsContainerActiveState();
+    void testSwapCarriesTheNameFilter();
+    void testTheViewPropertiesDialogFollowsASwappedView();
+    void testTheViewModeButtonSkipsTheColumnsModeTakenOut();
+    void testSwapCarriesTheFilterModeAndCaseSensitivity();
+    void testSwapCarriesTheSelectionMode();
+    void testSwapKeepsTheKeyboardFocusInTheView();
+    void testSwapCarriesTheViewPropertiesContext();
+    void testTheSmallStatusBarStaysOffTheScrollbars();
+    void testTheSmallStatusBarDrawsAboveAReplacementView();
+    void testNavigatingIntoAColumnsFolderSwapsTheView();
+    void testBrowsingOutOfAColumnsFolderSwitchesToItsMode();
+    void testTheEditableLocationFollowsASwitchToAndFromColumns();
+    void testAFolderOpenedAsAColumnKeepsTheColumnsView();
+    void testBackAndForwardInColumnsKeepTheColumnsView();
+    void testEachViewModeKeepsItsOwnZoomLevel();
+    void testOnlyAnExternalUrlChangeClosesColumns();
+    void testGoingUpInColumnsStaysUp();
+    void testADragRunsWhenItsStartIsReported();
+    void testAViewReplacedDuringItsDragStaysUntilTheDragEnds();
+    void testAColumnClosedDuringItsDragStaysUntilTheDragEnds();
+    void testAFileTypedAsTheLocationOpensItsFolder_data();
+    void testAFileTypedAsTheLocationOpensItsFolder();
+    void testARemovedFolderMovesTheViewToItsParent_data();
+    void testARemovedFolderMovesTheViewToItsParent();
+    void testALocationThatRedirectsShowsItsTarget_data();
+    void testALocationThatRedirectsShowsItsTarget();
+
+private:
+    void waitForViewReady();
+    /// Waits until a listing of the parent folder that includes @p url has finished. A listing that
+    /// started before @p url was created would otherwise report it deleted, and the view would leave it.
+    void waitForItemListed(const QUrl &url);
+
+    DolphinViewContainer *m_container = nullptr;
+    TestDir *m_testDir = nullptr;
+};
+
+void DolphinViewContainerTest::initTestCase()
+{
+    QStandardPaths::setTestModeEnabled(true);
+    // Use per-folder view properties so each test's fresh TestDir isolates
+    // persistence (the global store would leak modes between tests).
+    GeneralSettings::setGlobalViewProps(false);
+}
+
+void DolphinViewContainerTest::init()
+{
+    // A test that switches modes with a common display style stores the mode it ends in, and every
+    // folder without properties of its own would open in that mode.
+    QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/view_properties")).removeRecursively();
+
+    m_testDir = new TestDir();
+    m_testDir->createDir("subdir");
+    m_testDir->createFile("file1.txt");
+    m_testDir->createFile("file2.txt");
+    waitForItemListed(m_testDir->url());
+
+    m_container = new DolphinViewContainer(m_testDir->url(), nullptr);
+    m_container->resize(800, 600);
+    m_container->show();
+    QVERIFY(QTest::qWaitForWindowExposed(m_container));
+
+    waitForViewReady();
+}
+
+void DolphinViewContainerTest::cleanup()
+{
+    delete m_container;
+    m_container = nullptr;
+
+    delete m_testDir;
+    m_testDir = nullptr;
+}
+
+void DolphinViewContainerTest::waitForViewReady()
+{
+    QTRY_VERIFY_WITH_TIMEOUT(m_container->view()->itemsCount() > 0, 5000);
+}
+
+void DolphinViewContainerTest::waitForItemListed(const QUrl &url)
+{
+    KCoreDirLister lister;
+    lister.openUrl(url.adjusted(QUrl::RemoveFilename | QUrl::StripTrailingSlash));
+    QTRY_VERIFY_WITH_TIMEOUT(lister.isFinished() && !lister.findByUrl(url).isNull(), 5000);
+}
+
+void DolphinViewContainerTest::testSetViewMode_iconsToDetails()
+{
+    // Start in Icons mode
+    m_container->setViewMode(DolphinView::IconsView);
+    waitForViewReady();
+    QCOMPARE(m_container->view()->viewMode(), DolphinView::IconsView);
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) == nullptr);
+
+    // Switch to Details
+    m_container->setViewMode(DolphinView::DetailsView);
+    waitForViewReady();
+    QCOMPARE(m_container->view()->viewMode(), DolphinView::DetailsView);
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) == nullptr);
+}
+
+void DolphinViewContainerTest::testSetViewMode_iconsToColumns()
+{
+    m_container->setViewMode(DolphinView::IconsView);
+    waitForViewReady();
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) == nullptr);
+
+    // Switch to Columns, which swaps the view
+    QSignalSpy spy(m_container, &DolphinViewContainer::viewReplaced);
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(m_container->view()->viewMode(), DolphinView::ColumnsView);
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) != nullptr);
+}
+
+void DolphinViewContainerTest::testSetViewMode_columnsToIcons()
+{
+    // Start in Columns
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) != nullptr);
+
+    // Switch to Icons, which swaps back
+    QSignalSpy spy(m_container, &DolphinViewContainer::viewReplaced);
+    m_container->setViewMode(DolphinView::IconsView);
+    waitForViewReady();
+
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(m_container->view()->viewMode(), DolphinView::IconsView);
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) == nullptr);
+}
+
+void DolphinViewContainerTest::testSetViewMode_fullCycle()
+{
+    // Icons, Compact, Details, Columns, then the same cycle again
+    const DolphinView::Mode modes[] = {
+        DolphinView::IconsView,
+        DolphinView::CompactView,
+        DolphinView::DetailsView,
+        DolphinView::ColumnsView,
+        DolphinView::IconsView,
+        DolphinView::CompactView,
+        DolphinView::DetailsView,
+        DolphinView::ColumnsView,
+    };
+
+    for (DolphinView::Mode mode : modes) {
+        m_container->setViewMode(mode);
+        waitForViewReady();
+
+        QCOMPARE(m_container->view()->viewMode(), mode);
+
+        const bool shouldBeColumns = (mode == DolphinView::ColumnsView);
+        const bool isColumns = qobject_cast<DolphinColumnsView *>(m_container->view()) != nullptr;
+        QCOMPARE(isColumns, shouldBeColumns);
+    }
+}
+
+void DolphinViewContainerTest::testSetViewMode_columnsToDetailsThenBackToColumns()
+{
+    // Columns, Details, then Columns again
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) != nullptr);
+
+    m_container->setViewMode(DolphinView::DetailsView);
+    waitForViewReady();
+    QCOMPARE(m_container->view()->viewMode(), DolphinView::DetailsView);
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) == nullptr);
+
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+    QCOMPARE(m_container->view()->viewMode(), DolphinView::ColumnsView);
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) != nullptr);
+}
+
+void DolphinViewContainerTest::testSetViewMode_sameModeTwice()
+{
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+
+    DolphinView *viewBefore = m_container->view();
+    QSignalSpy spy(m_container, &DolphinViewContainer::viewReplaced);
+
+    // Setting same mode again should NOT swap the view
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+
+    QCOMPARE(spy.count(), 0);
+    QCOMPARE(m_container->view(), viewBefore);
+}
+
+void DolphinViewContainerTest::testAReplacedViewNoLongerMovesTheUrlNavigator()
+{
+    m_container->setViewMode(DolphinView::IconsView);
+    waitForViewReady();
+    QPointer<DolphinView> oldView = m_container->view();
+    const QUrl url = m_container->urlNavigatorInternalWithHistory()->locationUrl();
+
+    m_container->setViewMode(DolphinView::ColumnsView);
+    QVERIFY(m_container->view() != oldView);
+
+    // The old view is deleted later, so it can still emit here.
+    QVERIFY(oldView);
+    Q_EMIT oldView->urlChanged(QUrl::fromLocalFile(QDir::rootPath()));
+    QCOMPARE(m_container->urlNavigatorInternalWithHistory()->locationUrl(), url);
+    waitForViewReady();
+}
+
+void DolphinViewContainerTest::testColumnsIconSizeStaysNonZeroOnPreviewToggle()
+{
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+
+    auto *columnsView = qobject_cast<DolphinColumnsView *>(m_container->view());
+    QVERIFY(columnsView);
+    QVERIFY(columnsView->columnCount() > 0);
+
+    DolphinColumnPane *pane = columnsView->columnAt(0);
+    QVERIFY(pane);
+
+    // Toggling previews must never collapse the column icon size to 0. A zero
+    // icon size made the column icons vanish and aborted in
+    // KStandardItemListWidget::addOverlays() via std::clamp (lo > hi).
+    m_container->view()->setPreviewsShown(true);
+    QVERIFY(pane->controller()->view()->styleOption().iconSize > 0);
+
+    m_container->view()->setPreviewsShown(false);
+    QVERIFY(pane->controller()->view()->styleOption().iconSize > 0);
+
+    m_container->view()->setPreviewsShown(true);
+    QVERIFY(pane->controller()->view()->styleOption().iconSize > 0);
+}
+
+void DolphinViewContainerTest::testSwapDoesNotPersistOutgoingMode()
+{
+    const QUrl url = m_container->view()->url();
+
+    // Switch into Columns and back out. Each switch swaps (destroys) the
+    // outgoing view; the outgoing view must not persist its now-stale mode and
+    // clobber the surviving view's mode on disk.
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+    m_container->setViewMode(DolphinView::IconsView);
+    waitForViewReady();
+
+    // Synchronously run the deleteLater() of the swapped-out views so their
+    // destructors (which persist the view mode) fire before we read it back.
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+
+    // We ended in Icons, so the destroyed Columns view must not have written
+    // ColumnsView back to disk.
+    ViewProperties props(url);
+    QVERIFY(props.viewMode() != DolphinView::ColumnsView);
+}
+
+void DolphinViewContainerTest::testNavigatorFollowsViewAfterModeSwap()
+{
+    // Attach a url navigator the way the toolbar does.
+    auto *navigator = new DolphinUrlNavigator(m_testDir->url(), nullptr);
+    m_container->connectUrlNavigator(navigator);
+
+    // Switching to Columns swaps (recreates) the view. The navigator must keep
+    // following the new view, not the destroyed old one.
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+
+    // "subdir" is empty, so navigating there opens no auto-cascaded child column
+    // and the URL settles deterministically.
+    const QUrl subUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/subdir"));
+    m_container->setUrl(subUrl);
+
+    QTRY_COMPARE_WITH_TIMEOUT(navigator->locationUrl().adjusted(QUrl::StripTrailingSlash), subUrl.adjusted(QUrl::StripTrailingSlash), 5000);
+
+    m_container->disconnectUrlNavigator();
+    delete navigator;
+}
+
+void DolphinViewContainerTest::testSwapAdoptsContainerActiveState()
+{
+    // A freshly constructed DolphinView defaults to active (m_active is
+    // initialized true). swapView() must sync the incoming view to the
+    // container's real active state. Otherwise a view swapped in on an inactive
+    // container (e.g. an inactive split pane switching to Columns) stays wrongly
+    // "active", so the window - which only wires active-view signals (context
+    // menu, ...) to the active view - never connects them to it.
+
+    // Inactive container: the swapped-in columns view must be inactive.
+    m_container->setActive(false);
+    QVERIFY(!m_container->view()->isActive());
+
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) != nullptr);
+    QVERIFY(!m_container->view()->isActive());
+
+    // Active container: the swapped-in view must be active.
+    m_container->setActive(true);
+    QVERIFY(m_container->view()->isActive());
+
+    m_container->setViewMode(DolphinView::IconsView);
+    waitForViewReady();
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) == nullptr);
+    QVERIFY(m_container->view()->isActive());
+}
+
+void DolphinViewContainerTest::testTabUrlFollowsColumnsViewAfterSwap()
+{
+    // The tab and window titles follow DolphinTabPage::activeViewUrlChanged, which is wired to
+    // the view the container holds. Switching to the columns view replaces that view, so the
+    // wiring has to be made again.
+    DolphinTabPage page(m_testDir->url(), QUrl(), nullptr);
+    page.resize(800, 600);
+    page.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&page));
+    QTRY_VERIFY_WITH_TIMEOUT(page.activeViewContainer()->view()->itemsCount() > 0, 5000);
+
+    page.activeViewContainer()->setViewMode(DolphinView::ColumnsView);
+    QTRY_VERIFY_WITH_TIMEOUT(qobject_cast<DolphinColumnsView *>(page.activeViewContainer()->view()) != nullptr, 5000);
+
+    QSignalSpy urlSpy(&page, &DolphinTabPage::activeViewUrlChanged);
+    const QUrl subdirUrl = QUrl::fromLocalFile(m_testDir->url().toLocalFile() + QStringLiteral("/subdir"));
+    page.activeViewContainer()->view()->setUrl(subdirUrl);
+
+    QTRY_VERIFY_WITH_TIMEOUT(urlSpy.count() > 0, 5000);
+    QCOMPARE(urlSpy.last().first().toUrl().adjusted(QUrl::StripTrailingSlash).fileName(), QStringLiteral("subdir"));
+}
+
+void DolphinViewContainerTest::testSwapCarriesTheNameFilter()
+{
+    // The filter bar is not touched by a swap, so the replacement view has to apply the filter
+    // the bar still shows.
+    m_container->setViewMode(DolphinView::IconsView);
+    waitForViewReady();
+
+    m_container->view()->setNameFilter(QStringLiteral("file"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_container->view()->itemsCount(), 2, 5000);
+
+    m_container->setViewMode(DolphinView::ColumnsView);
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) != nullptr);
+
+    QCOMPARE(m_container->view()->nameFilter(), QStringLiteral("file"));
+    QTRY_COMPARE_WITH_TIMEOUT(m_container->view()->itemsCount(), 2, 5000);
+}
+
+void DolphinViewContainerTest::testSwapCarriesTheFilterModeAndCaseSensitivity()
+{
+    // The filter bar holds both, and the container tells the view about them when it builds one.
+    // A swap builds one, so a view that keeps the name filter but loses the mode would apply
+    // "^file" as a glob and show nothing.
+    KConfigGroup filterBarConfig(KSharedConfig::openStateConfig(), QStringLiteral("FilterBar"));
+    const QString savedMode = filterBarConfig.readEntry("filterMode", QString());
+    const QString savedCase = filterBarConfig.readEntry("caseSensitive", QString());
+    auto restore = qScopeGuard([&]() {
+        filterBarConfig.writeEntry("filterMode", savedMode);
+        filterBarConfig.writeEntry("caseSensitive", savedCase);
+    });
+    // FilterBar stores the index of its mode combo box, whose items are added in enum order.
+    filterBarConfig.writeEntry("filterMode", static_cast<int>(KFileItemModelFilter::Regex));
+    filterBarConfig.writeEntry("caseSensitive", true);
+
+    DolphinViewContainer container(m_testDir->url(), nullptr);
+    container.resize(800, 600);
+    container.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&container));
+
+    container.setViewMode(DolphinView::IconsView);
+    QTRY_VERIFY_WITH_TIMEOUT(container.view()->itemsCount() > 0, 5000);
+    QCOMPARE(container.view()->filterMode(), KFileItemModelFilter::Regex);
+    QCOMPARE(container.view()->isFilterCaseSensitive(), true);
+
+    container.view()->setNameFilter(QStringLiteral("^file"));
+    QTRY_COMPARE_WITH_TIMEOUT(container.view()->itemsCount(), 2, 5000);
+
+    container.setViewMode(DolphinView::ColumnsView);
+    QVERIFY(qobject_cast<DolphinColumnsView *>(container.view()) != nullptr);
+
+    QCOMPARE(container.view()->filterMode(), KFileItemModelFilter::Regex);
+    QCOMPARE(container.view()->isFilterCaseSensitive(), true);
+    QTRY_COMPARE_WITH_TIMEOUT(container.view()->itemsCount(), 2, 5000);
+}
+
+void DolphinViewContainerTest::testSwapCarriesTheSelectionMode()
+{
+    // Selection mode is entered on the container, so a swap done while it is on has to leave the
+    // replacement view in it as well.
+    m_container->setViewMode(DolphinView::IconsView);
+    waitForViewReady();
+
+    m_container->view()->setSelectionModeEnabled(true);
+    QCOMPARE(m_container->view()->selectionMode(), true);
+
+    m_container->setViewMode(DolphinView::ColumnsView);
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) != nullptr);
+
+    QCOMPARE(m_container->view()->selectionMode(), true);
+}
+
+void DolphinViewContainerTest::testSwapKeepsTheKeyboardFocusInTheView()
+{
+    // The keys go to the view after a switch to and from the columns view, as they do after a
+    // switch between the other modes.
+    m_container->activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(m_container));
+
+    for (const DolphinView::Mode mode : {DolphinView::ColumnsView, DolphinView::IconsView, DolphinView::ColumnsView, DolphinView::DetailsView}) {
+        m_container->view()->setFocus();
+        QTRY_VERIFY_WITH_TIMEOUT(m_container->view()->isAncestorOf(QApplication::focusWidget()), 5000);
+
+        m_container->setViewMode(mode);
+        waitForViewReady();
+        QTRY_VERIFY2_WITH_TIMEOUT(m_container->view()->isAncestorOf(QApplication::focusWidget()), qPrintable(QString::number(mode)), 5000);
+    }
+}
+
+void DolphinViewContainerTest::testSwapCarriesTheViewPropertiesContext()
+{
+    // The context names the store the view properties are read from and written to. A view
+    // swapped in without it would read the properties of the folder instead.
+    m_container->setViewMode(DolphinView::IconsView);
+    waitForViewReady();
+
+    m_container->view()->setViewPropertiesContext(QStringLiteral("search"));
+    QCOMPARE(m_container->view()->viewPropertiesContext(), QStringLiteral("search"));
+
+    m_container->setViewMode(DolphinView::ColumnsView);
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) != nullptr);
+
+    QCOMPARE(m_container->view()->viewPropertiesContext(), QStringLiteral("search"));
+}
+
+void DolphinViewContainerTest::testTheSmallStatusBarStaysOffTheScrollbars()
+{
+    // The small status bar floats over the bottom of the view. Its rect has to end where the
+    // horizontal scrollbar of the view begins, and to be as tall as the bar and no taller: a rect
+    // that reaches the bottom edge covers the scrollbar, and the bar paints its frame over all of
+    // it. The bar corrects its own height soon after, so the rect is what this asserts on.
+    QCOMPARE(GeneralSettings::showStatusBar(), GeneralSettings::EnumShowStatusBar::Small);
+
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+
+    // Two columns of the minimum width do not fit in a viewport this narrow, so the view really
+    // has a horizontal scrollbar. Without one the two rects cannot be told apart.
+    m_container->resize(250, 600);
+    m_container->view()->setUrl(QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/subdir")));
+    QTRY_VERIFY_WITH_TIMEOUT(m_container->view()->horizontalScrollBarHeight() > 0, 5000);
+
+    auto *statusBar = m_container->findChild<DolphinStatusBar *>();
+    QVERIFY(statusBar);
+
+    const int scrollBarHeight = m_container->view()->horizontalScrollBarHeight();
+    const QRect barRect = m_container->preferredSmallStatusBarGeometry();
+    QCOMPARE(barRect.height(), statusBar->minimumHeight());
+    QCOMPARE(barRect.bottom(), m_container->view()->geometry().bottom() - scrollBarHeight);
+}
+
+void DolphinViewContainerTest::testTheSmallStatusBarDrawsAboveAReplacementView()
+{
+    // Siblings are painted in the order they are children of their parent, so a view added to the
+    // layout after the status bar draws over it. Only the parts of the bar that the view leaves
+    // unpainted stay visible, such as the strip beside a column's scrollbar.
+    m_container->setViewMode(DolphinView::IconsView);
+    waitForViewReady();
+
+    auto *statusBar = m_container->findChild<DolphinStatusBar *>();
+    QVERIFY(statusBar);
+
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+
+    const QObjectList siblings = m_container->children();
+    QVERIFY(siblings.indexOf(statusBar) > siblings.indexOf(m_container->view()));
+}
+
+void DolphinViewContainerTest::testNavigatingIntoAColumnsFolderSwapsTheView()
+{
+    // The columns view is a DolphinView subclass, and only the container can build one. Applying
+    // the mode to the plain view that is already there leaves it reporting ColumnsView while it
+    // still draws a list.
+    m_container->setViewMode(DolphinView::IconsView);
+    waitForViewReady();
+
+    m_testDir->createDir("columnsfolder");
+    m_testDir->createFile("columnsfolder/a-file.txt");
+    const QUrl columnsFolderUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/columnsfolder"));
+    {
+        ViewProperties props(columnsFolderUrl);
+        props.setViewMode(DolphinView::ColumnsView);
+        props.save();
+    }
+    QCOMPARE(ViewProperties(columnsFolderUrl).viewMode(), DolphinView::ColumnsView);
+    waitForItemListed(columnsFolderUrl);
+
+    m_container->setUrl(columnsFolderUrl);
+    waitForViewReady();
+
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) != nullptr);
+    QCOMPARE(m_container->view()->url().adjusted(QUrl::StripTrailingSlash), columnsFolderUrl.adjusted(QUrl::StripTrailingSlash));
+}
+
+void DolphinViewContainerTest::testOnlyAnExternalUrlChangeClosesColumns()
+{
+    // Moving the focus to a parent column keeps the url and the columns after it, also once the
+    // url navigator has passed the url back. Setting the url from outside, as the terminal panel
+    // does, closes the columns after the column of that url.
+    // The folders below have no display style of their own, and they stay in the columns view with a
+    // common display style for all folders.
+    GeneralSettings::setGlobalViewProps(true);
+    auto restore = qScopeGuard([]() {
+        GeneralSettings::setGlobalViewProps(false);
+    });
+    m_testDir->createDir("a/b/c");
+    m_testDir->createFile("a/b/c/a-file.txt");
+    const QUrl aUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/a"));
+    const QUrl bUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/a/b"));
+    const QUrl cUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/a/b/c"));
+
+    waitForItemListed(aUrl);
+
+    // Attach a url navigator the way the toolbar does.
+    DolphinUrlNavigator navigator(m_testDir->url(), nullptr);
+    m_container->connectUrlNavigator(&navigator);
+
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+    auto *columnsView = qobject_cast<DolphinColumnsView *>(m_container->view());
+    QVERIFY(columnsView);
+
+    m_container->setUrl(cUrl);
+    QTRY_COMPARE_WITH_TIMEOUT(columnsView->url().adjusted(QUrl::StripTrailingSlash), cUrl, 5000);
+    const int columnCount = columnsView->columnCount();
+    QVERIFY(columnCount >= 3);
+
+    // As the Left key does.
+    columnsView->setActiveColumn(columnCount - 2);
+    QCoreApplication::processEvents();
+    QCOMPARE(columnsView->url().adjusted(QUrl::StripTrailingSlash), cUrl);
+    QCOMPARE(m_container->urlNavigatorInternalWithHistory()->locationUrl().adjusted(QUrl::StripTrailingSlash), cUrl);
+    QCOMPARE(navigator.locationUrl().adjusted(QUrl::StripTrailingSlash), cUrl);
+    QCOMPARE(columnsView->columnCount(), columnCount);
+
+    // b, written with a trailing slash, closes the column of c.
+    m_container->setUrl(QUrl::fromLocalFile(bUrl.toLocalFile() + QLatin1Char('/')));
+    QTRY_COMPARE_WITH_TIMEOUT(columnsView->columnCount(), columnCount - 1, 5000);
+    QCOMPARE(columnsView->url().adjusted(QUrl::StripTrailingSlash), bUrl);
+    QTRY_COMPARE_WITH_TIMEOUT(navigator.locationUrl().adjusted(QUrl::StripTrailingSlash), bUrl, 5000);
+    QCoreApplication::processEvents();
+    QCOMPARE(columnsView->columnCount(), columnCount - 1);
+
+    // b, the folder on the way back, stays the current item in a, with nothing selected.
+    m_container->setUrl(aUrl);
+    QTRY_COMPARE_WITH_TIMEOUT(columnsView->columnCount(), columnCount - 2, 5000);
+    QCOMPARE(columnsView->url().adjusted(QUrl::StripTrailingSlash), aUrl);
+    QVERIFY(!columnsView->columnAt(columnCount - 3)->controller()->selectionManager()->hasSelection());
+    QCoreApplication::processEvents();
+    QCOMPARE(columnsView->columnCount(), columnCount - 2);
+
+    m_container->disconnectUrlNavigator();
+}
+
+void DolphinViewContainerTest::testGoingUpInColumnsStaysUp()
+{
+    // Going up asks the view to select the folder on the way back, as the other view modes do.
+    // In the columns view a selected folder shows its content, which would go down again.
+    // The folders below have no display style of their own, and they stay in the columns view with a
+    // common display style for all folders.
+    GeneralSettings::setGlobalViewProps(true);
+    auto restore = qScopeGuard([]() {
+        GeneralSettings::setGlobalViewProps(false);
+    });
+    m_testDir->createDir("a/b");
+    const QUrl aUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/a"));
+    const QUrl bUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/a/b"));
+    waitForItemListed(aUrl);
+
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+    auto *columnsView = qobject_cast<DolphinColumnsView *>(m_container->view());
+    QVERIFY(columnsView);
+
+    m_container->setUrl(bUrl);
+    QTRY_COMPARE_WITH_TIMEOUT(columnsView->url().adjusted(QUrl::StripTrailingSlash), bUrl, 5000);
+    const int columnCount = columnsView->columnCount();
+
+    m_container->urlNavigatorInternalWithHistory()->goUp();
+    QTRY_COMPARE_WITH_TIMEOUT(columnsView->columnCount(), columnCount - 1, 5000);
+    QCOMPARE(columnsView->url().adjusted(QUrl::StripTrailingSlash), aUrl);
+
+    // The next listing of the column applies what was marked to select.
+    columnsView->reload();
+    QTest::qWait(500); // UNAVOIDABLE: nothing is expected to happen
+    QCOMPARE(columnsView->url().adjusted(QUrl::StripTrailingSlash), aUrl);
+    QCOMPARE(columnsView->columnCount(), columnCount - 1);
+}
+
+/**
+ * A view that cannot show columns takes the Columns mode out. The view mode button then goes from
+ * Details back to Icons, and the Columns action is in no menu.
+ */
+void DolphinViewContainerTest::testTheViewModeButtonSkipsTheColumnsModeTakenOut()
+{
+    m_container->setViewMode(DolphinView::DetailsView);
+    waitForViewReady();
+
+    KActionCollection actions(this);
+    DolphinViewActionHandler handler(&actions, nullptr, this);
+    handler.setCurrentView(m_container->view());
+    handler.updateViewActions();
+    QSignalSpy requested(&handler, &DolphinViewActionHandler::viewModeChangeRequested);
+
+    actions.action(QStringLiteral("view_mode"))->trigger();
+    QCOMPARE(requested.count(), 1);
+    QCOMPARE(requested.takeFirst().at(0).value<DolphinView::Mode>(), DolphinView::ColumnsView);
+
+    handler.updateViewActions();
+    handler.removeColumnsMode();
+    actions.action(QStringLiteral("view_mode"))->trigger();
+    QCOMPARE(requested.count(), 1);
+    QCOMPARE(requested.takeFirst().at(0).value<DolphinView::Mode>(), DolphinView::IconsView);
+    QVERIFY(!actions.action(QStringLiteral("columns"))->isVisible());
+    QVERIFY(!actions.action(QStringLiteral("columns"))->isEnabled());
+}
+
+void DolphinViewContainerTest::testBrowsingOutOfAColumnsFolderSwitchesToItsMode()
+{
+    // With view properties per folder, a folder saved with another mode opens in that mode, also
+    // when the columns view showed the folder before. Leaving the columns view does not change
+    // what the folder has stored.
+    m_testDir->createDir("iconsfolder");
+    m_testDir->createFile("iconsfolder/a-file.txt");
+    const QUrl iconsFolderUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/iconsfolder"));
+    {
+        ViewProperties props(iconsFolderUrl);
+        props.setViewMode(DolphinView::IconsView);
+        props.save();
+    }
+    waitForItemListed(iconsFolderUrl);
+
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) != nullptr);
+
+    m_container->setUrl(iconsFolderUrl);
+    waitForViewReady();
+
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()) == nullptr);
+    QCOMPARE(m_container->view()->viewMode(), DolphinView::IconsView);
+    QCOMPARE(m_container->view()->url().adjusted(QUrl::StripTrailingSlash), iconsFolderUrl.adjusted(QUrl::StripTrailingSlash));
+    QCOMPARE(ViewProperties(iconsFolderUrl).viewMode(), DolphinView::IconsView);
+}
+
+void DolphinViewContainerTest::testTheEditableLocationFollowsASwitchToAndFromColumns()
+{
+    // The location bar shows the folder that the view shows, also when it is editable and the
+    // folder opens in another view than the one before (bug 528676).
+    m_testDir->createDir("detailsfolder/columnsfolder");
+    m_testDir->createFile("detailsfolder/columnsfolder/a-file.txt");
+    const QUrl detailsUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/detailsfolder"));
+    const QUrl columnsUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/detailsfolder/columnsfolder"));
+    {
+        ViewProperties props(detailsUrl);
+        props.setViewMode(DolphinView::DetailsView);
+        props.save();
+    }
+    {
+        ViewProperties props(columnsUrl);
+        props.setViewMode(DolphinView::ColumnsView);
+        props.save();
+    }
+    waitForItemListed(columnsUrl);
+
+    // Attach an editable url navigator the way the toolbar does. dolphinCommander has no setting
+    // for an editable location bar, so the test makes this one editable itself.
+    DolphinUrlNavigator navigator(m_testDir->url(), nullptr);
+    navigator.setUrlEditable(true);
+    m_container->connectUrlNavigator(&navigator);
+    QVERIFY(navigator.isUrlEditable());
+    const auto editedUrl = [&navigator]() {
+        return QUrl::fromUserInput(navigator.editor()->lineEdit()->text()).adjusted(QUrl::StripTrailingSlash);
+    };
+
+    m_container->setUrl(columnsUrl);
+    QTRY_VERIFY_WITH_TIMEOUT(qobject_cast<DolphinColumnsView *>(m_container->view()), 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(editedUrl(), columnsUrl, 5000);
+
+    m_container->urlNavigatorInternalWithHistory()->goUp();
+    QTRY_VERIFY_WITH_TIMEOUT(!qobject_cast<DolphinColumnsView *>(m_container->view()), 5000);
+    QCOMPARE(m_container->view()->viewMode(), DolphinView::DetailsView);
+    QTRY_COMPARE_WITH_TIMEOUT(editedUrl(), detailsUrl, 5000);
+
+    m_container->setUrl(columnsUrl);
+    QTRY_VERIFY_WITH_TIMEOUT(qobject_cast<DolphinColumnsView *>(m_container->view()), 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(editedUrl(), columnsUrl, 5000);
+    QCOMPARE(navigator.isUrlEditable(), true);
+
+    m_container->disconnectUrlNavigator();
+}
+
+void DolphinViewContainerTest::testAFolderOpenedAsAColumnKeepsTheColumnsView()
+{
+    // A folder that the columns view opens as a column stays in the columns view, whatever mode it
+    // was saved with, or browsing in the columns would leave them at every folder.
+    m_testDir->createDir("iconschild");
+    m_testDir->createFile("iconschild/a-file.txt");
+    const QUrl iconsChildUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/iconschild"));
+    {
+        ViewProperties props(iconsChildUrl);
+        props.setViewMode(DolphinView::IconsView);
+        props.save();
+    }
+    waitForItemListed(iconsChildUrl);
+
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+    auto *columns = qobject_cast<DolphinColumnsView *>(m_container->view());
+    QVERIFY(columns);
+
+    columns->openChild(0, iconsChildUrl);
+    QTRY_COMPARE(m_container->url().adjusted(QUrl::StripTrailingSlash), iconsChildUrl.adjusted(QUrl::StripTrailingSlash));
+    QCOMPARE(m_container->view(), columns);
+    QCOMPARE(ViewProperties(iconsChildUrl).viewMode(), DolphinView::IconsView);
+}
+
+void DolphinViewContainerTest::testBackAndForwardInColumnsKeepTheColumnsView()
+{
+    // Back and Forward between folders opened as columns stay in the same columns view, with a
+    // mode per folder too, where these folders store no mode of their own.
+    m_testDir->createDir("a/b/c");
+    m_testDir->createFile("a/b/c/a-file.txt");
+    const QUrl aUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/a"));
+    const QUrl bUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/a/b"));
+    waitForItemListed(QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/a/b/c/a-file.txt")));
+
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+    auto *columns = qobject_cast<DolphinColumnsView *>(m_container->view());
+    QVERIFY(columns);
+    columns->openChild(0, aUrl);
+    QTRY_COMPARE_WITH_TIMEOUT(m_container->url().adjusted(QUrl::StripTrailingSlash), aUrl, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(columns->columnCount(), 2, 5000);
+    columns->openChild(1, bUrl);
+    QTRY_COMPARE_WITH_TIMEOUT(m_container->url().adjusted(QUrl::StripTrailingSlash), bUrl, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(columns->columnCount(), 3, 5000);
+
+    QSignalSpy viewReplaced(m_container, &DolphinViewContainer::viewReplaced);
+    m_container->urlNavigatorInternalWithHistory()->goBack();
+    QTRY_COMPARE_WITH_TIMEOUT(m_container->url().adjusted(QUrl::StripTrailingSlash), aUrl, 5000);
+    QCOMPARE(viewReplaced.count(), 0);
+    QCOMPARE(m_container->view(), columns);
+
+    m_container->urlNavigatorInternalWithHistory()->goForward();
+    QTRY_COMPARE_WITH_TIMEOUT(m_container->url().adjusted(QUrl::StripTrailingSlash), bUrl, 5000);
+    QCOMPARE(viewReplaced.count(), 0);
+    QCOMPARE(m_container->view(), columns);
+}
+
+void DolphinViewContainerTest::testEachViewModeKeepsItsOwnZoomLevel()
+{
+    // With a common display style for all folders, every view mode shows the icon size it is
+    // configured with, so a mode shows its own size again each time it comes back.
+    GeneralSettings::setGlobalViewProps(true);
+
+    auto *icons = IconsModeSettings::self();
+    auto *details = DetailsModeSettings::self();
+    auto *columns = ColumnsModeSettings::self();
+    const int savedIconsIcon = icons->iconSize();
+    const int savedIconsPreview = icons->previewSize();
+    const int savedDetailsIcon = details->iconSize();
+    const int savedDetailsPreview = details->previewSize();
+    const int savedColumnsIcon = columns->iconSize();
+    const int savedColumnsPreview = columns->previewSize();
+    auto restore = qScopeGuard([&]() {
+        GeneralSettings::setGlobalViewProps(false);
+        icons->setIconSize(savedIconsIcon);
+        icons->setPreviewSize(savedIconsPreview);
+        details->setIconSize(savedDetailsIcon);
+        details->setPreviewSize(savedDetailsPreview);
+        columns->setIconSize(savedColumnsIcon);
+        columns->setPreviewSize(savedColumnsPreview);
+    });
+
+    const int iconsLevel = ZoomLevelInfo::minimumLevel();
+    const int detailsLevel = ZoomLevelInfo::minimumLevel() + 2;
+    const int columnsLevel = ZoomLevelInfo::minimumLevel() + 4;
+    QVERIFY(columnsLevel <= ZoomLevelInfo::maximumLevel());
+    const auto setSize = [](auto *settings, int level) {
+        const int size = ZoomLevelInfo::iconSizeForZoomLevel(level);
+        settings->setIconSize(size);
+        settings->setPreviewSize(size);
+        settings->save();
+    };
+    setSize(icons, iconsLevel);
+    setSize(details, detailsLevel);
+    setSize(columns, columnsLevel);
+
+    // The container starts in Icons mode, and a view only picks up a size that changed in the
+    // settings when it is asked to read them, so every size below is checked after a switch.
+    m_container->setViewMode(DolphinView::DetailsView);
+    waitForViewReady();
+    QCOMPARE(m_container->view()->zoomLevel(), detailsLevel);
+
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+    QCOMPARE(m_container->view()->zoomLevel(), columnsLevel);
+
+    m_container->setViewMode(DolphinView::IconsView);
+    waitForViewReady();
+    QCOMPARE(m_container->view()->zoomLevel(), iconsLevel);
+
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+    QCOMPARE(m_container->view()->zoomLevel(), columnsLevel);
+}
+
+/**
+ * Applying a switch to the columns view in the view properties dialog replaces the view. What the
+ * dialog applies after that has to reach the new view and be stored.
+ */
+void DolphinViewContainerTest::testTheViewPropertiesDialogFollowsASwappedView()
+{
+    m_container->setViewMode(DolphinView::IconsView);
+    waitForViewReady();
+
+    KActionCollection actions(this);
+    DolphinViewActionHandler handler(&actions, nullptr, this);
+    handler.setCurrentView(m_container->view());
+    // What DolphinMainWindow does for its active container.
+    connect(&handler, &DolphinViewActionHandler::viewModeChangeRequested, m_container, &DolphinViewContainer::setViewMode);
+    connect(m_container, &DolphinViewContainer::viewReplaced, &handler, [this, &handler] {
+        handler.setCurrentView(m_container->view());
+    });
+
+    QPointer<DolphinView> oldView = m_container->view();
+    bool dialogDriven = false;
+    QTimer::singleShot(0, this, [this, &dialogDriven, &oldView] {
+        auto *dialog = qobject_cast<ViewPropertiesDialog *>(QApplication::activeModalWidget());
+        QVERIFY(dialog);
+        QComboBox *viewMode = nullptr;
+        QComboBox *sortOrder = nullptr;
+        const auto combos = dialog->findChildren<QComboBox *>();
+        for (QComboBox *combo : combos) {
+            if (combo->findText(QStringLiteral("Columns")) >= 0) {
+                viewMode = combo;
+            } else if (combo->findText(QStringLiteral("Descending")) >= 0) {
+                sortOrder = combo;
+            }
+        }
+        QVERIFY(viewMode && sortOrder);
+        auto *buttons = dialog->findChild<QDialogButtonBox *>();
+        QVERIFY(buttons);
+
+        viewMode->setCurrentIndex(viewMode->findText(QStringLiteral("Columns")));
+        QVERIFY(buttons->button(QDialogButtonBox::Apply)->isEnabled());
+        buttons->button(QDialogButtonBox::Apply)->click();
+        QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()));
+
+        // The dialog's event loop deletes the replaced view before the next click, as for a user.
+        QTimer::singleShot(0, this, [&dialogDriven, &oldView, sortOrder, buttons] {
+            QVERIFY(!oldView);
+            sortOrder->setCurrentIndex(sortOrder->findText(QStringLiteral("Descending")));
+            buttons->button(QDialogButtonBox::Ok)->click();
+            dialogDriven = true;
+        });
+    });
+    actions.action(QStringLiteral("view_properties"))->trigger();
+    QVERIFY(dialogDriven);
+
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()));
+    QCOMPARE(m_container->view()->sortOrder(), Qt::DescendingOrder);
+    QCOMPARE(ViewProperties(m_testDir->url()).sortOrder(), Qt::DescendingOrder);
+}
+
+void DolphinViewContainerTest::testADragRunsWhenItsStartIsReported()
+{
+    // A view that is replaced while its drag starts has to live until the drag ends, so the drag
+    // already runs for whoever receives the start of the drag.
+    m_container->setViewMode(DolphinView::IconsView);
+    waitForViewReady();
+    m_container->view()->setPreviewsShown(false);
+    auto *itemContainer = m_container->view()->findChild<KItemListContainer *>();
+    QVERIFY(itemContainer);
+    auto *graphicsView = qobject_cast<QGraphicsView *>(itemContainer->viewport());
+    QVERIFY(graphicsView);
+    const QPoint itemPos = graphicsView->mapFromScene(itemContainer->controller()->view()->itemRect(0).center());
+
+    KItemListController *controller = itemContainer->controller();
+    int starts = 0;
+    bool draggingAtTheStart = false;
+    connect(controller, &KItemListController::draggingStarted, this, [&] {
+        ++starts;
+        draggingAtTheStart = controller->isDragging();
+    });
+    QTimer endTheDrag;
+    endTheDrag.setSingleShot(true);
+    connect(&endTheDrag, &QTimer::timeout, this, [&] {
+        QTest::keyClick(m_container->view(), Qt::Key_Escape);
+    });
+    endTheDrag.start(0);
+    QTest::mousePress(graphicsView->viewport(), Qt::LeftButton, Qt::NoModifier, itemPos);
+    QTest::mouseMove(graphicsView->viewport(), itemPos + QPoint(QApplication::startDragDistance() * 2, 0));
+    QTest::mouseRelease(m_container->view(), Qt::LeftButton);
+
+    QCOMPARE(starts, 1);
+    QVERIFY(draggingAtTheStart);
+    QVERIFY(!controller->isDragging());
+}
+
+void DolphinViewContainerTest::testAViewReplacedDuringItsDragStaysUntilTheDragEnds()
+{
+    // A drag runs an event loop until it ends, and a folder opened under the drag can replace the view
+    // that started it.
+    m_container->setViewMode(DolphinView::IconsView);
+    waitForViewReady();
+    // A preview job deletes itself in an event loop, and the test ends before one runs.
+    m_container->view()->setPreviewsShown(false);
+    QPointer<DolphinView> oldView = m_container->view();
+    QVERIFY(!qobject_cast<DolphinColumnsView *>(oldView.data()));
+    auto *itemContainer = oldView->findChild<KItemListContainer *>();
+    QVERIFY(itemContainer);
+    auto *graphicsView = qobject_cast<QGraphicsView *>(itemContainer->viewport());
+    QVERIFY(graphicsView);
+    const QPoint itemPos = graphicsView->mapFromScene(itemContainer->controller()->view()->itemRect(0).center());
+
+    bool draggingWhenReplaced = false;
+    bool keptDuringTheDrag = false;
+    QTimer duringTheDrag;
+    duringTheDrag.setSingleShot(true);
+    connect(&duringTheDrag, &QTimer::timeout, this, [&] {
+        draggingWhenReplaced = oldView->draggingController() != nullptr;
+        m_container->setViewMode(DolphinView::ColumnsView);
+        // The drag's event loop handles what the replacement posted before this timer fires.
+        QTimer::singleShot(0, this, [&] {
+            keptDuringTheDrag = oldView && oldView->isHidden();
+            QTest::keyClick(m_container->view(), Qt::Key_Escape);
+        });
+    });
+    duringTheDrag.start(0);
+    QTest::mousePress(graphicsView->viewport(), Qt::LeftButton, Qt::NoModifier, itemPos);
+    QTest::mouseMove(graphicsView->viewport(), itemPos + QPoint(QApplication::startDragDistance() * 2, 0));
+    QTest::mouseRelease(m_container->view(), Qt::LeftButton);
+    if (duringTheDrag.isActive()) {
+        QSKIP("This platform ends a drag at once, without the event loop of a real drag. Use QT_QPA_PLATFORM=minimal.");
+    }
+
+    QVERIFY(draggingWhenReplaced);
+    QVERIFY(keptDuringTheDrag);
+    QVERIFY(qobject_cast<DolphinColumnsView *>(m_container->view()));
+    QTRY_VERIFY_WITH_TIMEOUT(!oldView, 5000);
+}
+
+void DolphinViewContainerTest::testAColumnClosedDuringItsDragStaysUntilTheDragEnds()
+{
+    // A place opened under a drag from a column can close the columns after its folder, among them
+    // the column that started the drag.
+    // The sibling below has no display style of its own, and it stays in the columns view with a
+    // common display style for all folders.
+    GeneralSettings::setGlobalViewProps(true);
+    auto restore = qScopeGuard([]() {
+        GeneralSettings::setGlobalViewProps(false);
+    });
+    m_container->setViewMode(DolphinView::ColumnsView);
+    waitForViewReady();
+    auto *columns = qobject_cast<DolphinColumnsView *>(m_container->view());
+    QVERIFY(columns);
+    // A preview job deletes itself in an event loop, and the test ends before one runs.
+    columns->setPreviewsShown(false);
+    QPointer<DolphinColumnPane> pane = columns->columnAt(columns->activeColumnIndex());
+    QCOMPARE(pane->dirUrl(), m_testDir->url());
+    QTRY_VERIFY_WITH_TIMEOUT(pane->model()->index(QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/file1.txt"))) >= 0, 5000);
+    const int fileIndex = pane->model()->index(QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/file1.txt")));
+    auto *graphicsView = qobject_cast<QGraphicsView *>(pane->container()->viewport());
+    QVERIFY(graphicsView);
+    const QPoint itemPos = graphicsView->mapFromScene(pane->itemListView()->itemRect(fileIndex).center());
+
+    // A sibling of the test folder opens next to the column before it.
+    TestDir sibling;
+    bool draggingWhenClosed = false;
+    bool keptDuringTheDrag = false;
+    QTimer duringTheDrag;
+    duringTheDrag.setSingleShot(true);
+    connect(&duringTheDrag, &QTimer::timeout, this, [&] {
+        draggingWhenClosed = pane->controller()->isDragging();
+        m_container->setUrl(sibling.url());
+        // The drag's event loop handles what closing the column posted before this timer fires.
+        QTimer::singleShot(0, this, [&] {
+            keptDuringTheDrag = pane && pane->isHidden() && columns->columnAt(columns->activeColumnIndex()) != pane;
+            QTest::keyClick(m_container->view(), Qt::Key_Escape);
+        });
+    });
+    duringTheDrag.start(0);
+    QTest::mousePress(graphicsView->viewport(), Qt::LeftButton, Qt::NoModifier, itemPos);
+    QTest::mouseMove(graphicsView->viewport(), itemPos + QPoint(QApplication::startDragDistance() * 2, 0));
+    QTest::mouseRelease(m_container->view(), Qt::LeftButton);
+    if (duringTheDrag.isActive()) {
+        QSKIP("This platform ends a drag at once, without the event loop of a real drag. Use QT_QPA_PLATFORM=minimal.");
+    }
+
+    QVERIFY(draggingWhenClosed);
+    QVERIFY(keptDuringTheDrag);
+    QCOMPARE(columns->url(), sibling.url());
+    QTRY_VERIFY_WITH_TIMEOUT(!pane, 5000);
+}
+
+// Every view mode, with a display style for each folder and with a common one for all folders.
+static void addViewModeRows()
+{
+    QTest::addColumn<DolphinView::Mode>("mode");
+    QTest::addColumn<bool>("globalViewProps");
+    const std::pair<const char *, DolphinView::Mode> modes[] = {
+        {"icons", DolphinView::IconsView},
+        {"compact", DolphinView::CompactView},
+        {"details", DolphinView::DetailsView},
+        {"columns", DolphinView::ColumnsView},
+    };
+    for (const auto &[name, mode] : modes) {
+        QTest::addRow("%s, per folder", name) << mode << false;
+        QTest::addRow("%s, common", name) << mode << true;
+    }
+}
+
+void DolphinViewContainerTest::testAFileTypedAsTheLocationOpensItsFolder_data()
+{
+    addViewModeRows();
+}
+
+/**
+ * A file typed in the location bar opens the folder that holds it, with a message that offers to
+ * open the file.
+ */
+void DolphinViewContainerTest::testAFileTypedAsTheLocationOpensItsFolder()
+{
+    QFETCH(DolphinView::Mode, mode);
+    QFETCH(bool, globalViewProps);
+    GeneralSettings::setGlobalViewProps(globalViewProps);
+    auto restore = qScopeGuard([]() {
+        GeneralSettings::setGlobalViewProps(false);
+    });
+    m_testDir->createDir("folder");
+    m_testDir->createFile("folder/a-file.txt");
+    const QUrl folderUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/folder"));
+    const QUrl fileUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/folder/a-file.txt"));
+    waitForItemListed(fileUrl);
+
+    m_container->setUrl(folderUrl);
+    QTRY_COMPARE_WITH_TIMEOUT(m_container->view()->url().adjusted(QUrl::StripTrailingSlash), folderUrl, 5000);
+    m_container->setViewMode(mode);
+    waitForViewReady();
+
+    m_container->setUrl(fileUrl);
+
+    auto *messageWidget = m_container->findChild<KMessageWidget *>();
+    QVERIFY(messageWidget);
+    QTRY_VERIFY_WITH_TIMEOUT(messageWidget->isVisible() && messageWidget->text().contains(QStringLiteral("a-file.txt")), 5000);
+    QCOMPARE(messageWidget->messageType(), KMessageWidget::Error);
+    QCOMPARE(m_container->view()->url().adjusted(QUrl::StripTrailingSlash), folderUrl);
+    QCOMPARE(m_container->url().adjusted(QUrl::StripTrailingSlash), folderUrl);
+    QCOMPARE(m_container->view()->viewMode(), mode);
+}
+
+void DolphinViewContainerTest::testARemovedFolderMovesTheViewToItsParent_data()
+{
+    addViewModeRows();
+}
+
+/**
+ * The folder that the view shows is removed from disk. The view moves to the nearest folder that
+ * still exists, with a warning that names the removed folder.
+ */
+void DolphinViewContainerTest::testARemovedFolderMovesTheViewToItsParent()
+{
+    QFETCH(DolphinView::Mode, mode);
+    QFETCH(bool, globalViewProps);
+    GeneralSettings::setGlobalViewProps(globalViewProps);
+    auto restore = qScopeGuard([]() {
+        GeneralSettings::setGlobalViewProps(false);
+    });
+    m_testDir->createDir("parent/removed");
+    m_testDir->createFile("parent/removed/a-file.txt");
+    const QUrl parentUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/parent"));
+    const QUrl removedUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/parent/removed"));
+    waitForItemListed(removedUrl);
+
+    m_container->setViewMode(mode);
+    waitForViewReady();
+    m_container->setUrl(removedUrl);
+    QTRY_COMPARE_WITH_TIMEOUT(m_container->view()->url().adjusted(QUrl::StripTrailingSlash), removedUrl, 5000);
+    waitForViewReady();
+
+    m_testDir->removeDir(QStringLiteral("parent/removed"));
+
+    auto *messageWidget = m_container->findChild<KMessageWidget *>();
+    QVERIFY(messageWidget);
+    QTRY_VERIFY_WITH_TIMEOUT(messageWidget->isVisible() && messageWidget->text().contains(QStringLiteral("removed")), 5000);
+    QCOMPARE(messageWidget->messageType(), KMessageWidget::Warning);
+    QTRY_COMPARE_WITH_TIMEOUT(m_container->view()->url().adjusted(QUrl::StripTrailingSlash), parentUrl, 5000);
+    QCOMPARE(m_container->url().adjusted(QUrl::StripTrailingSlash), parentUrl);
+}
+
+void DolphinViewContainerTest::testALocationThatRedirectsShowsItsTarget_data()
+{
+    addViewModeRows();
+}
+
+/**
+ * A location that the worker redirects, here a local folder named with the host "localhost", shows
+ * the folder that it redirects to, in the view and in the location bar.
+ */
+void DolphinViewContainerTest::testALocationThatRedirectsShowsItsTarget()
+{
+    QFETCH(DolphinView::Mode, mode);
+    QFETCH(bool, globalViewProps);
+    GeneralSettings::setGlobalViewProps(globalViewProps);
+    auto restore = qScopeGuard([]() {
+        GeneralSettings::setGlobalViewProps(false);
+    });
+    m_testDir->createDir("folder");
+    m_testDir->createFile("folder/a-file.txt");
+    const QUrl folderUrl = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/folder"));
+    waitForItemListed(folderUrl);
+
+    m_container->setUrl(folderUrl);
+    QTRY_COMPARE_WITH_TIMEOUT(m_container->view()->url().adjusted(QUrl::StripTrailingSlash), folderUrl, 5000);
+    m_container->setViewMode(mode);
+    waitForViewReady();
+
+    QUrl redirectedUrl = folderUrl;
+    redirectedUrl.setHost(QStringLiteral("localhost"));
+    m_container->setUrl(m_testDir->url());
+    QTRY_COMPARE_WITH_TIMEOUT(m_container->view()->url().adjusted(QUrl::StripTrailingSlash), m_testDir->url().adjusted(QUrl::StripTrailingSlash), 5000);
+    m_container->setUrl(redirectedUrl);
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_container->view()->url().adjusted(QUrl::StripTrailingSlash), folderUrl, 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(m_container->url().adjusted(QUrl::StripTrailingSlash), folderUrl, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(m_container->view()->itemsCount() > 0, 5000);
+}
+
+QTEST_MAIN(DolphinViewContainerTest)
+
+#include "dolphinviewcontainertest.moc"

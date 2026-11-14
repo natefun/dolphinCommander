@@ -223,6 +223,11 @@ DolphinMainWindow::DolphinMainWindow()
     connect(m_actionHandler, &DolphinViewActionHandler::createDirectoryTriggered, this, &DolphinMainWindow::createDirectory);
     connect(m_actionHandler, &DolphinViewActionHandler::createFileTriggered, this, &DolphinMainWindow::createFile);
     connect(m_actionHandler, &DolphinViewActionHandler::selectionModeChangeTriggered, this, &DolphinMainWindow::slotSetSelectionMode);
+    connect(m_actionHandler, &DolphinViewActionHandler::viewModeChangeRequested, this, [this](DolphinView::Mode mode) {
+        if (m_activeViewContainer) {
+            m_activeViewContainer->setViewMode(mode);
+        }
+    });
 
     QAction *newDirAction = actionCollection()->action(QStringLiteral("create_dir"));
     Q_ASSERT(newDirAction);
@@ -979,6 +984,7 @@ void DolphinMainWindow::setSessionAutoSaveEnabled(bool enable)
             connect(tabs, &DolphinTabWidget::urlChanged, m_sessionSaveTimer, qOverload<>(&QTimer::start), Qt::UniqueConnection);
             connect(tabs, &DolphinTabWidget::tabCountChanged, m_sessionSaveTimer, qOverload<>(&QTimer::start), Qt::UniqueConnection);
             connect(tabs, &DolphinTabWidget::activeViewChanged, m_sessionSaveTimer, qOverload<>(&QTimer::start), Qt::UniqueConnection);
+            connect(tabs, &DolphinTabWidget::tabPinStateChanged, m_sessionSaveTimer, qOverload<>(&QTimer::start), Qt::UniqueConnection);
         }
         connect(m_sidesSplitter, &SidesSplitter::hiddenSidesChanged, m_sessionSaveTimer, qOverload<>(&QTimer::start), Qt::UniqueConnection);
     } else if (m_sessionSaveTimer) {
@@ -1851,6 +1857,7 @@ void DolphinMainWindow::updateHamburgerMenu()
 void DolphinMainWindow::slotPlaceActivated(const QUrl &url)
 {
     DolphinViewContainer *view = activeViewContainer();
+    view->markNextUrlAsPlace(url);
 
     if (view->url() == url) {
         view->clearFilterBar(); // Fixes bug 259382.
@@ -1887,10 +1894,14 @@ void DolphinMainWindow::activeViewChanged(DolphinViewContainer *viewContainer)
         oldViewContainer->urlNavigatorInternalWithHistory()->disconnect(this);
         m_leftNavigators->primaryUrlNavigator()->disconnect(this);
         m_rightNavigators->primaryUrlNavigator()->disconnect(this);
-        oldViewContainer->disconnect(m_diskSpaceUsageMenu);
+        // The two connections below have the menu as their sender, so they are removed
+        // this way round. Disconnecting the container as a sender left them in place.
+        m_diskSpaceUsageMenu->disconnect(oldViewContainer);
 
-        // except the requestItemInfo so that on hover the information panel can still be updated
-        connect(oldViewContainer->view(), &DolphinView::requestItemInfo, this, &DolphinMainWindow::requestItemInfo);
+        if (oldViewContainer != viewContainer) {
+            // except the requestItemInfo so that on hover the information panel can still be updated
+            connect(oldViewContainer->view(), &DolphinView::requestItemInfo, this, &DolphinMainWindow::requestItemInfo);
+        }
 
         // Disconnect other slots.
         disconnect(oldViewContainer,
@@ -3008,6 +3019,13 @@ void DolphinMainWindow::connectViewSignals(DolphinViewContainer *container)
     connect(container, &DolphinViewContainer::tabRequested, this, &DolphinMainWindow::openNewTab);
     connect(container, &DolphinViewContainer::activeTabRequested, this, &DolphinMainWindow::openNewTabAndActivate);
 
+    // A container that replaces its view needs the view signals connected again.
+    connect(container, &DolphinViewContainer::viewReplaced, this, [this, container]() {
+        if (container == m_activeViewContainer) {
+            activeViewChanged(container);
+        }
+    });
+
     // Make the toggled state of the selection mode actions visually follow the selection mode state of the view.
     auto toggleSelectionModeAction = actionCollection()->action(QStringLiteral("toggle_selection_mode"));
     toggleSelectionModeAction->setChecked(m_activeViewContainer->isSelectionModeEnabled());
@@ -3426,6 +3444,10 @@ void DolphinMainWindow::slotDoubleClickViewBackground(Qt::MouseButton button)
     if (clickAction == customCommand) {
         // run custom command set by the user
         QString clickCustomAction = settings->doubleClickViewCustomAction();
+        if (clickCustomAction.isEmpty()) {
+            qCDebug(DolphinDebug) << "Double-click view: custom action is empty";
+            return;
+        }
         // {path} becomes one quoted shell word, also when the command already has it in quotes.
         clickCustomAction.replace(QLatin1String("\"{path}\""), QLatin1String("{path}"));
         clickCustomAction.replace(QLatin1String("'{path}'"), QLatin1String("{path}"));

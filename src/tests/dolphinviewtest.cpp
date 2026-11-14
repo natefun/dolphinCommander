@@ -10,6 +10,7 @@
 #include "dolphin_generalsettings.h"
 #include "dolphin_iconsmodesettings.h"
 #include "kitemviews/kitemlistcontainer.h"
+#include "kitemviews/kitemlistcontroller.h"
 #include "testdir.h"
 #include "views/viewproperties.h"
 #include "views/zoomlevelinfo.h"
@@ -36,6 +37,7 @@ private Q_SLOTS:
     void cleanup();
 
     void selectionIsAnnouncedBeforeTheBackgroundContextMenu();
+    void hoveringAnItemShowsItsInformation();
     void defaultZoomLevelComesFromThePreviewSizeWhenPreviewsAreShown();
     void switchingViewModeAdoptsTheNewModesConfiguredSize_data();
     void switchingViewModeAdoptsTheNewModesConfiguredSize();
@@ -45,6 +47,8 @@ private Q_SLOTS:
     void navigatingToAFolderUsesTheSizeOfItsOwnPreviewState();
     void scrollBarReachesTheEdgeOfTheView_data();
     void scrollBarReachesTheEdgeOfTheView();
+    void aRefreshedFolderStaysWritable();
+    void aNewFolderIsWritableOnceListed();
 
 private:
     void requestBackgroundContextMenu();
@@ -105,6 +109,24 @@ void DolphinViewTest::selectionIsAnnouncedBeforeTheBackgroundContextMenu()
 
     QCOMPARE(signalsInOrder, QStringList({QStringLiteral("selectionChanged"), QStringLiteral("requestContextMenu")}));
     QCOMPARE(selectionChanged.last().first().value<KFileItemList>().count(), 0);
+}
+
+/**
+ * The Information panel follows the item under the mouse, and goes back to the folder once the
+ * mouse leaves it.
+ */
+void DolphinViewTest::hoveringAnItemShowsItsInformation()
+{
+    QSignalSpy requestItemInfo(m_view, &DolphinView::requestItemInfo);
+    auto *controller = m_view->itemListContainer()->controller();
+
+    Q_EMIT controller->itemHovered(0);
+    QCOMPARE(requestItemInfo.count(), 1);
+    QCOMPARE(requestItemInfo.last().first().value<KFileItem>().url(), m_view->items().constFirst().url());
+
+    Q_EMIT controller->itemUnhovered(0);
+    QCOMPARE(requestItemInfo.count(), 2);
+    QVERIFY(requestItemInfo.last().first().value<KFileItem>().isNull());
 }
 
 /**
@@ -431,6 +453,37 @@ void DolphinViewTest::requestBackgroundContextMenu()
 
     QContextMenuEvent event(QContextMenuEvent::Keyboard, QPoint(), QPoint());
     QApplication::sendEvent(container, &event);
+}
+
+void DolphinViewTest::aRefreshedFolderStaysWritable()
+{
+    QTRY_VERIFY(m_view->isFolderWritable());
+    QSignalSpy loadingStartedSpy(m_view, &DolphinView::directoryLoadingStarted);
+    QSignalSpy loadingCompletedSpy(m_view, &DolphinView::directoryLoadingCompleted);
+    QSignalSpy writeStateSpy(m_view, &DolphinView::writeStateChanged);
+
+    m_view->reload();
+
+    QTRY_COMPARE(loadingCompletedSpy.count(), 1);
+    QCOMPARE(loadingStartedSpy.count(), 1);
+    QVERIFY(m_view->isFolderWritable());
+    QCOMPARE(writeStateSpy.count(), 0);
+}
+
+void DolphinViewTest::aNewFolderIsWritableOnceListed()
+{
+    QTRY_VERIFY(m_view->isFolderWritable());
+    m_testDir->createDir(QStringLiteral("sub"));
+    QSignalSpy loadingCompletedSpy(m_view, &DolphinView::directoryLoadingCompleted);
+    QSignalSpy writeStateSpy(m_view, &DolphinView::writeStateChanged);
+
+    m_view->setUrl(QUrl::fromLocalFile(QDir(m_testDir->path()).filePath(QStringLiteral("sub"))));
+
+    QTRY_COMPARE(loadingCompletedSpy.count(), 1);
+    QCOMPARE(writeStateSpy.count(), 2);
+    QCOMPARE(writeStateSpy.at(0).at(0).toBool(), false);
+    QCOMPARE(writeStateSpy.at(1).at(0).toBool(), true);
+    QVERIFY(m_view->isFolderWritable());
 }
 
 QTEST_MAIN(DolphinViewTest)

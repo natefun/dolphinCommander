@@ -123,6 +123,17 @@ public:
     void setSelectionModeEnabled(bool enabled);
     bool selectionMode() const;
 
+    /*!
+     * True from draggingStarted() to draggingFinished(), while the drag of the selected items runs.
+     */
+    bool isDragging() const;
+
+    /*!
+     * Deletes \a object once the drag that \a controller runs has ended, or as deleteLater() does when
+     * no drag runs. A drag runs its own event loop, which would otherwise delete the object inside it.
+     */
+    static void deleteLaterAfterDrag(QObject *object, const KItemListController *controller);
+
     /**
      * @return \c true if search as you type is active, or \c false otherwise.
      */
@@ -187,6 +198,17 @@ Q_SIGNALS:
      * above the viewport.
      */
     void mouseButtonReleased(int itemIndex, Qt::MouseButtons buttons);
+
+    /*!
+     * Emitted when the press turned into a drag of the selected items, before the drag runs.
+     * A view that acts on a click uses this to tell the two apart.
+     */
+    void draggingStarted();
+
+    /*!
+     * Emitted when the drag of the selected items has ended, dropped or cancelled.
+     */
+    void draggingFinished();
 
     void itemExpansionToggleClicked(int index);
 
@@ -373,6 +395,7 @@ private:
     bool m_pinchGestureInProgress;
     bool m_mousePress;
     bool m_isTouchEvent;
+    bool m_dragging = false;
     SelectionBehavior m_selectionBehavior;
     AutoActivationBehavior m_autoActivationBehavior;
     MouseDoubleClickAction m_mouseDoubleClickAction;

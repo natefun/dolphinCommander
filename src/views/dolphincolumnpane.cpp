@@ -1,0 +1,406 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Sebastian Englbrecht
+ * SPDX-FileCopyrightText: 2026 Méven Car <meven@kde.org>
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
+#include "dolphincolumnpane.h"
+
+#include "dolphin_generalsettings.h"
+#include "dolphinitemlistview.h"
+#include "kitemviews/kfileitemlistview.h"
+#include "kitemviews/kfileitemmodel.h"
+#include "kitemviews/kitemlistcontainer.h"
+#include "kitemviews/kitemlistcontroller.h"
+#include "kitemviews/kitemlistheader.h"
+#include "kitemviews/kitemlistselectionmanager.h"
+#include "kitemviews/kitemliststyleoption.h"
+#include "versioncontrol/versioncontrolobserver.h"
+#include "views/dolphinview.h"
+
+#include <KLocalizedString>
+
+#include <QGuiApplication>
+#include <QLabel>
+#include <QScrollBar>
+#include <QStyle>
+#include <QStyleOption>
+#include <QTimer>
+#include <QVBoxLayout>
+#include <cmath>
+
+/// The narrowest a column can be dragged.
+static constexpr int s_minimumWidth = 100;
+
+DolphinColumnPane::DolphinColumnPane(KFileItemModel *model, QWidget *parent)
+    : QWidget(parent)
+    , m_model(model)
+{
+    auto *layout = new QVBoxLayout(this);
+    layout->setSpacing(0);
+    layout->setContentsMargins(0, 0, 0, 0);
+
+    m_view = new DolphinItemListView();
+    m_view->setVisibleRoles({"text"});
+    m_view->setViewMode(DolphinView::ColumnsView);
+    m_view->setItemLayout(KFileItemListView::DetailsLayout);
+    m_view->setHeaderVisible(false);
+    m_view->setAlternateBackgrounds(false);
+    m_view->setEnabledSelectionToggles(DolphinItemListView::False);
+    m_view->setHighlightEntireRow(true);
+
+    // The full-row highlight is drawn one padding wider than the row on each side.
+    const int sidePadding = 2 * m_view->styleOption().padding;
+    m_view->header()->setSidePadding(sidePadding, sidePadding);
+
+    m_controller = new KItemListController(m_model, m_view, this);
+    m_controller->setSelectionBehavior(KItemListController::MultiSelection);
+    m_controller->setAutoActivationEnabled(GeneralSettings::autoExpandFolders());
+
+    m_container = new KItemListContainer(m_controller, this);
+    m_container->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    m_view->setAccessibleParentsObject(m_container);
+
+    m_placeholderLabel = DolphinView::createPlaceholderLabel(m_container);
+    m_placeholderLabel->hide();
+    m_showLoadingPlaceholderTimer = new QTimer(this);
+    m_showLoadingPlaceholderTimer->setInterval(500);
+    m_showLoadingPlaceholderTimer->setSingleShot(true);
+    connect(m_showLoadingPlaceholderTimer, &QTimer::timeout, this, [this]() {
+        m_placeholderLabel->setText(i18n("Loading…"));
+        m_placeholderLabel->show();
+    });
+
+    layout->addWidget(m_container);
+
+    // No setView(): it needs a DolphinView and only matters on activation.
+    m_versionControlObserver = new VersionControlObserver(this);
+    m_versionControlObserver->setModel(m_model);
+    connect(m_versionControlObserver, &VersionControlObserver::infoMessage, this, &DolphinColumnPane::infoMessage);
+    connect(m_versionControlObserver, &VersionControlObserver::errorMessage, this, [this](const QString &msg) {
+        Q_EMIT errorMessage(msg);
+    });
+    connect(m_versionControlObserver, &VersionControlObserver::operationCompletedMessage, this, &DolphinColumnPane::operationCompletedMessage);
+
+    setMinimumWidth(s_minimumWidth);
+
+    connect(m_controller, &KItemListController::itemActivated, this, &DolphinColumnPane::slotItemActivated);
+    connect(m_controller->selectionManager(), &KItemListSelectionManager::currentChanged, this, &DolphinColumnPane::slotCurrentChanged);
+    connect(m_controller->selectionManager(), &KItemListSelectionManager::selectionChanged, this, &DolphinColumnPane::slotSelectionChanged);
+    connect(m_model, &KFileItemModel::itemsRemoved, this, &DolphinColumnPane::slotItemsRemoved);
+    connect(m_model, &KFileItemModel::directoryLoadingCompleted, this, &DolphinColumnPane::directoryLoadingCompleted);
+
+    connect(m_model, &KFileItemModel::directoryLoadingStarted, this, [this]() {
+        m_loadingState = LoadingState::Loading;
+        updatePlaceholderLabel();
+    });
+    connect(m_model, &KFileItemModel::directoryLoadingCompleted, this, [this]() {
+        m_loadingState = LoadingState::Completed;
+        updatePlaceholderLabel();
+    });
+    connect(m_model, &KFileItemModel::directoryLoadingCanceled, this, [this]() {
+        m_loadingState = LoadingState::Canceled;
+        updatePlaceholderLabel();
+    });
+    connect(m_model, &KFileItemModel::itemsInserted, this, &DolphinColumnPane::updatePlaceholderLabel);
+    connect(m_model, &KFileItemModel::itemsRemoved, this, &DolphinColumnPane::updatePlaceholderLabel);
+
+    // Before the columns view connects, which reads the widest name on the same signals.
+    connect(m_model, &KFileItemModel::itemsInserted, this, &DolphinColumnPane::measureInsertedNames);
+    connect(m_model, &KFileItemModel::itemsRemoved, this, [this]() {
+        m_widestNameValid = false;
+    });
+    connect(m_model, &KFileItemModel::itemsChanged, this, [this](const KItemRangeList &, const QSet<QByteArray> &changedRoles) {
+        if (changedRoles.contains("text")) {
+            m_widestNameValid = false;
+        }
+    });
+}
+
+DolphinColumnPane::~DolphinColumnPane() = default;
+
+QUrl DolphinColumnPane::dirUrl() const
+{
+    return m_model->directory();
+}
+
+KFileItem DolphinColumnPane::currentFileItem() const
+{
+    return m_model->fileItem(m_controller->selectionManager()->currentItem());
+}
+
+void DolphinColumnPane::setActiveChildUrl(const QUrl &childUrl)
+{
+    if (childUrl.isEmpty()) {
+        m_activeChildUrl.clear();
+        clearActiveChild();
+        return;
+    }
+
+    // Kept for reapplyActiveChildMark(), the item may not be listed yet.
+    m_activeChildUrl = childUrl;
+
+    const KFileItem item = m_model->fileItem(childUrl);
+    if (!item.isNull()) {
+        const int index = m_model->index(item);
+        if (index >= 0) {
+            m_controller->selectionManager()->clearSelection();
+            m_controller->selectionManager()->setCurrentItem(index);
+            m_controller->selectionManager()->setSelected(index, 1, KItemListSelectionManager::Select);
+        }
+    }
+}
+
+void DolphinColumnPane::setWidthPending(bool pending)
+{
+    m_widthPending = pending;
+    // qSmartMinSize() follows minimumSizeHint(), so only the maximum width brings it to zero.
+    setMinimumWidth(pending ? 0 : s_minimumWidth);
+    setMaximumWidth(pending ? 0 : QWIDGETSIZE_MAX);
+}
+
+bool DolphinColumnPane::isWidthPending() const
+{
+    return m_widthPending;
+}
+
+void DolphinColumnPane::setAppliedWidth(int width)
+{
+    m_appliedWidth = width;
+}
+
+int DolphinColumnPane::appliedWidth() const
+{
+    return m_appliedWidth;
+}
+
+void DolphinColumnPane::reapplyActiveChildMark()
+{
+    // A selection cleared before the listing changed drops the mark instead.
+    if (m_selectionCheckPending) {
+        checkActiveChildSelected();
+    }
+    if (m_activeChildUrl.isEmpty()) {
+        return;
+    }
+    const int index = m_model->index(m_model->fileItem(m_activeChildUrl));
+    const KItemListSelectionManager *selectionManager = m_controller->selectionManager();
+    if (index >= 0 && selectionManager->isSelected(index) && selectionManager->currentItem() == index) {
+        return;
+    }
+    setActiveChildUrl(m_activeChildUrl);
+}
+
+void DolphinColumnPane::dropActiveChild()
+{
+    m_controller->selectionManager()->clearSelection();
+    if (!m_activeChildUrl.isEmpty()) {
+        m_activeChildUrl.clear();
+        Q_EMIT activeChildRemoved();
+    }
+}
+
+void DolphinColumnPane::clearActiveChild()
+{
+    m_controller->selectionManager()->clearSelection();
+}
+
+KFileItemModel *DolphinColumnPane::model() const
+{
+    return m_model;
+}
+
+KItemListController *DolphinColumnPane::controller() const
+{
+    return m_controller;
+}
+
+KItemListContainer *DolphinColumnPane::container() const
+{
+    return m_container;
+}
+
+DolphinItemListView *DolphinColumnPane::itemListView() const
+{
+    return m_view;
+}
+
+void DolphinColumnPane::updatePlaceholderLabel()
+{
+    m_showLoadingPlaceholderTimer->stop();
+    if (m_model->count() > 0) {
+        m_placeholderLabel->hide();
+        return;
+    }
+    if (m_loadingState == LoadingState::Loading) {
+        m_placeholderLabel->hide();
+        m_showLoadingPlaceholderTimer->start();
+        return;
+    }
+    if (m_loadingState == LoadingState::Canceled) {
+        m_placeholderLabel->setText(i18n("Loading canceled"));
+    } else {
+        m_placeholderLabel->setText(DolphinView::emptyFolderText(dirUrl(), m_model->nameFilter()));
+    }
+    m_placeholderLabel->show();
+}
+
+void DolphinColumnPane::setPreviewsShown(bool show)
+{
+    m_view->setPreviewsShown(show);
+}
+
+qreal DolphinColumnPane::nameWidth(int index) const
+{
+    if (!m_widestNameHiddenShown && m_model->fileItem(index).isHidden()) {
+        return -1;
+    }
+    return m_view->styleOption().fontMetrics.horizontalAdvance(m_model->data(index).value("text").toString());
+}
+
+void DolphinColumnPane::measureInsertedNames(const KItemRangeList &ranges)
+{
+    if (!m_widestNameValid) {
+        return;
+    }
+    for (const KItemRange &range : ranges) {
+        for (int i = range.index; i < range.index + range.count; ++i) {
+            m_widestName = qMax(m_widestName, nameWidth(i));
+        }
+    }
+}
+
+int DolphinColumnPane::calculateOptimalWidth() const
+{
+    const KItemListStyleOption &option = m_view->styleOption();
+    const bool hiddenFilesShown = m_model->showHiddenFiles();
+    if (!m_widestNameValid || m_widestNameFont != option.font || m_widestNameHiddenShown != hiddenFilesShown) {
+        m_widestNameFont = option.font;
+        m_widestNameHiddenShown = hiddenFilesShown;
+        m_widestName = -1;
+        for (int i = 0; i < m_model->count(); ++i) {
+            m_widestName = qMax(m_widestName, nameWidth(i));
+        }
+        m_widestNameValid = true;
+    }
+
+    qreal maxWidth = 0;
+    if (m_widestName >= 0) {
+        maxWidth = option.padding * 6; // matches KStandardItemListWidget::columnPadding()
+        maxWidth += option.padding * 2 + option.iconSize;
+        maxWidth += m_widestName;
+    }
+
+    // The frame and the scrollbar, even while it is hidden, so the width holds when it appears.
+    QStyleOption styleOpt;
+    styleOpt.initFrom(m_container);
+    int scrollBarSpacing = 0;
+    if (m_container->style()->styleHint(QStyle::SH_ScrollView_FrameOnlyAroundContents, &styleOpt, m_container)) {
+        scrollBarSpacing = m_container->style()->pixelMetric(QStyle::PM_ScrollView_ScrollBarSpacing, &styleOpt, m_container);
+    }
+    const int chrome = m_container->frameWidth() * 2 + scrollBarSpacing + m_container->style()->pixelMetric(QStyle::PM_ScrollBarExtent, &styleOpt, m_container);
+    const int sidePadding = 2 * (2 * option.padding);
+    return static_cast<int>(std::ceil(maxWidth)) + sidePadding + chrome;
+}
+
+bool DolphinColumnPane::isLoading() const
+{
+    return m_loadingState == LoadingState::Loading;
+}
+
+void DolphinColumnPane::setZoomLevel(int level)
+{
+    m_view->setZoomLevel(level);
+}
+
+QUrl DolphinColumnPane::folderUrlFor(const KFileItem &item)
+{
+    if (item.isNull()) {
+        return QUrl();
+    }
+    // openItemAsFolderUrl() needs the mime type of an archive, which the model determines lazily.
+    // Only for a local file, as in openItemAsFolderUrl().
+    KFileItem resolved = item;
+    if (GeneralSettings::browseThroughArchives() && resolved.isFile() && resolved.targetUrl().isLocalFile() && !resolved.isMimeTypeKnown()) {
+        resolved.determineMimeType();
+    }
+    const QUrl folderUrl = DolphinView::openItemAsFolderUrl(resolved, GeneralSettings::browseThroughArchives());
+    if (!folderUrl.isEmpty()) {
+        return folderUrl;
+    }
+    return item.isDir() ? item.url() : QUrl();
+}
+
+void DolphinColumnPane::slotItemActivated(int index)
+{
+    const KFileItem item = m_model->fileItem(index);
+    if (item.isNull()) {
+        return;
+    }
+    // Ctrl and Shift open a folder in a new tab or window, as for a file.
+    const bool opensElsewhere = QGuiApplication::keyboardModifiers() & (Qt::ControlModifier | Qt::ShiftModifier);
+    if (const QUrl folderUrl = folderUrlFor(item); !folderUrl.isEmpty() && !opensElsewhere) {
+        Q_EMIT directoryActivated(folderUrl);
+    } else {
+        Q_EMIT fileActivated(item);
+    }
+}
+
+void DolphinColumnPane::slotCurrentChanged(int current, int previous)
+{
+    // The current item left a list that still has items, as filtering or deleting it does. A
+    // reload empties the list instead, and the columns after this one stay.
+    if (current < 0 && previous >= 0 && m_model->count() > 0 && !m_activeChildUrl.isEmpty() && m_model->fileItem(m_activeChildUrl).isNull()) {
+        m_activeChildUrl.clear();
+        Q_EMIT activeChildRemoved();
+    }
+}
+
+void DolphinColumnPane::slotSelectionChanged()
+{
+    // Selecting another item clears the selection first, so look once it has settled.
+    if (!m_selectionCheckPending) {
+        m_selectionCheckPending = true;
+        QTimer::singleShot(0, this, &DolphinColumnPane::checkActiveChildSelected);
+    }
+}
+
+void DolphinColumnPane::slotItemsRemoved()
+{
+    m_itemsRemoved = true;
+    slotSelectionChanged();
+}
+
+void DolphinColumnPane::checkActiveChildSelected()
+{
+    m_selectionCheckPending = false;
+    const bool itemsRemoved = std::exchange(m_itemsRemoved, false);
+    if (m_activeChildUrl.isEmpty()) {
+        return;
+    }
+    // A press on another item selects it, and the next column stays for a drag to it. Several selected
+    // items show no folder. A removed item is handled by slotCurrentChanged().
+    const int selectedCount = m_controller->selectionManager()->selectedItems().count();
+    if (selectedCount == 1 || m_model->fileItem(m_activeChildUrl).isNull()) {
+        return;
+    }
+    // The selected item was moved away or deleted, as when it is dropped into the next column.
+    if (selectedCount == 0 && itemsRemoved) {
+        reapplyActiveChildMark();
+        return;
+    }
+    m_activeChildUrl.clear();
+    Q_EMIT activeChildRemoved();
+}
+
+void DolphinColumnPane::reloadSettings()
+{
+    auto view = itemListView();
+    view->readSettings();
+    // readSettings() takes both from the details layout. A column never expands a folder.
+    view->setSupportsItemExpanding(false);
+    view->setHighlightEntireRow(true);
+    m_controller->setAutoActivationEnabled(GeneralSettings::autoExpandFolders());
+}

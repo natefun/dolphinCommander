@@ -19,7 +19,12 @@ class DolphinTabBar : public QTabBar
 public:
     explicit DolphinTabBar(QWidget *parent);
 
+    bool isPinned(int index) const;
+    void setPinned(int index, bool pinned);
+    int pinnedCount() const;
+
     void setNewTabButtonVisible(bool visible);
+
 Q_SIGNALS:
     void openNewActivatedTab(int index);
     void tabDragMoveEvent(int index, QDragMoveEvent *event);
@@ -29,6 +34,7 @@ Q_SIGNALS:
     void tabMoveRequested(int index, DolphinTabBar *target, int targetIndex);
     void tabRenamed(int index, const QString &label);
     void newTabRequested();
+    void tabPinStateChanged(int index, bool pinned);
 
 protected:
     QSize tabSizeHint(int index) const override;
@@ -38,13 +44,14 @@ protected:
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
-    void tabLayoutChange() override;
-    void tabInserted(int index) override;
-    void tabRemoved(int index) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
+
+    void tabInserted(int index) override;
+    void tabRemoved(int index) override;
+    void tabLayoutChange() override;
 
     /**
      * Opens a context menu for the tab on the \a event position.
@@ -59,14 +66,12 @@ private Q_SLOTS:
     void slotTabBarChanged();
 
 private:
-    /**
-     * If \a index is a valid index (>= 0), store the index and start the timer
-     * (if the interval >= 0 ms). If the index is not valid (< 0), stop the timer.
-     */
     void updateAutoActivationTimer(const int index);
     void updateNewTabButtonGeometry();
+    void updatePinnedTabButtons();
 
     bool isOutsideUndetachableZone(const QPoint &pos) const;
+    void updateTabDetachDrag(QMouseEvent *event);
     void startTabDrag(QMouseEvent *event);
     void cancelTabDrag();
 
@@ -89,6 +94,9 @@ private:
     int m_tabToBeClosedOnMiddleMouseButtonRelease = -1;
     QToolButton *m_newTabButton = nullptr;
     DragState m_drag;
+    int m_pressedTab = -1;
+    int m_dragBoundaryX = -1;
+    int m_clickOffsetInTab = 0;
 
     /** Where the tab that is being dragged was dropped on the other side, if it was. */
     QPointer<DolphinTabBar> m_dropTarget;

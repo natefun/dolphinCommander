@@ -9,6 +9,7 @@
 #include "dolphin_generalsettings.h"
 #include "dolphincontextmenu.h"
 #include "dolphinnewfilemenu.h"
+#include "dolphinplacesmodelsingleton.h"
 #include "dolphintabpage.h"
 #include "dolphintabwidget.h"
 #include "dolphinviewcontainer.h"
@@ -22,6 +23,8 @@
 #include "search/bar.h"
 #include "settings/viewmodes/viewmodesettings.h"
 #include "testdir.h"
+#include "views/dolphincolumnpane.h"
+#include "views/dolphincolumnsview.h"
 #include "views/dolphinitemlistview.h"
 #include "views/viewproperties.h"
 #include "views/zoomlevelinfo.h"
@@ -88,6 +91,7 @@ private Q_SLOTS:
     void testOpenFilesAtStartupInSplitView_data();
     void testOpenFilesAtStartupInSplitView();
     void testDoubleClickViewBackgroundCustomCommand();
+    void testOpenFilesInColumns();
     void testAccessibilityTree();
     void testAutoSaveSession();
     void testSavingFewerTabsDropsTheOldEntries();
@@ -95,6 +99,7 @@ private Q_SLOTS:
     void testRestoredSplitTabIsCreatedAtBothUrls();
     void testOlderSessionStillRestoresItsUrls();
     void testInlineRename();
+    void testInlineRenameAltTab();
     void testScrollToRenamedItem();
     void testRenameWithoutResortDoesNotScroll();
     void testRenameThatHidesItemDoesNotScroll();
@@ -106,6 +111,13 @@ private Q_SLOTS:
     void testActiveViewFollowsTheActivatedView();
     void testRestoreStateKeepsTheActiveSplitPane();
     void testFileItemActionsOutliveContextMenu();
+    void testAPlaceOpensAsTheFirstColumn();
+    void testAFolderOpenedFromOutsideIsTheFirstColumn();
+    void testUpAddsTheParentAsTheFirstColumn();
+    void testARestoredTabReopensItsColumns();
+    void testARestoredTabReopensItsColumnsWithAModePerFolder();
+    void testTheSelectionModeBarFollowsAViewOfAnotherMode();
+    void testTheSecondViewOfASplitReportsARedirectionAsTheFirst();
     void cleanupTestCase();
 
 private:
@@ -113,6 +125,8 @@ private:
 
     QTemporaryDir m_tmpHome;
     QScopedPointer<DolphinMainWindow> m_mainWindow;
+    decltype(GeneralSettings::showStatusBar()) m_previousShowStatusBar = {};
+    bool m_previousShowZoomSlider = false;
 };
 
 namespace
@@ -132,6 +146,8 @@ void DolphinMainWindowTest::initTestCase()
     TestHelpers::disableAnimations();
     // Use fullWidth statusbar during testing, to test out most of the features.
     GeneralSettings *settings = GeneralSettings::self();
+    m_previousShowStatusBar = settings->showStatusBar();
+    m_previousShowZoomSlider = settings->showZoomSlider();
     settings->setShowStatusBar(GeneralSettings::EnumShowStatusBar::FullWidth);
     settings->setShowZoomSlider(true);
     settings->save();
@@ -1366,9 +1382,46 @@ void DolphinMainWindowTest::testDoubleClickViewBackgroundCustomCommand()
     GeneralSettings::setDoubleClickViewCustomAction(QString());
 }
 
+void DolphinMainWindowTest::testOpenFilesInColumns()
+{
+    QScopedPointer<TestDir> testDir{new TestDir()};
+    const QString testDirUrl(QDir::cleanPath(testDir->url().toString()));
+    testDir->createDir("a/b");
+    m_mainWindow->openDirectories({testDirUrl}, false);
+    m_mainWindow->show();
+    QAction *previousMode = nullptr;
+    for (const QString &mode : {QStringLiteral("icons"), QStringLiteral("compact"), QStringLiteral("details")}) {
+        if (m_mainWindow->actionCollection()->action(mode)->isChecked()) {
+            previousMode = m_mainWindow->actionCollection()->action(mode);
+        }
+    }
+    QVERIFY(previousMode);
+    m_mainWindow->actionCollection()->action(QStringLiteral("columns"))->trigger();
+    QTRY_VERIFY(m_mainWindow->isItemVisibleInAnyView(testDirUrl + "/a"));
+    auto view = [this] {
+        return m_mainWindow->activeViewContainer()->view();
+    };
+
+    // The url of the columns view is the selected folder "a".
+    m_mainWindow->openFiles({testDirUrl + "/a"}, false);
+    QTRY_COMPARE(view()->url(), QUrl(testDirUrl + "/a"));
+
+    // The url already shows "b", so the same tab selects "b" in the column of "a".
+    m_mainWindow->openFiles({testDirUrl + "/a/b"}, false);
+    QTRY_COMPARE(view()->url(), QUrl(testDirUrl + "/a/b"));
+    QCOMPARE(m_mainWindow->m_tabWidget->count(), 1);
+    QCOMPARE(view()->selectedItems().count(), 1);
+    QCOMPARE(view()->selectedItems().constFirst().url(), QUrl(testDirUrl + "/a/b"));
+
+    // The view mode is saved, and the next tests expect the previous one.
+    previousMode->trigger();
+}
+
 void DolphinMainWindowTest::testAccessibilityTree()
 {
     m_mainWindow->openDirectories({QUrl::fromLocalFile(QDir::homePath())}, false);
+    // Wide enough for every button of the main toolbar, whatever the size of the screen.
+    m_mainWindow->resize(1200, 600);
     m_mainWindow->show();
 #ifdef Q_OS_WIN
     if (!QTest::qWaitForWindowExposed(m_mainWindow.data())) {
@@ -1430,8 +1483,14 @@ void DolphinMainWindowTest::testAccessibilityTree()
             QAccessibleInterface *accessibleInterface = QAccessible::queryAccessibleInterface(currentlyFocusedObject);
             // The accessibleInterfaces of focused objects might themselves have children.
             // We go down that hierarchy as far as possible and then test the ancestor tree from there.
+            // The menu of a tool button is a window of its own, with the application as its parent.
             while (accessibleInterface->childCount() > 0) {
-                accessibleInterface = accessibleInterface->child(0);
+                QAccessibleInterface *child = accessibleInterface->child(0);
+                const auto *childWidget = qobject_cast<const QWidget *>(child->object());
+                if (childWidget && childWidget->isWindow()) {
+                    break;
+                }
+                accessibleInterface = child;
             }
             while (accessibleInterface != accessibleInterfaceOfMainWindow) {
                 QVERIFY2(accessibleInterface,
@@ -1718,6 +1777,64 @@ void DolphinMainWindowTest::testInlineRename()
     QCOMPARE(view->m_model->fileItem(2).name(), "cccc");
     QCOMPARE(view->m_model->fileItem(3).name(), "eaaaa");
     QCOMPARE(view->m_model->count(), 4);
+}
+
+// Switching away from Dolphin while inline-renaming and then switching back must not lose focus
+// to the Places panel or prevent keyboard navigation. BUG: 422686
+void DolphinMainWindowTest::testInlineRenameAltTab()
+{
+    QScopedPointer<TestDir> testDir{new TestDir()};
+    testDir->createFiles({"file1", "file2"});
+    m_mainWindow->openDirectories({testDir->url()}, false);
+    DolphinView *view = m_mainWindow->activeViewContainer()->view();
+    QSignalSpy viewDirectoryLoadingCompletedSpy(view, &DolphinView::directoryLoadingCompleted);
+
+    m_mainWindow->show();
+#ifdef Q_OS_WIN
+    if (!QTest::qWaitForWindowExposed(m_mainWindow.data())) {
+        QSKIP("Window not exposed on Windows, probably running in a headless CI environment.");
+    }
+#else
+    QVERIFY(QTest::qWaitForWindowExposed(m_mainWindow.data()));
+#endif
+    QVERIFY(m_mainWindow->isVisible());
+    m_mainWindow->windowHandle()->requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(m_mainWindow.data()));
+
+    QAction *showPlacesPanelAction = m_mainWindow->actionCollection()->action(QStringLiteral("show_places_panel"));
+    if (!showPlacesPanelAction->isChecked()) {
+        showPlacesPanelAction->trigger();
+        m_mainWindow->activeViewContainer()->view()->setFocus();
+    }
+
+    QVERIFY(viewDirectoryLoadingCompletedSpy.count() > 0 || viewDirectoryLoadingCompletedSpy.wait());
+    QTRY_COMPARE(view->m_view->m_visibleItems.count(), view->m_model->count());
+
+    view->markUrlsAsSelected({QUrl(testDir->url().toString() + "/file1")});
+    view->updateViewState();
+    view->renameSelectedItems();
+
+    QVERIFY(view->m_view->m_editingRole);
+
+    // Simulate switching to another window:
+    QMainWindow otherWindow;
+    otherWindow.show();
+    otherWindow.windowHandle()->requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(&otherWindow));
+
+    // Switch back to Dolphin:
+    m_mainWindow->windowHandle()->requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(m_mainWindow.data()));
+
+    // Focus must not have leaked to the Places panel or other panels
+    QWidget *placesPanel = reinterpret_cast<QWidget *>(m_mainWindow->m_placesPanel);
+    QVERIFY(!placesPanel->hasFocus());
+
+    // Keyboard navigation must still work
+    const int initialIndex = view->m_view->controller()->selectionManager()->currentItem();
+    QTest::keyClick(QApplication::focusWidget(), Qt::Key_Right);
+    const int newIndex = view->m_view->controller()->selectionManager()->currentItem();
+    QVERIFY(newIndex != initialIndex || view->m_view->m_editingRole);
 }
 
 // Renaming an item that re-sorts to an off-screen position must scroll it back into view. BUG: 354330
@@ -2371,6 +2488,296 @@ void DolphinMainWindowTest::testFileItemActionsOutliveContextMenu()
     QTRY_VERIFY(fileItemActions.isNull());
 }
 
+/**
+ * In the columns view a place from the Places panel is the first column, as on a new start, and
+ * not a column below the folder that was open.
+ */
+void DolphinMainWindowTest::testAPlaceOpensAsTheFirstColumn()
+{
+    QScopedPointer<TestDir> testDir{new TestDir()};
+    testDir->createDir("a/b");
+    const QUrl b = QUrl::fromLocalFile(testDir->path() + QStringLiteral("/a/b"));
+
+    m_mainWindow->openDirectories({testDir->url()}, false);
+    m_mainWindow->show();
+    QVERIFY(QTest::qWaitForWindowExposed(m_mainWindow.data()));
+    DolphinViewContainer *container = m_mainWindow->activeViewContainer();
+    container->setViewMode(DolphinView::ColumnsView);
+    auto *columns = qobject_cast<DolphinColumnsView *>(container->view());
+    QVERIFY(columns);
+
+    m_mainWindow->changeUrl(b);
+    QTRY_COMPARE(columns->url(), b);
+    QVERIFY(columns->columnCount() > 1);
+
+    m_mainWindow->changeUrl(testDir->url());
+    QTRY_COMPARE(columns->url(), testDir->url());
+    m_mainWindow->slotPlaceActivated(b);
+    QCOMPARE(columns->url(), b);
+    QCOMPARE(columns->columnCount(), 1);
+    QCOMPARE(columns->columnAt(0)->dirUrl(), b);
+}
+
+/**
+ * In the columns view a folder opened from outside the view is the first column, also below a place.
+ */
+void DolphinMainWindowTest::testAFolderOpenedFromOutsideIsTheFirstColumn()
+{
+    QScopedPointer<TestDir> testDir{new TestDir(QDir::homePath() + QStringLiteral("/columns-XXXXXX"))};
+    testDir->createDir("a/b");
+    const QUrl b = QUrl::fromLocalFile(testDir->path() + QStringLiteral("/a/b"));
+    auto *places = DolphinPlacesModelSingleton::instance().placesModel();
+    const QUrl a = QUrl::fromLocalFile(testDir->path() + QStringLiteral("/a"));
+    places->addPlace(QStringLiteral("a"), a);
+    auto removePlace = qScopeGuard([places, a]() {
+        places->removePlace(places->closestItem(a));
+    });
+
+    m_mainWindow->openDirectories({b}, false);
+    m_mainWindow->show();
+    QVERIFY(QTest::qWaitForWindowExposed(m_mainWindow.data()));
+    DolphinViewContainer *container = m_mainWindow->activeViewContainer();
+    container->setViewMode(DolphinView::ColumnsView);
+    auto *columns = qobject_cast<DolphinColumnsView *>(container->view());
+    QVERIFY(columns);
+
+    QTRY_COMPARE(columns->url(), b);
+    QCOMPARE(columns->columnCount(), 1);
+    QCOMPARE(columns->columnAt(0)->dirUrl(), b);
+}
+
+/**
+ * In the columns view Up from the first column adds the parent as the first column, with the folder
+ * it came from selected, and the columns that were open stay.
+ */
+void DolphinMainWindowTest::testUpAddsTheParentAsTheFirstColumn()
+{
+    QScopedPointer<TestDir> testDir{new TestDir()};
+    testDir->createDir("a/b");
+    const QUrl a = QUrl::fromLocalFile(testDir->path() + QStringLiteral("/a"));
+    const QUrl b = QUrl::fromLocalFile(testDir->path() + QStringLiteral("/a/b"));
+
+    m_mainWindow->openDirectories({b}, false);
+    m_mainWindow->show();
+    QVERIFY(QTest::qWaitForWindowExposed(m_mainWindow.data()));
+    DolphinViewContainer *container = m_mainWindow->activeViewContainer();
+    container->setViewMode(DolphinView::ColumnsView);
+    auto *columns = qobject_cast<DolphinColumnsView *>(container->view());
+    QVERIFY(columns);
+    QTRY_COMPARE(columns->url(), b);
+    QCOMPARE(columns->columnCount(), 1);
+
+    QAction *up = m_mainWindow->actionCollection()->action(KStandardAction::name(KStandardAction::Up));
+    up->trigger();
+    QTRY_COMPARE(columns->url().adjusted(QUrl::StripTrailingSlash), a);
+    QCOMPARE(columns->columnCount(), 2);
+    QCOMPARE(columns->columnAt(0)->dirUrl().adjusted(QUrl::StripTrailingSlash), a);
+    QCOMPARE(columns->columnAt(1)->dirUrl(), b);
+    QCOMPARE(columns->activeColumnIndex(), 0);
+    DolphinColumnPane *aColumn = columns->columnAt(0);
+    QTRY_VERIFY(aColumn->model()->index(b) >= 0);
+    QVERIFY(aColumn->controller()->selectionManager()->isSelected(aColumn->model()->index(b)));
+    // Listing the new column does not move the url to the last column.
+    QTest::qWait(300); // UNAVOIDABLE: checks that the url does not move to the last column
+    QCOMPARE(columns->url().adjusted(QUrl::StripTrailingSlash), a);
+
+    up->trigger();
+    QTRY_COMPARE(columns->url().adjusted(QUrl::StripTrailingSlash), testDir->url().adjusted(QUrl::StripTrailingSlash));
+    QCOMPARE(columns->columnCount(), 3);
+    QCOMPARE(columns->columnAt(1)->dirUrl().adjusted(QUrl::StripTrailingSlash), a);
+    QCOMPARE(columns->columnAt(2)->dirUrl(), b);
+    QCOMPARE(columns->activeColumnIndex(), 0);
+}
+
+void DolphinMainWindowTest::testARestoredTabReopensItsColumns()
+{
+    // A restored session shows the columns that were open, as it shows the expanded folders of
+    // the details view.
+    QScopedPointer<TestDir> testDir{new TestDir()};
+    testDir->createDir("a/b/c");
+    const QUrl a = QUrl::fromLocalFile(testDir->path() + QStringLiteral("/a"));
+    const QUrl b = QUrl::fromLocalFile(testDir->path() + QStringLiteral("/a/b"));
+    const QUrl c = QUrl::fromLocalFile(testDir->path() + QStringLiteral("/a/b/c"));
+
+    m_mainWindow->openDirectories({a}, false);
+    m_mainWindow->show();
+    QVERIFY(QTest::qWaitForWindowExposed(m_mainWindow.data()));
+    DolphinViewContainer *container = m_mainWindow->activeViewContainer();
+    container->setViewMode(DolphinView::ColumnsView);
+    auto *columns = qobject_cast<DolphinColumnsView *>(container->view());
+    QVERIFY(columns);
+    container->setUrl(b);
+    QTRY_COMPARE(columns->url(), b);
+    container->setUrl(c);
+    QTRY_COMPARE(columns->url(), c);
+    QCOMPARE(columns->columnCount(), 3);
+
+    auto tabWidget = m_mainWindow->findChild<DolphinTabWidget *>("tabWidget");
+    QVERIFY(tabWidget);
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    KConfig config(configDir.filePath(QStringLiteral("sessionrc")), KConfig::SimpleConfig);
+    KConfigGroup group = config.group(QStringLiteral("Session"));
+    tabWidget->saveProperties(group);
+
+    tabWidget->openNewActivatedTab(QUrl::fromLocalFile(QDir::homePath()));
+    tabWidget->closeTab(0);
+    QCOMPARE(tabWidget->count(), 1);
+    tabWidget->readProperties(group);
+
+    DolphinViewContainer *restored = tabWidget->tabPageAt(0)->primaryViewContainer();
+    QTRY_COMPARE(restored->url(), c);
+    auto *restoredColumns = qobject_cast<DolphinColumnsView *>(restored->view());
+    QVERIFY(restoredColumns);
+    QCOMPARE(restoredColumns->columnCount(), 3);
+    QCOMPARE(restoredColumns->columnAt(0)->dirUrl().adjusted(QUrl::StripTrailingSlash), a);
+    QCOMPARE(restoredColumns->columnAt(1)->dirUrl(), b);
+    QCOMPARE(restoredColumns->columnAt(2)->dirUrl(), c);
+}
+
+void DolphinMainWindowTest::testARestoredTabReopensItsColumnsWithAModePerFolder()
+{
+    // With a mode per folder, only the folder that was switched to the columns mode stores it. The
+    // folders opened as columns store nothing, and the restored tab still shows the columns.
+    GeneralSettings *settings = GeneralSettings::self();
+    const bool globalViewProps = settings->globalViewProps();
+    // A folder with no mode of its own takes the global one, which an earlier test may have left
+    // in the columns mode.
+    settings->setGlobalViewProps(true);
+    {
+        ViewProperties props(QUrl::fromLocalFile(QDir::homePath()));
+        props.setViewMode(DolphinView::IconsView);
+        props.save();
+    }
+    settings->setGlobalViewProps(false);
+    settings->save();
+    const auto restoreSetting = qScopeGuard([settings, globalViewProps] {
+        settings->setGlobalViewProps(globalViewProps);
+        settings->save();
+    });
+
+    QScopedPointer<TestDir> testDir{new TestDir()};
+    testDir->createDir("a/b/c");
+    const QUrl a = QUrl::fromLocalFile(testDir->path() + QStringLiteral("/a"));
+    const QUrl b = QUrl::fromLocalFile(testDir->path() + QStringLiteral("/a/b"));
+    const QUrl c = QUrl::fromLocalFile(testDir->path() + QStringLiteral("/a/b/c"));
+
+    m_mainWindow->openDirectories({a}, false);
+    m_mainWindow->show();
+    QVERIFY(QTest::qWaitForWindowExposed(m_mainWindow.data()));
+    DolphinViewContainer *container = m_mainWindow->activeViewContainer();
+    container->setViewMode(DolphinView::ColumnsView);
+    auto *columns = qobject_cast<DolphinColumnsView *>(container->view());
+    QVERIFY(columns);
+    // As a click on a folder opens it.
+    columns->openChild(0, b);
+    QTRY_COMPARE(columns->url(), b);
+    columns->openChild(1, c);
+    QTRY_COMPARE(columns->url(), c);
+    QCOMPARE(columns->columnCount(), 3);
+    QVERIFY(ViewProperties(c).viewMode() != DolphinView::ColumnsView);
+
+    auto tabWidget = m_mainWindow->findChild<DolphinTabWidget *>("tabWidget");
+    QVERIFY(tabWidget);
+    QTemporaryDir configDir;
+    QVERIFY(configDir.isValid());
+    KConfig config(configDir.filePath(QStringLiteral("sessionrc")), KConfig::SimpleConfig);
+    KConfigGroup group = config.group(QStringLiteral("Session"));
+    tabWidget->saveProperties(group);
+
+    tabWidget->openNewActivatedTab(QUrl::fromLocalFile(QDir::homePath()));
+    tabWidget->closeTab(0);
+    QCOMPARE(tabWidget->count(), 1);
+    tabWidget->readProperties(group);
+
+    DolphinViewContainer *restored = tabWidget->tabPageAt(0)->primaryViewContainer();
+    QTRY_COMPARE(restored->url(), c);
+    auto *restoredColumns = qobject_cast<DolphinColumnsView *>(restored->view());
+    QVERIFY(restoredColumns);
+    QTRY_COMPARE(restoredColumns->columnCount(), 3);
+    QCOMPARE(restoredColumns->columnAt(0)->dirUrl().adjusted(QUrl::StripTrailingSlash), a);
+    QCOMPARE(restoredColumns->columnAt(2)->dirUrl(), c);
+    // Restoring stores no mode for the folder.
+    QVERIFY(ViewProperties(c).viewMode() != DolphinView::ColumnsView);
+}
+
+void DolphinMainWindowTest::testTheSelectionModeBarFollowsAViewOfAnotherMode()
+{
+    // In selection mode, the bottom bar offers the actions for what is selected. It keeps doing
+    // so after a switch to and from the columns view, which replaces the view.
+    QScopedPointer<TestDir> testDir{new TestDir()};
+    testDir->createFile("a.txt");
+    testDir->createFile("b.txt");
+    m_mainWindow->openDirectories({testDir->url()}, false);
+    m_mainWindow->show();
+    QVERIFY(QTest::qWaitForWindowExposed(m_mainWindow.data()));
+    DolphinViewContainer *container = m_mainWindow->activeViewContainer();
+    QTRY_COMPARE_WITH_TIMEOUT(container->view()->itemsCount(), 2, 5000);
+
+    m_mainWindow->slotSetSelectionMode(true, SelectionMode::BottomBar::GeneralContents);
+    auto *bottomBar = container->findChild<SelectionMode::BottomBar *>();
+    QVERIFY(bottomBar);
+
+    for (const DolphinView::Mode mode : {DolphinView::ColumnsView, DolphinView::IconsView}) {
+        container->view()->clearSelection();
+        QTRY_VERIFY_WITH_TIMEOUT(!bottomBar->isVisible(), 5000);
+
+        container->setViewMode(mode);
+        QTRY_COMPARE_WITH_TIMEOUT(container->view()->itemsCount(), 2, 5000);
+        QVERIFY(container->view()->selectionMode());
+
+        m_mainWindow->actionCollection()->action(KStandardAction::name(KStandardAction::SelectAll))->trigger();
+        QTRY_COMPARE_WITH_TIMEOUT(container->view()->selectedItemsCount(), 2, 5000);
+        QTRY_VERIFY2_WITH_TIMEOUT(bottomBar->isVisible(), qPrintable(QString::number(mode)), 5000);
+    }
+}
+
+void DolphinMainWindowTest::testTheSecondViewOfASplitReportsARedirectionAsTheFirst()
+{
+    // The tab follows the url of the active view. A redirection in the second view of a split
+    // reaches it as often as one in the first view.
+    QScopedPointer<TestDir> testDir{new TestDir()};
+    testDir->createDir("first");
+    testDir->createFile("first/a.txt");
+    testDir->createDir("second");
+    testDir->createFile("second/a.txt");
+    m_mainWindow->openDirectories({testDir->url()}, false);
+    m_mainWindow->show();
+    QVERIFY(QTest::qWaitForWindowExposed(m_mainWindow.data()));
+    m_mainWindow->actionCollection()->action(QStringLiteral("split_view"))->trigger();
+    DolphinTabPage *page = m_mainWindow->m_tabWidget->currentTabPage();
+    QVERIFY(page->splitViewEnabled());
+
+    // The number of times that the tab reports the target of a redirection in @p container.
+    const auto reportsOfARedirection = [&](DolphinViewContainer *container, const QString &folder) {
+        container->setActive(true);
+        const QUrl targetUrl = QUrl::fromLocalFile(testDir->path() + QLatin1Char('/') + folder);
+        QUrl redirectedUrl = targetUrl;
+        redirectedUrl.setHost(QStringLiteral("localhost"));
+        QSignalSpy urlSpy(page, &DolphinTabPage::activeViewUrlChanged);
+        container->setUrl(redirectedUrl);
+        if (!QTest::qWaitFor(
+                [&]() {
+                    return container->view()->url().adjusted(QUrl::StripTrailingSlash) == targetUrl;
+                },
+                5000)) {
+            return -1;
+        }
+        QTest::qWait(200); // UNAVOIDABLE: a second report would come from the same event, after the first
+        int reports = 0;
+        for (const QList<QVariant> &arguments : std::as_const(urlSpy)) {
+            if (arguments.first().toUrl().adjusted(QUrl::StripTrailingSlash) == targetUrl) {
+                ++reports;
+            }
+        }
+        return reports;
+    };
+
+    const int reportsInTheFirstView = reportsOfARedirection(page->primaryViewContainer(), QStringLiteral("first"));
+    QVERIFY(reportsInTheFirstView > 0);
+    QCOMPARE(reportsOfARedirection(page->secondaryViewContainer(), QStringLiteral("second")), reportsInTheFirstView);
+}
+
 void DolphinMainWindowTest::cleanupTestCase()
 {
     m_mainWindow->showNormal();
@@ -2386,6 +2793,12 @@ void DolphinMainWindowTest::cleanupTestCase()
 
     // Quit Dolphin to save the hiding of panels and make sure that normal Quit doesn't crash.
     m_mainWindow->actionCollection()->action(KStandardAction::name(KStandardAction::Quit))->trigger();
+
+    // The status bar settings go back to what they were before initTestCase().
+    GeneralSettings *settings = GeneralSettings::self();
+    settings->setShowStatusBar(m_previousShowStatusBar);
+    settings->setShowZoomSlider(m_previousShowZoomSlider);
+    settings->save();
 }
 
 int main(int argc, char *argv[])

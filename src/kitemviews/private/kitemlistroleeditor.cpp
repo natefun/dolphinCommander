@@ -76,6 +76,11 @@ void KItemListRoleEditor::setFinishedSignalBlocked(bool blocked)
 
 void KItemListRoleEditor::keyPressEvent(QKeyEvent *event)
 {
+    if ((event->modifiers() & Qt::AltModifier) && (event->key() == Qt::Key_Tab || event->key() == Qt::Key_Backtab)) {
+        event->ignore();
+        return;
+    }
+
     switch (event->key()) {
     case Qt::Key_Escape:
         // Emitting the signal roleEditingCanceled might result
@@ -150,6 +155,20 @@ void KItemListRoleEditor::autoAdjustSize()
 
     const auto originalSize = size();
     auto newSize = originalSize;
+
+    // A name that does not wrap, as in the compact view, gets wider while it is typed, up to the edge
+    // of the view. A name that wraps gets taller instead.
+    if (document()->defaultTextOption().wrapMode() == QTextOption::NoWrap) {
+        const qreal requiredWidth = document()->idealWidth();
+        const qreal availableWidth = size().width() - frameBorder;
+        if (requiredWidth > availableWidth) {
+            qreal newWidth = requiredWidth + frameBorder;
+            if (parentWidget() && pos().x() + newWidth > parentWidget()->width()) {
+                newWidth = parentWidget()->width() - pos().x();
+            }
+            newSize.setWidth(newWidth);
+        }
+    }
 
     const qreal requiredHeight = document()->size().height();
     const qreal availableHeight = size().height() - frameBorder;

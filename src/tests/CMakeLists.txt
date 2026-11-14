@@ -57,6 +57,11 @@ ecm_add_test(dolphinviewtest.cpp testdir.cpp
 TEST_NAME dolphinviewtest
 LINK_LIBRARIES dolphinprivate dolphinstatic Qt6::Test)
 
+# DolphinTabPageTest
+ecm_add_test(dolphintabpagetest.cpp testdir.cpp
+TEST_NAME dolphintabpagetest
+LINK_LIBRARIES dolphinprivate dolphinstatic Qt6::Test)
+
 # KItemListRoleEditorTest
 ecm_add_test(kitemlistroleeditortest.cpp
 TEST_NAME kitemlistroleeditortest
@@ -104,6 +109,18 @@ if(NOT WIN32)
     TEST_NAME dolphinmainwindowtest
     LINK_LIBRARIES dolphinprivate dolphinstatic Qt6::Test)
 endif()
+
+# DolphinColumnsViewTest
+ecm_add_test(dolphincolumnsviewtest.cpp testdir.cpp
+TEST_NAME dolphincolumnsviewtest
+LINK_LIBRARIES dolphinprivate dolphinstatic Qt6::Test)
+
+# DolphinViewContainerTest
+ecm_add_test(dolphinviewcontainertest.cpp testdir.cpp
+TEST_NAME dolphinviewcontainertest
+LINK_LIBRARIES dolphinprivate dolphinstatic Qt6::Test)
+# A drag runs its own event loop on the minimal platform. The offscreen platform ends it at once.
+set_tests_properties(dolphinviewcontainertest PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=minimal")
 
 # DragAndDropHelperTest
 ecm_add_test(draganddrophelpertest.cpp LINK_LIBRARIES dolphinprivate Qt6::Test)
@@ -183,3 +200,8 @@ endif()
 ecm_add_test(movetonewfolderitemactiontest.cpp ../itemactions/movetonewfolderitemaction.cpp
 TEST_NAME movetonewfolderitemactiontest
 LINK_LIBRARIES Qt6::Test KF6::I18n KF6::KIOCore KF6::KIOWidgets KF6::KIOFileWidgets)
+
+# DolphinCommanderFeaturesTest: the features of dolphinCommander, so that a merge of Dolphin that breaks one fails
+ecm_add_test(dolphincommanderfeaturestest.cpp testdir.cpp
+TEST_NAME dolphincommanderfeaturestest
+LINK_LIBRARIES dolphinprivate dolphinstatic Qt6::Test)

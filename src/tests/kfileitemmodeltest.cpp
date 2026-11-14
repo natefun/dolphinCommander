@@ -12,9 +12,14 @@
 #include <QTest>
 #include <QTimer>
 
+#include <KConfig>
+#include <KConfigGroup>
 #include <KDirLister>
 #include <KIO/SimpleJob>
 
+#include <KFileMetaData/UserMetaData>
+
+#include "config-dolphin.h"
 #include "kitemviews/kfileitemmodel.h"
 #include "testdir.h"
 
@@ -50,6 +55,7 @@ private Q_SLOTS:
     void cleanup();
 
     void testDefaultRoles();
+    void testIndexerUnavailableReason();
     void testBackupFilesAreHidden();
     void testDefaultSortRole();
     void testDefaultGroupedSorting();
@@ -71,6 +77,8 @@ private Q_SLOTS:
     void testRemoveFilteredExpandedItems();
     void testSorting();
     void testNaturalSorting();
+    void testNaturalSortingOfNamesWithDots_data();
+    void testNaturalSortingOfNamesWithDots();
     void testStringCompare_data();
     void testStringCompare();
     void testIndexForKeyboardSearch();
@@ -87,10 +95,13 @@ private Q_SLOTS:
     void testGeneralParentChildRelationships();
     void testNameRoleGroups();
     void testNameRoleGroupsWithExpandedItems();
+    void testRatingRoleGroups();
+    void testLoadingDirectoryWithRatings();
     void testGroupRoleFallsBackToSortRole();
     void testGroupRoleIndependentFromSortRole();
     void testGroupRoleNotResetBySortRoleChange();
     void testGroupRoleChangedSignal();
+    void testResortAfterChangingGroupedSorting();
     void testInconsistentModel();
     void testChangeRolesForFilteredItems();
     void testChangeSortRoleWhileFiltering();
@@ -142,6 +153,45 @@ void KFileItemModelTest::cleanup()
 
     delete m_testDir;
     m_testDir = nullptr;
+}
+
+void KFileItemModelTest::testIndexerUnavailableReason()
+{
+    const QUrl folder = QUrl::fromLocalFile(m_testDir->path());
+#if HAVE_BALOO
+    KConfig config(QStringLiteral("baloofilerc"));
+    const auto writeConfig = [&config](bool indexingEnabled, bool onlyBasicIndexing, const QString &indexedFolder) {
+        config.group(QStringLiteral("Basic Settings")).writeEntry("Indexing-Enabled", indexingEnabled);
+        KConfigGroup general = config.group(QStringLiteral("General"));
+        general.writeEntry("only basic indexing", onlyBasicIndexing);
+        general.writePathEntry("folders", QStringList{indexedFolder});
+        config.sync();
+    };
+
+    writeConfig(true, false, m_testDir->path());
+    QCOMPARE(KFileItemModel::indexerUnavailableReason(folder), QString());
+
+    writeConfig(false, false, m_testDir->path());
+    const QString disabled = KFileItemModel::indexerUnavailableReason(folder);
+
+    writeConfig(true, true, m_testDir->path());
+    const QString onlyNames = KFileItemModel::indexerUnavailableReason(folder);
+
+    writeConfig(true, false, m_testDir->path() + QStringLiteral("/other"));
+    const QString notIndexed = KFileItemModel::indexerUnavailableReason(folder);
+
+    QVERIFY(!disabled.isEmpty());
+    QVERIFY(!onlyNames.isEmpty());
+    QVERIFY(!notIndexed.isEmpty());
+    QCOMPARE(QSet<QString>({disabled, onlyNames, notIndexed}).size(), 3);
+
+    // A folder that is not local, such as search results, is not compared with the indexed folders.
+    QCOMPARE(KFileItemModel::indexerUnavailableReason(QUrl(QStringLiteral("baloosearch:/documents"))), QString());
+
+    QFile::remove(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/baloofilerc"));
+#else
+    QVERIFY(!KFileItemModel::indexerUnavailableReason(folder).isEmpty());
+#endif
 }
 
 void KFileItemModelTest::testDefaultRoles()
@@ -1456,6 +1506,44 @@ void KFileItemModelTest::testNaturalSorting()
     QCOMPARE(itemsMovedSpy.takeFirst().at(1).value<QList<int>>(), QList<int>() << 4 << 6 << 1 << 2 << 3 << 5);
 }
 
+void KFileItemModelTest::testNaturalSortingOfNamesWithDots_data()
+{
+    QTest::addColumn<bool>("asDirectories");
+    QTest::newRow("directories") << true;
+    QTest::newRow("extensionless-files") << false;
+}
+
+void KFileItemModelTest::testNaturalSortingOfNamesWithDots()
+{
+    QFETCH(bool, asDirectories);
+    const QStringList names{"Ch. 9 - Nine", "Ch. 10 - Ten", "Ch. 11 - Mr. Eleven", "Ch. 12 - Twelve"};
+    const QString notes = QStringLiteral("Ch. 11 - Notes.txt");
+    const QString archive = QStringLiteral("Ch. 12 - Twelve.zip");
+    m_testDir->createFiles({archive});
+    if (asDirectories) {
+        for (const auto &name : names) {
+            m_testDir->createDir(name);
+        }
+        m_testDir->createFiles({notes});
+    } else {
+        m_testDir->createFiles(names);
+    }
+
+    QSignalSpy itemsInsertedSpy(m_model, &KFileItemModel::itemsInserted);
+    m_model->loadDirectory(m_testDir->url());
+    QVERIFY(itemsInsertedSpy.wait());
+
+    QStringList expected = names;
+    expected.append(archive);
+    if (asDirectories) {
+        QCOMPARE(itemsInModel(), (names + QStringList{notes, archive}));
+        m_model->setSortDirectoriesFirst(false);
+        expected.insert(3, notes);
+    }
+
+    QCOMPARE(itemsInModel(), expected);
+}
+
 void KFileItemModelTest::testStringCompare_data()
 {
     QTest::addColumn<QString>("left");
@@ -1468,6 +1556,8 @@ void KFileItemModelTest::testStringCompare_data()
     QTest::newRow("version-patch-reversed") << QStringLiteral("v1.2.10") << QStringLiteral("v1.2.3") << true << 1;
     QTest::newRow("version-minor") << QStringLiteral("v1.2.10") << QStringLiteral("v1.10.1") << true << -1;
     QTest::newRow("numeric-basename-before-extension") << QStringLiteral("1.09.txt") << QStringLiteral("1.1.txt") << true << -1;
+    QTest::newRow("long-extension") << QStringLiteral("a.appimage") << QStringLiteral("a 1.txt") << true << -1;
+    QTest::newRow("dot-followed-by-space") << QStringLiteral("Ch. 11 - Mr. Eleven") << QStringLiteral("Ch. 12 - Twelve") << true << -1;
     QTest::newRow("leading-dot-is-not-decimal") << QStringLiteral(".1") << QStringLiteral(".09") << true << -1;
     QTest::newRow("natural-sorting-disabled") << QStringLiteral("v1.2.10") << QStringLiteral("v1.2.3") << false << -1;
 }
@@ -2367,6 +2457,147 @@ void KFileItemModelTest::testNameRoleGroupsWithExpandedItems()
     QCOMPARE(m_model->groups(), expectedGroups);
 }
 
+void KFileItemModelTest::testRatingRoleGroups()
+{
+    QSignalSpy itemsInsertedSpy(m_model, &KFileItemModel::itemsInserted);
+    QSignalSpy itemsMovedSpy(m_model, &KFileItemModel::itemsMoved);
+    QVERIFY(itemsMovedSpy.isValid());
+
+    m_testDir->createFiles({"a.txt", "b.txt", "c.txt", "d.txt", "e.txt", "f.txt"});
+
+    m_model->setGroupedSorting(true);
+    m_model->setGroupRole("rating");
+    m_model->loadDirectory(m_testDir->url());
+    QVERIFY(itemsInsertedSpy.wait());
+
+    QList<QPair<int, QVariant>> expectedGroups;
+    expectedGroups << QPair<int, QVariant>(0, 0);
+    QCOMPARE(m_model->groups(), expectedGroups);
+
+    // Assign ratings:
+    // a.txt -> 2 (1 star)
+    // b.txt -> 8 (4 stars)
+    // c.txt -> 2 (1 star)
+    // d.txt -> 0 (unrated)
+    // e.txt -> 8 (4 stars)
+    // f.txt -> 2 (1 star)
+    SmallHash r2;
+    r2.insert("rating", 2);
+    SmallHash r8;
+    r8.insert("rating", 8);
+    SmallHash r0;
+    r0.insert("rating", 0);
+
+    m_model->setData(m_model->index(QUrl::fromLocalFile(m_testDir->url().path() + "/a.txt")), r2);
+    m_model->setData(m_model->index(QUrl::fromLocalFile(m_testDir->url().path() + "/b.txt")), r8);
+    m_model->setData(m_model->index(QUrl::fromLocalFile(m_testDir->url().path() + "/c.txt")), r2);
+    m_model->setData(m_model->index(QUrl::fromLocalFile(m_testDir->url().path() + "/d.txt")), r0);
+    m_model->setData(m_model->index(QUrl::fromLocalFile(m_testDir->url().path() + "/e.txt")), r8);
+    m_model->setData(m_model->index(QUrl::fromLocalFile(m_testDir->url().path() + "/f.txt")), r2);
+
+    auto getGroupRatings = [this]() {
+        QList<int> ratings;
+        for (const auto &group : m_model->groups()) {
+            ratings.append(group.second.toInt());
+        }
+        return ratings;
+    };
+
+    QTRY_COMPARE(getGroupRatings(), (QList<int>() << 0 << 2 << 8));
+
+    // Test Case 2: Sort by Rating (sortRole == "rating", rawGroupRole == "")
+    m_model->setGroupRole(QByteArray());
+    m_model->setSortRole("rating");
+    QCOMPARE(m_model->groupRole(), QByteArray("rating"));
+    QCOMPARE(m_model->rawGroupRole(), QByteArray());
+    QTRY_COMPARE(getGroupRatings(), (QList<int>() << 0 << 2 << 8));
+
+    // Test Case 3: Descending sort order
+    m_model->setSortOrder(Qt::DescendingOrder);
+    QTRY_COMPARE(getGroupRatings(), (QList<int>() << 8 << 2 << 0));
+
+    // Test Case 4: Baloo data types (QString strings from KBalooRolesProvider)
+    SmallHash balooR10;
+    balooR10.insert("rating", QStringLiteral("10"));
+    SmallHash balooR2;
+    balooR2.insert("rating", QStringLiteral("2"));
+    m_model->setData(m_model->index(QUrl::fromLocalFile(m_testDir->url().path() + "/a.txt")), balooR10);
+    m_model->setData(m_model->index(QUrl::fromLocalFile(m_testDir->url().path() + "/b.txt")), balooR2);
+    QTRY_COMPARE(getGroupRatings(), (QList<int>() << 10 << 8 << 2 << 0));
+
+    // Test Case 5: sortRole == "text" (Name), groupRole == "rating"
+    m_model->setSortRole("text");
+    m_model->setGroupRole("rating");
+    m_model->setSortOrder(Qt::AscendingOrder);
+    QTRY_COMPARE(getGroupRatings(), (QList<int>() << 0 << 2 << 8 << 10));
+}
+
+void KFileItemModelTest::testLoadingDirectoryWithRatings()
+{
+    QSignalSpy itemsInsertedSpy(m_model, &KFileItemModel::itemsInserted);
+    QVERIFY(itemsInsertedSpy.isValid());
+
+    m_testDir->createFiles({"a.txt", "b.txt", "c.txt", "d.txt", "e.txt", "f.txt"});
+
+    // Set ratings via UserMetaData directly on files:
+    KFileMetaData::UserMetaData(m_testDir->url().path() + "/a.txt").setRating(2);
+    KFileMetaData::UserMetaData(m_testDir->url().path() + "/b.txt").setRating(8);
+    KFileMetaData::UserMetaData(m_testDir->url().path() + "/c.txt").setRating(2);
+    KFileMetaData::UserMetaData(m_testDir->url().path() + "/d.txt").setRating(0);
+    KFileMetaData::UserMetaData(m_testDir->url().path() + "/e.txt").setRating(8);
+    KFileMetaData::UserMetaData(m_testDir->url().path() + "/f.txt").setRating(2);
+
+    m_model->setGroupedSorting(true);
+    m_model->setSortRole("rating");
+    m_model->loadDirectory(m_testDir->url());
+    QVERIFY(itemsInsertedSpy.wait());
+
+    const auto groups = m_model->groups();
+    QList<int> groupRatings;
+    for (const auto &group : groups) {
+        groupRatings.append(group.second.toInt());
+    }
+    QCOMPARE(groupRatings, (QList<int>() << 0 << 2 << 8));
+    // Within each rating group, files should be sorted alphabetically:
+    // rating 0: d.txt
+    // rating 2: a.txt, c.txt, f.txt
+    // rating 8: b.txt, e.txt
+    QCOMPARE(itemsInModel(), (QStringList() << "d.txt" << "a.txt" << "c.txt" << "f.txt" << "b.txt" << "e.txt"));
+
+    // Case 2: Sort by Name ("text"), group by Rating ("rating")
+    m_model->clear();
+    m_model->setSortRole("text");
+    m_model->setGroupRole("rating");
+    m_model->loadDirectory(m_testDir->url());
+    QVERIFY(itemsInsertedSpy.wait());
+
+    const auto groupsNameSort = m_model->groups();
+    QList<int> groupRatingsNameSort;
+    for (const auto &group : groupsNameSort) {
+        groupRatingsNameSort.append(group.second.toInt());
+    }
+    QCOMPARE(groupRatingsNameSort, (QList<int>() << 0 << 2 << 8));
+    QCOMPARE(itemsInModel(), (QStringList() << "d.txt" << "a.txt" << "c.txt" << "f.txt" << "b.txt" << "e.txt"));
+
+    // Case 3: Descending sort order by rating
+    m_model->clear();
+    m_model->setSortRole("rating");
+    m_model->setGroupRole(QByteArray());
+    m_model->setSortOrder(Qt::DescendingOrder);
+    m_model->loadDirectory(m_testDir->url());
+    QVERIFY(itemsInsertedSpy.wait());
+
+    const auto groupsDesc = m_model->groups();
+    QList<int> groupRatingsDesc;
+    for (const auto &group : groupsDesc) {
+        groupRatingsDesc.append(group.second.toInt());
+    }
+    QCOMPARE(groupRatingsDesc, (QList<int>() << 8 << 2 << 0));
+    // Within descending groups:
+    // rating 8: b.txt, e.txt (or e.txt, b.txt depending on text sort)
+    QCOMPARE(itemsInModel().mid(0, 2), (QStringList() << "e.txt" << "b.txt"));
+}
+
 void KFileItemModelTest::testInconsistentModel()
 {
     QSignalSpy itemsInsertedSpy(m_model, &KFileItemModel::itemsInserted);
@@ -3066,6 +3297,53 @@ void KFileItemModelTest::testGroupRoleChangedSignal()
 
     m_model->setSortRole("size");
     QCOMPARE(groupRoleChangedSpy.count(), 1);
+}
+
+void KFileItemModelTest::testResortAfterChangingGroupedSorting()
+{
+    QSignalSpy itemsInsertedSpy(m_model, &KFileItemModel::itemsInserted);
+
+    m_testDir->createFile("a", QByteArray(30, 'x'));
+    m_testDir->createFile("b", QByteArray(10, 'x'));
+    m_testDir->createFile("c", QByteArray(20, 'x'));
+    m_testDir->createFile("d", QByteArray(5, 'x'));
+
+    m_model->setSortRole("size");
+    m_model->loadDirectory(m_testDir->url());
+    QVERIFY(itemsInsertedSpy.wait());
+
+    const QStringList sortedBySize{"d", "b", "c", "a"};
+    const QStringList groupedByName{"a", "b", "c", "d"};
+    QCOMPARE(itemsInModel(), sortedBySize);
+
+    // Load the item data
+    for (int i = 0; i < m_model->count(); ++i) {
+        m_model->data(i);
+    }
+
+    m_model->setGroupedSorting(true);
+    m_model->setGroupRole("text");
+    QCOMPARE(itemsInModel(), groupedByName);
+
+    // The group role is kept, but must not affect the sort order without grouping
+    m_model->setGroupedSorting(false);
+    QCOMPARE(m_model->rawGroupRole(), QByteArray("text"));
+    QCOMPARE(itemsInModel(), sortedBySize);
+
+    // Enable the grouping again with the unchanged group role
+    m_model->setGroupedSorting(true);
+    QCOMPARE(itemsInModel(), groupedByName);
+
+    // Group by the sort role (Same as Sort)
+    m_model->setGroupRole(QByteArray());
+    QCOMPARE(itemsInModel(), sortedBySize);
+
+    // Pick another group role while the grouping is disabled (like slotGroupByTriggered)
+    m_model->setGroupedSorting(false);
+    m_model->setGroupRole("text");
+    QCOMPARE(itemsInModel(), sortedBySize);
+    m_model->setGroupedSorting(true);
+    QCOMPARE(itemsInModel(), groupedByName);
 }
 
 QTEST_MAIN(KFileItemModelTest)

@@ -160,6 +160,7 @@ int main(int argc, char **argv)
     aboutData.addAuthor(i18nc("@info:credit", "Holger Freyther"), i18nc("@info:credit", "Developer"), QStringLiteral("freyther@gmx.net"));
     aboutData.addAuthor(i18nc("@info:credit", "Max Blazejak"), i18nc("@info:credit", "Developer"), QStringLiteral("m43ksrocks@gmail.com"));
     aboutData.addAuthor(i18nc("@info:credit", "Michael Austin"), i18nc("@info:credit", "Documentation"), QStringLiteral("tuxedup@users.sourceforge.net"));
+    aboutData.addAuthor(i18nc("@info:credit", "Yuma Kakei"), i18nc("@info:credit", "Documentation"), QStringLiteral("yumasansansan@gmail.com"));
 
     KAboutData::setApplicationData(aboutData);
     KCrash::initialize();
@@ -270,12 +271,13 @@ int main(int argc, char **argv)
     }
 
     // Only restore session if:
-    // 1. The "remember state" setting is enabled or session restoration after
+    // 1. Not explicitly opening a new instance
+    // 2. The "remember state" setting is enabled or session restoration after
     //    reboot is in use
-    // 2. This is the first instance or restoring multiple instances with
+    // 3. This is the first instance or restoring multiple instances with
     //    session restoration after reboot enabled
-    // 3. There is a session available to restore
-    if (app.isSessionRestored() || GeneralSettings::rememberOpenedTabs()) {
+    // 4. There is a session available to restore
+    if (app.isSessionRestored() || (!parser.isSet(QStringLiteral("new-window")) && GeneralSettings::rememberOpenedTabs())) {
         // Get saved state data for the last-closed Dolphin instance
         const QString serviceName = QStringLiteral("org.kde.dolphincommander-%1").arg(QCoreApplication::applicationPid());
         const auto instancesCount = Dolphin::dolphinGuiInstances(serviceName).size();

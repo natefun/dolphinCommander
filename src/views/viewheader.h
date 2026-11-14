@@ -6,13 +6,14 @@
 #define VIEWHEADER_H
 
 #include "dolphin_export.h"
+#include "dolphinview.h"
 
 #include <QByteArray>
 #include <QHash>
+#include <QPointer>
 #include <QWidget>
 
 class DolphinUrlNavigator;
-class DolphinView;
 class QLabel;
 class QToolButton;
 
@@ -28,7 +29,15 @@ public:
     /** @p navigator keeps the history of @p view and must live as long as the header. */
     ViewHeader(DolphinView *view, DolphinUrlNavigator *navigator, QWidget *parent = nullptr);
 
+    /** Follows @p view from now on, in place of the view it had. The container replaces its view to switch to the columns view and back. */
+    void setView(DolphinView *view);
+
+Q_SIGNALS:
+    /** Emitted when a button of a view mode is clicked. The container sets the mode, as it may have to replace the view for it. */
+    void viewModeRequested(DolphinView::Mode mode);
+
 private:
+    void connectView();
     void updateTitle();
     void updateCounts();
     void updateNavigation();

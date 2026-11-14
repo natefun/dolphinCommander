@@ -195,7 +195,7 @@ private:
     /**
      * Creates a new view container and does the default initialization.
      */
-    DolphinViewContainer *createViewContainer(const QUrl &url) const;
+    DolphinViewContainer *createViewContainer(const QUrl &url);
 
     /**
      * Starts an animation that transitions between split view mode states.
@@ -208,11 +208,10 @@ private:
     void startExpandViewAnimation(DolphinViewContainer *expandingContainer);
 
     /**
-     * Connect/disconnect DolphinView::activated → slotViewActivated for all
-     * current view containers. Used to suppress the signal during programmatic
-     * activation (tab switch, construction, session restore) so that
-     * slotViewActivated does not spuriously toggle m_primaryViewActive.
+     * Connects the signals of @p container's view that this tab page reacts to.
+     * Called again whenever the container replaces its view.
      */
+    void connectToContainerView(DolphinViewContainer *container) const;
 
 private:
     DolphinTabPageSplitter *m_splitter;

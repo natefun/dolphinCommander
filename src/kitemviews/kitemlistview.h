@@ -19,6 +19,7 @@
 #include "kitemviews/private/kitemlistviewanimation.h"
 
 #include <QGraphicsWidget>
+#include <QPointer>
 #include <QSet>
 #include <QVariant>
 
@@ -243,6 +244,13 @@ public:
     bool alternateBackgrounds() const;
 
     /**
+     * Follows the horizontal scrollbar policy of the container. Without horizontal
+     * scrolling a single column wider than the view is shrunk to fit. Enabled by default.
+     */
+    void setHorizontalScrollingEnabled(bool enabled);
+    bool horizontalScrollingEnabled() const;
+
+    /**
      * @return The rectangle of the item relative to the top/left of
      *         the currently visible area (see KItemListView::offset()).
      */
@@ -370,6 +378,7 @@ Q_SIGNALS:
 
 protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
     void setItemSize(const QSizeF &size);
     void setStyleOption(const KItemListStyleOption &option);
 
@@ -653,6 +662,13 @@ private:
     void updatePreferredColumnWidths(const KItemRangeList &itemRanges);
 
     /**
+     * @return The palette the items paint with: the palette of m_paletteWidget with the Base of
+     *         this view. A view sets its background color through Base on that widget, and
+     *         items only read Base to see whether the color scheme is light or dark.
+     */
+    QPalette itemPalette() const;
+
+    /**
      * Convenience method for
      * updatePreferredColumnWidths(KItemRangeList() << KItemRange(0, m_model->count()).
      */
@@ -769,6 +785,10 @@ private:
     bool m_grouped;
     bool m_highlightEntireRow;
     bool m_alternateBackgrounds;
+    bool m_horizontalScrollingEnabled = true;
+
+    // The widget that shows the scene. The items paint with its palette, except for Base.
+    QPointer<QWidget> m_paletteWidget;
     bool m_supportsItemExpanding;
     bool m_supportsGroupCollapsing;
     bool m_editingRole;

@@ -415,7 +415,9 @@ void KStandardItemListWidget::paint(QPainter *painter, const QStyleOptionGraphic
         return;
     }
 
-    painter->drawStaticText(textInfo->pos, textInfo->staticText);
+    if (!m_roleEditor) {
+        painter->drawStaticText(textInfo->pos, textInfo->staticText);
+    }
 
     bool clipAdditionalInfoBounds = false;
     if (m_supportsItemExpanding && m_sortedVisibleRoles.count() > 1) {
@@ -1738,9 +1740,12 @@ void KStandardItemListWidget::closeRoleEditor()
     disconnect(m_roleEditor, &KItemListRoleEditor::roleEditingCanceled, this, &KStandardItemListWidget::slotRoleEditingCanceled);
     disconnect(m_roleEditor, &KItemListRoleEditor::roleEditingFinished, this, &KStandardItemListWidget::slotRoleEditingFinished);
 
-    if (m_roleEditor->hasFocus()) {
-        // If the editing was not ended by a FocusOut event, we have
-        // to transfer the keyboard focus back to the KItemListContainer.
+    QWidget *window = m_roleEditor->window();
+    QWidget *windowFocus = window ? window->focusWidget() : nullptr;
+    const bool otherWidgetHasFocus = windowFocus && windowFocus != m_roleEditor && windowFocus != m_roleEditor->viewport();
+    if (!otherWidgetHasFocus) {
+        // If the editing was not ended by transferring focus to another widget in this window,
+        // transfer the keyboard focus back to the KItemListContainer.
         scene()->views()[0]->parentWidget()->setFocus();
     }
 
@@ -1750,6 +1755,7 @@ void KStandardItemListWidget::closeRoleEditor()
     m_oldRoleEditor = m_roleEditor;
     m_roleEditor->hide();
     m_roleEditor = nullptr;
+    update();
 }
 
 QPixmap KStandardItemListWidget::pixmapForIcon(const QString &name, const QSize &size, QIcon::Mode mode) const

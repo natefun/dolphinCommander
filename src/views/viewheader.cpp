@@ -71,7 +71,6 @@ ViewHeader::ViewHeader(DolphinView *view, DolphinUrlNavigator *navigator, QWidge
     connect(m_forward, &QToolButton::clicked, m_navigator, &KUrlNavigator::goForward);
     connect(m_up, &QToolButton::clicked, m_navigator, &KUrlNavigator::goUp);
     connect(m_navigator, &KUrlNavigator::historyChanged, this, &ViewHeader::updateNavigation);
-    connect(m_view, &DolphinView::urlChanged, this, &ViewHeader::updateNavigation);
 
     const struct {
         DolphinView::Mode mode;
@@ -81,13 +80,14 @@ ViewHeader::ViewHeader(DolphinView *view, DolphinUrlNavigator *navigator, QWidge
         {DolphinView::DetailsView, "view-list-details", i18nc("@info:tooltip", "Details")},
         {DolphinView::CompactView, "view-list-text", i18nc("@info:tooltip", "Compact")},
         {DolphinView::IconsView, "view-list-icons", i18nc("@info:tooltip", "Icons")},
+        {DolphinView::ColumnsView, "view-file-columns", i18nc("@info:tooltip", "Columns")},
     };
     for (const auto &m : modes) {
         QToolButton *button = createButton(this, QString::fromLatin1(m.icon), m.toolTip);
         button->setCheckable(true);
         button->setProperty("viewMode", int(m.mode));
         connect(button, &QToolButton::clicked, this, [this, mode = m.mode]() {
-            m_view->setViewMode(mode);
+            Q_EMIT viewModeRequested(mode);
             updateModes();
         });
         row->addWidget(button);
@@ -122,6 +122,24 @@ ViewHeader::ViewHeader(DolphinView *view, DolphinUrlNavigator *navigator, QWidge
         m_sortButtons.insert(r.role, button);
     }
 
+    connectView();
+}
+
+void ViewHeader::setView(DolphinView *view)
+{
+    if (view == m_view) {
+        return;
+    }
+    if (m_view) {
+        disconnect(m_view, nullptr, this, nullptr);
+    }
+    m_view = view;
+    connectView();
+}
+
+void ViewHeader::connectView()
+{
+    connect(m_view, &DolphinView::urlChanged, this, &ViewHeader::updateNavigation);
     connect(m_view, &DolphinView::urlChanged, this, &ViewHeader::updateTitle);
     connect(m_view, &DolphinView::itemCountChanged, this, &ViewHeader::updateCounts);
     connect(m_view, &DolphinView::selectionChanged, this, &ViewHeader::updateCounts);
