@@ -4,14 +4,14 @@
 # Builds dolphinCommander with its tests and checks the test run against
 # fork/expected-test-failures.txt. Run from the top of the repository.
 #
-#   fork/ci-build-and-test.sh --install-deps   in an Arch Linux container (what the GitHub workflow does)
+#   fork/ci-build-and-test.sh --install-deps   in a Manjaro or Arch Linux container (what the GitHub workflows do)
 #   fork/ci-build-and-test.sh                  on a machine that has the build dependencies
 #
 # Writes the build to build-ci/ and the test summary to build-ci/test-summary.txt.
 set -euo pipefail
 
 if [[ "${1:-}" == "--install-deps" ]]; then
-    # Dolphin's master wants the newest KDE Frameworks, which Arch has and Ubuntu does not.
+    # Dolphin's master wants recent KDE Frameworks, which Manjaro and Arch have and Ubuntu does not.
     pacman -Syu --noconfirm --needed \
         base-devel git cmake ninja python dbus xorg-server-xvfb appstream \
         extra-cmake-modules qt6-base qt6-multimedia qt6-tools \

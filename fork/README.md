@@ -16,7 +16,9 @@ history as it is and resolves each conflict once.
 | Merged, but a test that should pass fails, or the build fails | a draft pull request with the failures |
 | Conflicts that need a person | an issue with the files, no pull request |
 
-It builds in an Arch Linux container, because Dolphin's `master` needs the newest KDE Frameworks.
+It builds in a Manjaro (stable branch) container: Ubuntu's KDE Frameworks are too old for Dolphin's
+`master`, and what is built against Manjaro stable runs on Arch Linux too, which is not true the other
+way round.
 
 For the workflow to open pull requests, the repository needs Settings → Actions → General →
 "Allow GitHub Actions to create and approve pull requests".

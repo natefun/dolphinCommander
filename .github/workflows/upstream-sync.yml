@@ -24,8 +24,9 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    # Dolphin's master wants the newest KDE Frameworks, which Arch Linux has.
-    container: archlinux:latest
+    # Manjaro's stable branch: what users of Manjaro have, and older than Arch, so what is built
+    # here runs on both.
+    container: manjarolinux/base:latest
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}

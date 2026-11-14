@@ -24,7 +24,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
-    container: archlinux:latest
+    container: manjarolinux/base:latest
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -75,6 +75,9 @@ jobs:
           runuser -u builder -- updpkgsums
           runuser -u builder -- makepkg -f --noconfirm
           runuser -u builder -- makepkg --printsrcinfo > .SRCINFO
+          # The package has to install and start, or there is no release.
+          pacman -U --noconfirm ./*.pkg.tar.zst
+          QT_QPA_PLATFORM=offscreen dolphincommander --version
 
       - name: Make the GitHub release
         if: steps.decide.outputs.release == 'yes'
@@ -99,7 +102,7 @@ jobs:
             echo '```'
             echo
             echo "or install \`dolphincommander\` from the AUR. It installs under /opt and can be installed next to Dolphin."
-            echo "The package is built against Arch Linux's libraries of the day; Manjaro's stable branch can be a few weeks behind them."
+            echo "It is built against Manjaro's stable branch, and runs on Arch Linux too."
           } > notes.md
           gh release create "v$version" /tmp/pkg/*.pkg.tar.zst \
             --title "dolphinCommander $version" --notes-file notes.md

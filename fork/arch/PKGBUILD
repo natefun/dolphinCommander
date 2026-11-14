@@ -3,6 +3,9 @@
 # The PKGBUILD of dolphinCommander, for the AUR and for the package of every GitHub release.
 # The release workflow sets pkgver and the checksum and publishes it; see fork/README.md.
 #
+# It builds against Manjaro's stable branch, whose Qt and KDE Frameworks can be a few weeks older
+# than Arch's: a program built against them runs on the newer ones too, not the other way round.
+#
 # dolphinCommander installs under /opt, so that it can be installed next to Dolphin: both build
 # libdolphinprivate, the same settings files and the same translations. Only what has a name of
 # its own goes to /usr: the launcher, the .desktop file, the icon and the AppStream metadata.
@@ -21,10 +24,7 @@ depends=(
     kservice ktextwidgets kwidgetsaddons kwindowsystem kxmlgui solid
 )
 makedepends=(cmake extra-cmake-modules kdoctools ninja)
-optdepends=(
-    'kio-extras: thumbnails and more locations'
-    'packagekit-qt6: installing the programs that service menus need'
-)
+optdepends=('kio-extras: thumbnails and more locations')
 options=('!debug')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('SKIP')
@@ -36,7 +36,8 @@ build() {
         -DCMAKE_BUILD_TYPE=None \
         -DCMAKE_INSTALL_PREFIX="$_prefix" \
         -DCMAKE_INSTALL_RPATH="$_prefix/lib" \
-        -DBUILD_TESTING=OFF
+        -DBUILD_TESTING=OFF \
+        -DCMAKE_DISABLE_FIND_PACKAGE_PackageKitQt6=ON
     cmake --build build
 }
 
