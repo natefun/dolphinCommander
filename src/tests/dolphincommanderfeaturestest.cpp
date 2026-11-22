@@ -24,7 +24,9 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QFile>
 #include <QHBoxLayout>
+#include <QImage>
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QTest>
@@ -51,6 +53,7 @@ private Q_SLOTS:
     void testChecksums();
     void testFindDuplicates();
     void testFolderSize();
+    void testConvertImage();
 
 private:
     void waitForViewReady(DolphinViewContainer *container);
@@ -269,6 +272,21 @@ void DolphinCommanderFeaturesTest::testChecksums()
     QVERIFY(CommanderTools::checksumsMatch(QStringLiteral("  900150983CD24FB0D6963F7D28E17F72\n"), QStringLiteral("900150983cd24fb0d6963f7d28e17f72")));
     QVERIFY(!CommanderTools::checksumsMatch(QString(), QString()));
     QVERIFY(!CommanderTools::checksumsMatch(QStringLiteral("aa"), QStringLiteral("ab")));
+}
+
+void DolphinCommanderFeaturesTest::testConvertImage()
+{
+    TestDir dir;
+    QImage image(4, 4, QImage::Format_RGB32);
+    image.fill(Qt::red);
+    QVERIFY(image.save(dir.path() + QStringLiteral("/pic.png")));
+    const QString jpg = CommanderTools::convertImage(dir.path() + QStringLiteral("/pic.png"), QStringLiteral("jpg"));
+    QVERIFY(jpg.endsWith(QStringLiteral("/pic.jpg")));
+    QVERIFY(QFile::exists(jpg));
+    // Not overwritten, and no image is no conversion.
+    QVERIFY(CommanderTools::convertImage(dir.path() + QStringLiteral("/pic.png"), QStringLiteral("jpg")).isEmpty());
+    dir.createFile("text", "hello");
+    QVERIFY(CommanderTools::convertImage(dir.path() + QStringLiteral("/text"), QStringLiteral("png")).isEmpty());
 }
 
 void DolphinCommanderFeaturesTest::testFolderSize()

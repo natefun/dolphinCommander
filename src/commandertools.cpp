@@ -22,6 +22,7 @@
 #include <QFontDatabase>
 #include <QFutureWatcher>
 #include <QHeaderView>
+#include <QImage>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMimeDatabase>
@@ -89,6 +90,20 @@ bool CommanderTools::checksumsMatch(const QString &a, const QString &b)
         return s.simplified().remove(QLatin1Char(' ')).toLower();
     };
     return !clean(a).isEmpty() && clean(a) == clean(b);
+}
+
+QString CommanderTools::convertImage(const QString &source, const QString &format)
+{
+    const QImage image(source);
+    if (image.isNull()) {
+        return QString();
+    }
+    const QFileInfo info(source);
+    const QString target = info.absolutePath() + QLatin1Char('/') + info.completeBaseName() + QLatin1Char('.') + format;
+    if (QFile::exists(target) || !image.save(target, format.toLatin1().constData())) {
+        return QString();
+    }
+    return target;
 }
 
 qint64 CommanderTools::folderSize(const QString &folder)

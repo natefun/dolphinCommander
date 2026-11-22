@@ -2118,6 +2118,33 @@ void DolphinMainWindow::showFolderSizes()
     dialog->show();
 }
 
+void DolphinMainWindow::convertImages()
+{
+    const KFileItemList items = m_activeViewContainer->view()->selectedItems();
+    if (items.isEmpty()) {
+        m_activeViewContainer->showMessage(i18nc("@info", "Select the images to convert."), KMessageWidget::Information);
+        return;
+    }
+    bool ok = false;
+    const QString format = QInputDialog::getItem(this,
+                                                 i18nc("@title:window", "Convert Images"),
+                                                 i18nc("@label:listbox", "Save as:"),
+                                                 {QStringLiteral("png"), QStringLiteral("jpg"), QStringLiteral("webp"), QStringLiteral("bmp")},
+                                                 0,
+                                                 false,
+                                                 &ok);
+    if (!ok) {
+        return;
+    }
+    int done = 0;
+    for (const KFileItem &item : items) {
+        if (item.isLocalFile() && !CommanderTools::convertImage(item.localPath(), format).isEmpty()) {
+            ++done;
+        }
+    }
+    m_activeViewContainer->showMessage(i18ncp("@info:status", "%1 image converted.", "%1 images converted.", done), KMessageWidget::Information);
+}
+
 void DolphinMainWindow::newNote()
 {
     const QUrl folder = m_activeViewContainer->url();
@@ -2699,6 +2726,11 @@ void DolphinMainWindow::setupActions()
     folderSizes->setToolTip(i18nc("@info:tooltip", "Work out how big the selected folders are, or all folders shown."));
     folderSizes->setIcon(QIcon::fromTheme(QStringLiteral("drive-harddisk")));
     connect(folderSizes, &QAction::triggered, this, &DolphinMainWindow::showFolderSizes);
+
+    QAction *convert = actionCollection()->addAction(QStringLiteral("convert_images"));
+    convert->setText(i18nc("@action:inmenu", "Convert Images…"));
+    convert->setIcon(QIcon::fromTheme(QStringLiteral("viewimage")));
+    connect(convert, &QAction::triggered, this, &DolphinMainWindow::convertImages);
 
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));

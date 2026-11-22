@@ -39,6 +39,10 @@ QString hashFile(const QString &path, QCryptographicHash::Algorithm algorithm);
 /** True when two hex digests are the same, ignoring case and the whitespace a pasted one brings. */
 bool checksumsMatch(const QString &a, const QString &b);
 
+/** Saves the image at @p source next to itself in @p format ("png", "jpg", "webp", ...) and returns the new path, or an empty string if it failed. An existing
+ * file is not overwritten. */
+QString convertImage(const QString &source, const QString &format);
+
 /** The total size in bytes of the files below @p folder, without following symlinks. */
 qint64 folderSize(const QString &folder);
 
