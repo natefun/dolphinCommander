@@ -75,6 +75,13 @@ class ActionTextHelper;
  *
  * Handles the menus, toolbars and Dolphin views.
  */
+/** The layouts of the main window: Standard (both sides), Columns (Miller columns) and Classic (one side with the information panel). */
+enum class CommanderLayout {
+    Standard,
+    Columns,
+    Classic
+};
+
 class DolphinMainWindow : public KXmlGuiWindow
 {
     Q_OBJECT
@@ -641,6 +648,8 @@ private Q_SLOTS:
     void showDuplicateFinder();
     /** Makes a text file named by the date in the folder and starts renaming it. */
     void newNote();
+    /** The layouts: Standard (both sides), Columns (Miller columns) and Classic (one side with the information panel). */
+    void setCommanderLayout(CommanderLayout layout);
     /** Pops up the messages shown lately. */
     void showRecentNotifications();
     /** Makes a to-do (a .2do file) in the folder, or marks the selected to-dos done or open again. */

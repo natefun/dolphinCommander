@@ -2209,6 +2209,35 @@ void DolphinMainWindow::showRecentNotifications()
     menu->popup(m_activeViewContainer->mapToGlobal(QPoint(24, 24)));
 }
 
+void DolphinMainWindow::setCommanderLayout(CommanderLayout layout)
+{
+    QAction *infoPanel = actionCollection()->action(QStringLiteral("show_information_panel"));
+    switch (layout) {
+    case CommanderLayout::Standard:
+        m_sidesSplitter->showBothSides();
+        if (infoPanel && infoPanel->isChecked()) {
+            infoPanel->trigger();
+        }
+        break;
+    case CommanderLayout::Columns:
+        m_sidesSplitter->showBothSides();
+        if (QAction *columns = actionCollection()->action(QStringLiteral("columns"))) {
+            columns->trigger();
+        }
+        break;
+    case CommanderLayout::Classic: {
+        m_sidesSplitter->showBothSides();
+        QWidget *other = inactiveTabWidget();
+        const bool otherIsLeft = m_sidesSplitter->widget(0) == other || m_sidesSplitter->widget(0)->isAncestorOf(other);
+        m_sidesSplitter->moveDivider(otherIsLeft ? -1 : 1);
+        if (infoPanel && !infoPanel->isChecked()) {
+            infoPanel->trigger();
+        }
+        break;
+    }
+    }
+}
+
 void DolphinMainWindow::newNote()
 {
     const QUrl folder = m_activeViewContainer->url();
@@ -2832,6 +2861,24 @@ void DolphinMainWindow::setupActions()
             w->update();
         }
     });
+
+    auto *layoutMenu = actionCollection()->add<KActionMenu>(QStringLiteral("commander_layouts"));
+    layoutMenu->setText(i18nc("@action:inmenu", "Layout"));
+    layoutMenu->setIcon(QIcon::fromTheme(QStringLiteral("view-split-left-right")));
+    const struct {
+        const char *label;
+        CommanderLayout layout;
+    } layouts[] = {{"Standard: Two Sides", CommanderLayout::Standard},
+                   {"Columns: Miller Columns", CommanderLayout::Columns},
+                   {"Classic: One Side with Information", CommanderLayout::Classic}};
+    for (const auto &entry : layouts) {
+        auto *layoutAction = new QAction(i18nc("@action:inmenu", entry.label), layoutMenu);
+        layoutMenu->addAction(layoutAction);
+        const CommanderLayout chosen = entry.layout;
+        connect(layoutAction, &QAction::triggered, this, [this, chosen]() {
+            setCommanderLayout(chosen);
+        });
+    }
 
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));
