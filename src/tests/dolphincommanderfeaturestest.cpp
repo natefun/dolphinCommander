@@ -65,6 +65,7 @@ private Q_SLOTS:
     void testConvertImage();
     void testTheTwoSidesCanBeSwapped();
     void testAFolderCanBeMirroredToTheOtherSide();
+    void testTheOtherSideCanBeUpdated();
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
@@ -565,6 +566,43 @@ void DolphinCommanderFeaturesTest::testAFolderCanBeMirroredToTheOtherSide()
     actions->action(QStringLiteral("mirror_to_other_side"))->trigger();
     QTRY_COMPARE(first->url().adjusted(QUrl::StripTrailingSlash).path(), b.url().adjusted(QUrl::StripTrailingSlash).path());
     QCOMPARE(second->url().adjusted(QUrl::StripTrailingSlash).path(), b.url().adjusted(QUrl::StripTrailingSlash).path());
+}
+
+void DolphinCommanderFeaturesTest::testTheOtherSideCanBeUpdated()
+{
+    TestDir source;
+    TestDir target;
+    source.createFile("new.txt", "fresh");
+    source.createFile("both.txt", "newer");
+    target.createFile("both.txt", "older", QDateTime::currentDateTime().addDays(-3));
+    target.createFile("only-there.txt", "stays");
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    KActionCollection *actions = window.actionCollection();
+
+    window.openDirectories({target.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    DolphinViewContainer *targetSide = window.activeViewContainer();
+    actions->action(QStringLiteral("focus_inactive_split_view"))->trigger();
+    window.openDirectories({source.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer() && window.activeViewContainer() != targetSide);
+    QTRY_VERIFY(window.activeViewContainer()->view()->itemsCount() == 2);
+    QTRY_VERIFY(targetSide->view()->itemsCount() == 2);
+
+    actions->action(QStringLiteral("sync_to_other_side"))->trigger();
+    QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(target.path() + QStringLiteral("/new.txt")), 10000);
+    QTRY_VERIFY_WITH_TIMEOUT(QFile(target.path() + QStringLiteral("/both.txt")).size() == 5, 10000);
+    QVERIFY(QFile::exists(target.path() + QStringLiteral("/only-there.txt")));
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

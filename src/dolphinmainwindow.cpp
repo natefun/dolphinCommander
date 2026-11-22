@@ -2109,7 +2109,8 @@ void DolphinMainWindow::syncToOtherSide()
         m_activeViewContainer->showMessage(i18nc("@info:status", "The other side is up to date."), KMessageWidget::Information);
         return;
     }
-    auto *job = KIO::copy(toCopy, other->url());
+    // What is copied is missing or older there: it replaces it without asking.
+    auto *job = KIO::copy(toCopy, other->url(), KIO::Overwrite);
     JobQueue::add(job);
     job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, this));
     KIO::FileUndoManager::self()->recordCopyJob(job);
