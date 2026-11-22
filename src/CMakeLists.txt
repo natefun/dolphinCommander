@@ -294,6 +294,7 @@ target_sources(dolphinstatic PRIVATE
     admin/workerintegration.cpp
     animatedheightwidget.cpp
     disabledactionnotifier.cpp
+    commandertools.cpp
     dolphinbookmarkhandler.cpp
     dolphindockwidget.cpp
     dolphinmainwindow.cpp
@@ -373,6 +374,7 @@ target_sources(dolphinstatic PRIVATE
     dolphincontextmenu.h
     dolphinnavigatorswidgetaction.h
     dolphintabbar.h
+    commandertools.h
     dolphinpackageinstaller.h
     dolphinplacesmodelsingleton.h
     dolphinrecenttabsmenu.h

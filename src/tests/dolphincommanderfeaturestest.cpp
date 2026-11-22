@@ -7,6 +7,7 @@
  * Dolphin that breaks one of these features fails here. Dolphin's own tests test Dolphin.
  */
 
+#include "commandertools.h"
 #include "dolphin_generalsettings.h"
 #include "dolphinnavigatorswidgetaction.h"
 #include "dolphintabbar.h"
@@ -45,6 +46,9 @@ private Q_SLOTS:
     void testTypingFiltersAndEscapeClosesTheFilter();
     void testATabMovesToTheOtherSide();
     void testATabDroppedAmongPinnedTabsGoesAfterThem();
+    void testRenamePatterns_data();
+    void testRenamePatterns();
+    void testChecksums();
 
 private:
     void waitForViewReady(DolphinViewContainer *container);
@@ -223,6 +227,46 @@ void DolphinCommanderFeaturesTest::testATabMovesToTheOtherSide()
     moved->activeViewContainer()->setUrl(m_testDir->url());
     QTRY_VERIFY_WITH_TIMEOUT(rightUrlChanged.count() > 0, 5000);
     QCOMPARE(leftUrlChanged.count(), 0);
+}
+
+void DolphinCommanderFeaturesTest::testRenamePatterns_data()
+{
+    QTest::addColumn<QString>("pattern");
+    QTest::addColumn<QString>("name");
+    QTest::addColumn<int>("counter");
+    QTest::addColumn<QString>("expected");
+
+    QTest::newRow("whole name") << "[F]" << "photo.final.jpg" << 1 << "photo.final.jpg";
+    QTest::newRow("name and extension") << "[N]-x.[E]" << "photo.final.jpg" << 1 << "photo.final-x.jpg";
+    QTest::newRow("no extension") << "[N]|[E]|" << "README" << 1 << "README||";
+    QTest::newRow("dotfile has no extension") << "[N]" << ".bashrc" << 1 << ".bashrc";
+    QTest::newRow("counter") << "pic[C].[E]" << "a.png" << 7 << "pic7.png";
+    QTest::newRow("padded counter") << "pic[C3].[E]" << "a.png" << 7 << "pic007.png";
+    QTest::newRow("date") << "[d]_[t]" << "a" << 1 << "2026-11-21_154500";
+    QTest::newRow("unknown tokens stay") << "[X][" << "a" << 1 << "[X][";
+}
+
+void DolphinCommanderFeaturesTest::testRenamePatterns()
+{
+    QFETCH(QString, pattern);
+    QFETCH(QString, name);
+    QFETCH(int, counter);
+    QFETCH(QString, expected);
+    const QDateTime modified(QDate(2026, 11, 21), QTime(15, 45, 0));
+    QCOMPARE(CommanderTools::expandRenamePattern(pattern, name, counter, modified), expected);
+}
+
+void DolphinCommanderFeaturesTest::testChecksums()
+{
+    TestDir dir;
+    dir.createFile("f", "abc");
+    const QString path = dir.path() + QStringLiteral("/f");
+    QCOMPARE(CommanderTools::hashFile(path, QCryptographicHash::Md5), QStringLiteral("900150983cd24fb0d6963f7d28e17f72"));
+    QCOMPARE(CommanderTools::hashFile(path, QCryptographicHash::Sha256), QStringLiteral("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"));
+    QCOMPARE(CommanderTools::hashFile(dir.path() + QStringLiteral("/missing"), QCryptographicHash::Md5), QString());
+    QVERIFY(CommanderTools::checksumsMatch(QStringLiteral("  900150983CD24FB0D6963F7D28E17F72\n"), QStringLiteral("900150983cd24fb0d6963f7d28e17f72")));
+    QVERIFY(!CommanderTools::checksumsMatch(QString(), QString()));
+    QVERIFY(!CommanderTools::checksumsMatch(QStringLiteral("aa"), QStringLiteral("ab")));
 }
 
 void DolphinCommanderFeaturesTest::testATabDroppedAmongPinnedTabsGoesAfterThem()

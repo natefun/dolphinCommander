@@ -120,6 +120,7 @@ private Q_SLOTS:
     void testTheSecondViewOfASplitReportsARedirectionAsTheFirst();
     void testSynchronizedBrowsingFollowsOnTheOtherSide();
     void testCompareFoldersSelectsWhatDiffers();
+    void testAWorkspaceReopensTheTabsOfBothSides();
     void cleanupTestCase();
 
 private:
@@ -445,6 +446,32 @@ void DolphinMainWindowTest::testCompareFoldersSelectsWhatDiffers()
     };
     QCOMPARE(names(leftContainer->view()), (QStringList{QStringLiteral("newerleft"), QStringLiteral("onlyleft"), QStringLiteral("sizeonly")}));
     QCOMPARE(names(rightContainer->view()), (QStringList{QStringLiteral("onlyright"), QStringLiteral("sizeonly")}));
+}
+
+// A saved workspace opens the tabs of both sides again.
+void DolphinMainWindowTest::testAWorkspaceReopensTheTabsOfBothSides()
+{
+    TestDir left;
+    TestDir right;
+    m_mainWindow->openDirectories({left.url()}, false);
+    auto *leftTabs = m_mainWindow->findChild<DolphinTabWidget *>("tabWidget");
+    auto *rightTabs = m_mainWindow->findChild<DolphinTabWidget *>("rightTabWidget");
+    rightTabs->currentTabPage()->activeViewContainer()->setUrl(right.url());
+    QTRY_COMPARE(rightTabs->currentTabPage()->primaryViewContainer()->url().adjusted(QUrl::StripTrailingSlash), right.url().adjusted(QUrl::StripTrailingSlash));
+    const int leftBefore = leftTabs->count();
+    const int rightBefore = rightTabs->count();
+
+    m_mainWindow->saveWorkspace(QStringLiteral("test workspace"));
+    m_mainWindow->openWorkspace(QStringLiteral("test workspace"));
+
+    QCOMPARE(leftTabs->count(), leftBefore + leftBefore);
+    QCOMPARE(rightTabs->count(), rightBefore + rightBefore);
+    auto sameUrl = [](const QUrl &a, const QUrl &b) {
+        return a.adjusted(QUrl::StripTrailingSlash) == b.adjusted(QUrl::StripTrailingSlash);
+    };
+    QVERIFY(sameUrl(rightTabs->tabPageAt(rightTabs->count() - 1)->primaryViewContainer()->url(), right.url()));
+    QVERIFY(sameUrl(leftTabs->tabPageAt(leftTabs->count() - 1)->primaryViewContainer()->url(), left.url()));
+    KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Workspaces")).deleteGroup(QStringLiteral("test workspace"));
 }
 
 // A tab opened straight onto a search url, as session restore does, shows a search before any

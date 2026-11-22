@@ -57,6 +57,11 @@
             <Action name="focus_inactive_split_view" />
             <Action name="sync_browsing" />
             <Action name="compare_directories" />
+            <Action name="folder_hotlist" />
+            <Action name="quick_view" />
+            <Action name="show_checksum" />
+            <Action name="batch_rename" />
+            <Action name="workspaces_menu" />
             <Action name="split_stash" />
             <Action name="redisplay" />
             <Action name="stop" />

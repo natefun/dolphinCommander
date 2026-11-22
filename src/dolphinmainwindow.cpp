@@ -10,6 +10,7 @@
 #include "sidessplitter.h"
 
 #include "admin/workerintegration.h"
+#include "commandertools.h"
 #include "dolphin_generalsettings.h"
 #include "dolphinbookmarkhandler.h"
 #include "dolphincontextmenu.h"
@@ -85,7 +86,9 @@
 #include <QDomDocument>
 #include <QFileInfo>
 #include <QHBoxLayout>
+#include <QInputDialog>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMenuBar>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -1938,6 +1941,133 @@ void DolphinMainWindow::activeViewChanged(DolphinViewContainer *viewContainer)
     Q_EMIT selectionChanged(m_activeViewContainer->view()->selectedItems());
 }
 
+void DolphinMainWindow::showFolderHotlist()
+{
+    auto *menu = new QMenu(this);
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+    const KFilePlacesModel *places = DolphinPlacesModelSingleton::instance().placesModel();
+    for (int row = 0; row < places->rowCount(); ++row) {
+        const QModelIndex index = places->index(row, 0);
+        if (places->isHidden(index) || !places->url(index).isValid()) {
+            continue;
+        }
+        const QUrl url = places->url(index);
+        QAction *action = menu->addAction(places->icon(index), places->text(index));
+        connect(action, &QAction::triggered, this, [this, url]() {
+            changeUrl(url);
+        });
+    }
+    menu->popup(m_activeViewContainer->mapToGlobal(QPoint(24, 24)));
+}
+
+void DolphinMainWindow::showChecksum()
+{
+    const KFileItemList items = m_activeViewContainer->view()->selectedItems();
+    if (items.isEmpty() || items.first().isDir()) {
+        m_activeViewContainer->showMessage(i18nc("@info", "Select a file to calculate its checksum."), KMessageWidget::Information);
+        return;
+    }
+    auto *dialog = new ChecksumDialog(items.first(), this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->show();
+}
+
+void DolphinMainWindow::showBatchRename()
+{
+    const KFileItemList items = m_activeViewContainer->view()->selectedItems();
+    if (items.isEmpty()) {
+        m_activeViewContainer->showMessage(i18nc("@info", "Select the items to rename."), KMessageWidget::Information);
+        return;
+    }
+    auto *dialog = new BatchRenameDialog(items, this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->open();
+}
+
+void DolphinMainWindow::showQuickView()
+{
+    KFileItemList items;
+    DolphinTabPage *otherPage = inactiveTabWidget()->currentTabPage();
+    if (otherPage && otherPage->activeViewContainer() != m_activeViewContainer) {
+        items = otherPage->activeViewContainer()->view()->selectedItems();
+    }
+    if (items.isEmpty()) {
+        items = m_activeViewContainer->view()->selectedItems();
+    }
+    if (items.isEmpty() || items.first().isDir()) {
+        m_activeViewContainer->showMessage(i18nc("@info", "Select a file to look into."), KMessageWidget::Information);
+        return;
+    }
+    if (!m_quickView) {
+        m_quickView = new QuickViewDialog(this);
+    }
+    m_quickView->show(items.first());
+}
+
+void DolphinMainWindow::fillWorkspacesMenu(QMenu *menu)
+{
+    menu->clear();
+    KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("Workspaces"));
+    QAction *save = menu->addAction(QIcon::fromTheme(QStringLiteral("document-save")), i18nc("@action:inmenu", "Save Tabs as Workspace…"));
+    connect(save, &QAction::triggered, this, [this]() {
+        bool ok = false;
+        const QString name =
+            QInputDialog::getText(this, i18nc("@title:window", "Save Workspace"), i18nc("@label:textbox", "Name:"), QLineEdit::Normal, QString(), &ok)
+                .trimmed();
+        if (ok && !name.isEmpty()) {
+            saveWorkspace(name);
+        }
+    });
+    const QStringList names = group.groupList();
+    if (!names.isEmpty()) {
+        menu->addSeparator();
+    }
+    for (const QString &name : names) {
+        QAction *open = menu->addAction(QIcon::fromTheme(QStringLiteral("window-duplicate")), name);
+        connect(open, &QAction::triggered, this, [this, name]() {
+            openWorkspace(name);
+        });
+    }
+    if (!names.isEmpty()) {
+        QMenu *remove = menu->addMenu(QIcon::fromTheme(QStringLiteral("edit-delete")), i18nc("@action:inmenu", "Remove Workspace"));
+        for (const QString &name : names) {
+            connect(remove->addAction(name), &QAction::triggered, this, [name]() {
+                KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Workspaces")).deleteGroup(name);
+                KSharedConfig::openConfig()->sync();
+            });
+        }
+    }
+}
+
+void DolphinMainWindow::saveWorkspace(const QString &name)
+{
+    KConfigGroup parent(KSharedConfig::openConfig(), QStringLiteral("Workspaces"));
+    parent.deleteGroup(name);
+    KConfigGroup group = parent.group(name);
+    const QPair<const char *, DolphinTabWidget *> sides[2] = {{"Left", m_leftTabs}, {"Right", m_rightTabs}};
+    for (const auto &side : sides) {
+        QList<QUrl> urls;
+        for (int i = 0; i < side.second->count(); ++i) {
+            urls << side.second->tabPageAt(i)->primaryViewContainer()->url();
+        }
+        group.writeEntry(side.first, urls);
+    }
+    KSharedConfig::openConfig()->sync();
+}
+
+void DolphinMainWindow::openWorkspace(const QString &name)
+{
+    const KConfigGroup group = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Workspaces")).group(name);
+    const QPair<const char *, DolphinTabWidget *> sides[2] = {{"Left", m_leftTabs}, {"Right", m_rightTabs}};
+    for (const auto &side : sides) {
+        const QList<QUrl> urls = group.readEntry(side.first, QList<QUrl>());
+        for (const QUrl &url : urls) {
+            side.second->openNewTab(url, QUrl());
+        }
+    }
+    m_sidesSplitter->showBothSides();
+}
+
 void DolphinMainWindow::compareDirectories()
 {
     DolphinTabPage *otherPage = inactiveTabWidget()->currentTabPage();
@@ -2264,6 +2394,40 @@ void DolphinMainWindow::setupActions()
     compareDirectories->setIcon(QIcon::fromTheme(QStringLiteral("document-edit-decrypt")));
     actionCollection()->setDefaultShortcut(compareDirectories, Qt::CTRL | Qt::SHIFT | Qt::Key_F2);
     connect(compareDirectories, &QAction::triggered, this, &DolphinMainWindow::compareDirectories);
+
+    QAction *hotlist = actionCollection()->addAction(QStringLiteral("folder_hotlist"));
+    hotlist->setText(i18nc("@action:inmenu", "Folder Hotlist"));
+    hotlist->setToolTip(i18nc("@info:tooltip", "Pick a place to go to from a list."));
+    hotlist->setIcon(QIcon::fromTheme(QStringLiteral("bookmarks")));
+    actionCollection()->setDefaultShortcut(hotlist, Qt::CTRL | Qt::SHIFT | Qt::Key_F8);
+    connect(hotlist, &QAction::triggered, this, &DolphinMainWindow::showFolderHotlist);
+
+    QAction *checksum = actionCollection()->addAction(QStringLiteral("show_checksum"));
+    checksum->setText(i18nc("@action:inmenu", "Checksum…"));
+    checksum->setToolTip(i18nc("@info:tooltip", "Calculate the checksums of the selected file and check them against one."));
+    checksum->setIcon(QIcon::fromTheme(QStringLiteral("dialog-ok-apply")));
+    actionCollection()->setDefaultShortcut(checksum, Qt::CTRL | Qt::SHIFT | Qt::Key_F7);
+    connect(checksum, &QAction::triggered, this, &DolphinMainWindow::showChecksum);
+
+    QAction *batchRename = actionCollection()->addAction(QStringLiteral("batch_rename"));
+    batchRename->setText(i18nc("@action:inmenu", "Rename by Pattern…"));
+    batchRename->setToolTip(i18nc("@info:tooltip", "Rename the selected items by a pattern, with a preview."));
+    batchRename->setIcon(QIcon::fromTheme(QStringLiteral("edit-rename")));
+    actionCollection()->setDefaultShortcut(batchRename, Qt::CTRL | Qt::SHIFT | Qt::Key_F6);
+    connect(batchRename, &QAction::triggered, this, &DolphinMainWindow::showBatchRename);
+
+    QAction *quickView = actionCollection()->addAction(QStringLiteral("quick_view"));
+    quickView->setText(i18nc("@action:inmenu", "Quick View"));
+    quickView->setToolTip(i18nc("@info:tooltip", "Look into the selected file, on the other side first."));
+    quickView->setIcon(QIcon::fromTheme(QStringLiteral("view-preview")));
+    actionCollection()->setDefaultShortcut(quickView, Qt::ALT | Qt::Key_F3);
+    connect(quickView, &QAction::triggered, this, &DolphinMainWindow::showQuickView);
+
+    auto *workspaces = new KActionMenu(QIcon::fromTheme(QStringLiteral("window-duplicate")), i18nc("@action:inmenu", "Workspaces"), this);
+    actionCollection()->addAction(QStringLiteral("workspaces_menu"), workspaces);
+    connect(workspaces->menu(), &QMenu::aboutToShow, this, [this, workspaces]() {
+        fillWorkspacesMenu(workspaces->menu());
+    });
 
     QAction *showFilterBar = actionCollection()->addAction(QStringLiteral("show_filter_bar"));
     showFilterBar->setText(i18nc("@action:inmenu Tools", "Filter…"));

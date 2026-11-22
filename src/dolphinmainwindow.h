@@ -38,6 +38,8 @@ class DolphinBookmarkHandler;
 class DolphinViewActionHandler;
 class DolphinSettingsDialog;
 class DolphinViewContainer;
+class QMenu;
+class QuickViewDialog;
 class DolphinRemoteEncoding;
 class DolphinDockWidget;
 class DolphinNavigatorsWidgetAction;
@@ -631,6 +633,14 @@ private Q_SLOTS:
      */
     void updateWindowTitle();
 
+    void showFolderHotlist();
+    void showChecksum();
+    void showBatchRename();
+    void showQuickView();
+    void fillWorkspacesMenu(QMenu *menu);
+    void saveWorkspace(const QString &name);
+    void openWorkspace(const QString &name);
+
     /** Selects what differs between the two sides. */
     void compareDirectories();
 
@@ -807,6 +817,7 @@ private:
 
     /** The tab widget of the side that is currently active. It is always either #m_leftTabs or #m_rightTabs. */
     DolphinTabWidget *m_tabWidget;
+    QPointer<QuickViewDialog> m_quickView;
     QUrl m_syncPreviousUrl; // the active view's url before its last change, for synchronized browsing
     SidesSplitter *m_sidesSplitter = nullptr;
     DolphinTabWidget *m_leftTabs = nullptr;
