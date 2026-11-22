@@ -636,6 +636,11 @@ private Q_SLOTS:
     void showFolderHotlist();
     void showChecksum();
     void showBatchRename();
+    /** Asks for a wildcard pattern and (de)selects the matching items of the active view. */
+    void selectByPattern(bool select);
+    /** Makes the other side show this folder (mirror), or swaps the folders of the two sides. */
+    void mirrorToOtherSide();
+    void swapSides();
     void showQuickView();
     /** Starts Ark to pack the selection, or to unpack it into the folder on the other side. */
     void runArk(bool unpack);

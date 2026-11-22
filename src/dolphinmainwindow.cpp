@@ -1973,6 +1973,44 @@ void DolphinMainWindow::showChecksum()
     dialog->show();
 }
 
+void DolphinMainWindow::selectByPattern(bool select)
+{
+    bool ok = false;
+    const QString pattern = QInputDialog::getText(this,
+                                                  select ? i18nc("@title:window", "Select by Pattern") : i18nc("@title:window", "Deselect by Pattern"),
+                                                  i18nc("@label:textbox", "Wildcard pattern, for example *.jpg:"),
+                                                  QLineEdit::Normal,
+                                                  QStringLiteral("*"),
+                                                  &ok);
+    if (ok && !pattern.isEmpty()) {
+        m_activeViewContainer->view()->selectItems(QRegularExpression(QRegularExpression::wildcardToRegularExpression(pattern)), select);
+    }
+}
+
+void DolphinMainWindow::mirrorToOtherSide()
+{
+    DolphinTabPage *otherPage = inactiveTabWidget()->currentTabPage();
+    DolphinViewContainer *other = otherPage ? otherPage->activeViewContainer() : nullptr;
+    if (!other || !m_activeViewContainer || other == m_activeViewContainer) {
+        return;
+    }
+    m_sidesSplitter->showBothSides();
+    other->setUrl(m_activeViewContainer->url());
+}
+
+void DolphinMainWindow::swapSides()
+{
+    DolphinTabPage *otherPage = inactiveTabWidget()->currentTabPage();
+    DolphinViewContainer *other = otherPage ? otherPage->activeViewContainer() : nullptr;
+    if (!other || !m_activeViewContainer || other == m_activeViewContainer) {
+        return;
+    }
+    m_sidesSplitter->showBothSides();
+    const QUrl mine = m_activeViewContainer->url();
+    m_activeViewContainer->setUrl(other->url());
+    other->setUrl(mine);
+}
+
 void DolphinMainWindow::showBatchRename()
 {
     const KFileItemList items = m_activeViewContainer->view()->selectedItems();
@@ -2434,6 +2472,31 @@ void DolphinMainWindow::setupActions()
     checksum->setIcon(QIcon::fromTheme(QStringLiteral("dialog-ok-apply")));
     actionCollection()->setDefaultShortcut(checksum, Qt::CTRL | Qt::SHIFT | Qt::Key_F7);
     connect(checksum, &QAction::triggered, this, &DolphinMainWindow::showChecksum);
+
+    QAction *selectPattern = actionCollection()->addAction(QStringLiteral("select_by_pattern"));
+    selectPattern->setText(i18nc("@action:inmenu", "Select by Pattern…"));
+    selectPattern->setIcon(QIcon::fromTheme(QStringLiteral("edit-select-text")));
+    actionCollection()->setDefaultShortcut(selectPattern, Qt::CTRL | Qt::Key_Plus);
+    connect(selectPattern, &QAction::triggered, this, [this]() {
+        selectByPattern(true);
+    });
+    QAction *deselectPattern = actionCollection()->addAction(QStringLiteral("deselect_by_pattern"));
+    deselectPattern->setText(i18nc("@action:inmenu", "Deselect by Pattern…"));
+    deselectPattern->setIcon(QIcon::fromTheme(QStringLiteral("edit-select-none")));
+    actionCollection()->setDefaultShortcut(deselectPattern, Qt::CTRL | Qt::Key_Minus);
+    connect(deselectPattern, &QAction::triggered, this, [this]() {
+        selectByPattern(false);
+    });
+    QAction *mirror = actionCollection()->addAction(QStringLiteral("mirror_to_other_side"));
+    mirror->setText(i18nc("@action:inmenu", "Open This Folder on the Other Side"));
+    mirror->setIcon(QIcon::fromTheme(QStringLiteral("edit-copy")));
+    actionCollection()->setDefaultShortcut(mirror, Qt::CTRL | Qt::ALT | Qt::Key_M);
+    connect(mirror, &QAction::triggered, this, &DolphinMainWindow::mirrorToOtherSide);
+    QAction *swap = actionCollection()->addAction(QStringLiteral("swap_sides"));
+    swap->setText(i18nc("@action:inmenu", "Swap the Folders of the Two Sides"));
+    swap->setIcon(QIcon::fromTheme(QStringLiteral("exchange-positions")));
+    actionCollection()->setDefaultShortcut(swap, Qt::CTRL | Qt::ALT | Qt::Key_X);
+    connect(swap, &QAction::triggered, this, &DolphinMainWindow::swapSides);
 
     QAction *batchRename = actionCollection()->addAction(QStringLiteral("batch_rename"));
     batchRename->setText(i18nc("@action:inmenu", "Rename by Pattern…"));

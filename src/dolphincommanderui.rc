@@ -34,6 +34,8 @@
             <Action name="move_to_inactive_split_view" />
             <Action name="edit_select_all" />
             <Action name="invert_selection" />
+            <Action name="select_by_pattern" />
+            <Action name="deselect_by_pattern" />
         </Menu>
         <Menu name="view">
             <Action name="view_zoom_in"/>
@@ -56,6 +58,8 @@
             <Action name="popout_split_view" />
             <Action name="focus_inactive_split_view" />
             <Action name="sync_browsing" />
+            <Action name="mirror_to_other_side" />
+            <Action name="swap_sides" />
             <Action name="compare_directories" />
             <Action name="folder_hotlist" />
             <Action name="quick_view" />
