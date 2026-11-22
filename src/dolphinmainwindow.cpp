@@ -2238,6 +2238,31 @@ void DolphinMainWindow::setCommanderLayout(CommanderLayout layout)
     }
 }
 
+void DolphinMainWindow::applyFileView(const QString &name)
+{
+    DolphinView *view = m_activeViewContainer->view();
+    const auto trigger = [this](const char *action) {
+        if (QAction *a = actionCollection()->action(QString::fromLatin1(action))) {
+            a->trigger();
+        }
+    };
+    if (name == QLatin1String("name-only")) {
+        trigger("compact");
+        view->setPreviewsShown(false);
+    } else if (name == QLatin1String("thumbnail-grid")) {
+        trigger("icons");
+        view->setPreviewsShown(true);
+    } else if (name == QLatin1String("details")) {
+        trigger("details");
+        view->setPreviewsShown(false);
+        view->setVisibleRoles({"text", "size", "modificationtime"});
+    } else if (name == QLatin1String("thumbs-details")) {
+        trigger("details");
+        view->setPreviewsShown(true);
+        view->setVisibleRoles({"text", "size", "modificationtime", "type"});
+    }
+}
+
 void DolphinMainWindow::newNote()
 {
     const QUrl folder = m_activeViewContainer->url();
@@ -2877,6 +2902,22 @@ void DolphinMainWindow::setupActions()
         const CommanderLayout chosen = entry.layout;
         connect(layoutAction, &QAction::triggered, this, [this, chosen]() {
             setCommanderLayout(chosen);
+        });
+    }
+
+    auto *fileViewsMenu = actionCollection()->add<KActionMenu>(QStringLiteral("file_views"));
+    fileViewsMenu->setText(i18nc("@action:inmenu", "File Views"));
+    fileViewsMenu->setIcon(QIcon::fromTheme(QStringLiteral("view-list-details")));
+    const struct {
+        const char *id;
+        const char *label;
+    } fileViews[] = {{"name-only", "Name Only"}, {"details", "Details"}, {"thumbnail-grid", "Thumbnail Grid"}, {"thumbs-details", "Thumbs + Details"}};
+    for (const auto &entry : fileViews) {
+        auto *fileViewAction = new QAction(i18nc("@action:inmenu", entry.label), fileViewsMenu);
+        fileViewsMenu->addAction(fileViewAction);
+        const QString id = QString::fromLatin1(entry.id);
+        connect(fileViewAction, &QAction::triggered, this, [this, id]() {
+            applyFileView(id);
         });
     }
 
