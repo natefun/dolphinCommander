@@ -648,6 +648,8 @@ private Q_SLOTS:
     void showDuplicateFinder();
     /** Makes a text file named by the date in the folder and starts renaming it. */
     void newNote();
+    /** Keeps the view mode, the previews and the columns of the active view under a name, as one more file view. */
+    void saveFileView();
     /** Applies a named file view (view mode, previews and the columns shown) to the active view. */
     void applyFileView(const QString &name);
     /** The layouts: Standard (both sides), Columns (Miller columns) and Classic (one side with the information panel). */

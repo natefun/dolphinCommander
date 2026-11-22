@@ -2256,11 +2256,48 @@ void DolphinMainWindow::applyFileView(const QString &name)
         trigger("details");
         view->setPreviewsShown(false);
         view->setVisibleRoles({"text", "size", "modificationtime"});
+    } else if (name.startsWith(QLatin1String("saved:"))) {
+        const KConfigGroup saved(KSharedConfig::openConfig(), QStringLiteral("Commander FileViews"));
+        const QStringList parts = saved.readEntry(name.mid(6), QStringList());
+        // mode action, previews (0 or 1), then the roles
+        if (parts.size() >= 3) {
+            trigger(parts.at(0).toLatin1().constData());
+            view->setPreviewsShown(parts.at(1) == QLatin1String("1"));
+            QList<QByteArray> roles;
+            for (const QString &role : parts.mid(2)) {
+                roles << role.toLatin1();
+            }
+            view->setVisibleRoles(roles);
+        }
     } else if (name == QLatin1String("thumbs-details")) {
         trigger("details");
         view->setPreviewsShown(true);
         view->setVisibleRoles({"text", "size", "modificationtime", "type"});
     }
+}
+
+void DolphinMainWindow::saveFileView()
+{
+    bool ok = false;
+    const QString name =
+        QInputDialog::getText(this, i18nc("@title:window", "Save File View"), i18nc("@label:textbox", "Name of this view:"), QLineEdit::Normal, QString(), &ok)
+            .trimmed();
+    if (!ok || name.isEmpty()) {
+        return;
+    }
+    DolphinView *view = m_activeViewContainer->view();
+    QString modeAction = QStringLiteral("details");
+    if (view->viewMode() == DolphinView::IconsView) {
+        modeAction = QStringLiteral("icons");
+    } else if (view->viewMode() == DolphinView::CompactView) {
+        modeAction = QStringLiteral("compact");
+    }
+    QStringList entry{modeAction, view->previewsShown() ? QStringLiteral("1") : QStringLiteral("0")};
+    for (const QByteArray &role : view->visibleRoles()) {
+        entry << QString::fromLatin1(role);
+    }
+    KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander FileViews")).writeEntry(name, entry);
+    m_activeViewContainer->showMessage(i18nc("@info:status", "Saved the file view %1.", name), KMessageWidget::Information);
 }
 
 void DolphinMainWindow::newNote()
@@ -2918,6 +2955,29 @@ void DolphinMainWindow::setupActions()
         const QString id = QString::fromLatin1(entry.id);
         connect(fileViewAction, &QAction::triggered, this, [this, id]() {
             applyFileView(id);
+        });
+    }
+
+    {
+        auto *saveViewAction = new QAction(i18nc("@action:inmenu", "Save Current View As…"), fileViewsMenu);
+        connect(saveViewAction, &QAction::triggered, this, &DolphinMainWindow::saveFileView);
+        fileViewsMenu->addSeparator();
+        fileViewsMenu->addAction(saveViewAction);
+        // The saved views are listed each time the menu opens.
+        auto *savedSeparator = fileViewsMenu->addSeparator();
+        connect(fileViewsMenu->menu(), &QMenu::aboutToShow, this, [this, fileViewsMenu, savedSeparator]() {
+            const QList<QAction *> all = fileViewsMenu->menu()->actions();
+            const int from = all.indexOf(savedSeparator);
+            for (int i = all.size() - 1; i > from; --i) {
+                fileViewsMenu->menu()->removeAction(all.at(i));
+                all.at(i)->deleteLater();
+            }
+            const KConfigGroup saved(KSharedConfig::openConfig(), QStringLiteral("Commander FileViews"));
+            for (const QString &savedName : saved.keyList()) {
+                connect(fileViewsMenu->menu()->addAction(savedName), &QAction::triggered, this, [this, savedName]() {
+                    applyFileView(QStringLiteral("saved:") + savedName);
+                });
+            }
         });
     }
 
