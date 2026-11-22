@@ -1143,9 +1143,13 @@ void DolphinView::updateUrl(const QUrl &url)
     m_url = url;
 }
 
+static bool s_usesApplicationPalette = false;
+
 void DolphinView::updatePalette()
 {
-    QColor color = KColorScheme(isActiveWindow() ? QPalette::Active : QPalette::Inactive, KColorScheme::View).background().color();
+    const QPalette::ColorGroup group = isActiveWindow() ? QPalette::Active : QPalette::Inactive;
+    QColor color =
+        s_usesApplicationPalette ? QApplication::palette().color(group, QPalette::Base) : KColorScheme(group, KColorScheme::View).background().color();
     if (!m_active) {
         color.setAlpha(150);
     }
@@ -2461,6 +2465,10 @@ void DolphinView::slotSortRoleChangedByHeader(const QByteArray &current, const Q
 }
 
 static bool s_hideColumnsWhenNarrow = false;
+void DolphinView::setUsesApplicationPalette(bool enabled)
+{
+    s_usesApplicationPalette = enabled;
+}
 static QHash<QByteArray, int> s_columnHideThresholds;
 
 void DolphinView::setColumnHideThresholds(const QHash<QByteArray, int> &thresholds)

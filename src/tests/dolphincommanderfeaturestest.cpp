@@ -113,6 +113,7 @@ private Q_SLOTS:
     void testClosingTheWindowCanOnlyHideIt();
     void testTheTextOfOfficeDocumentsIsShown();
     void testAPictureCanBeShownFittedFilledOrAtItsOwnSize();
+    void testTakeScreenshots();
     void testTheQuickViewOffersAMapForAPhotoWithAPosition();
     void testTheQuickViewSeeksAndStepsThroughSound();
     void testADesignCanBeTriedWithoutSavingIt();
@@ -2037,6 +2038,58 @@ void DolphinCommanderFeaturesTest::testAPictureCanBeShownFittedFilledOrAtItsOwnS
     textItem.determineMimeType();
     quick.show(textItem);
     QVERIFY(!modes->isVisibleTo(&quick));
+}
+
+void DolphinCommanderFeaturesTest::testTakeScreenshots()
+{
+    const QString outDir = qEnvironmentVariable("COMMANDER_SHOTS");
+    if (outDir.isEmpty()) {
+        QSKIP("Only when COMMANDER_SHOTS names a folder.");
+    }
+    TestDir left;
+    TestDir right;
+    for (const QString &name : {QStringLiteral("report.docx"),
+                                QStringLiteral("photo.jpg"),
+                                QStringLiteral("notes.txt"),
+                                QStringLiteral("buy milk.2do"),
+                                QStringLiteral("done thing.2dx"),
+                                QStringLiteral("song.mp3")}) {
+        left.createFile(name);
+    }
+    left.createDir(QStringLiteral("projects"));
+    left.createDir(QStringLiteral("archive"));
+    right.createFile(QStringLiteral("report.docx"));
+    right.createDir(QStringLiteral("backup"));
+    KFileMetaData::UserMetaData(left.path() + QStringLiteral("/notes.txt")).setTags({QStringLiteral("green")});
+    KFileMetaData::UserMetaData(left.path() + QStringLiteral("/photo.jpg")).setTags({QStringLiteral("red")});
+    KFileMetaData::UserMetaData(left.path() + QStringLiteral("/report.docx")).setTags({QStringLiteral("blue")});
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.resize(1200, 700);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.openDirectories({left.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    window.actionCollection()->action(QStringLiteral("focus_inactive_split_view"))->trigger();
+    window.openDirectories({right.url().toString()}, false);
+    QTest::qWait(1500);
+    window.actionCollection()->action(QStringLiteral("age_stripes"))->trigger();
+    window.actionCollection()->action(QStringLiteral("show_notifications_panel"))->trigger();
+    window.activeViewContainer()->showMessage(QStringLiteral("a message in the panel"), KMessageWidget::Information);
+    QTest::qWait(800);
+    QVERIFY(window.grab().save(outDir + QStringLiteral("/light.png")));
+    QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("dark")));
+    QTest::qWait(800);
+    QVERIFY(window.grab().save(outDir + QStringLiteral("/dark.png")));
+    QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("system")));
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

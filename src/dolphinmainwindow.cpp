@@ -65,6 +65,8 @@
 #include <KIO/JobUiDelegateFactory>
 #include <KIO/OpenFileManagerWindowJob>
 #include <KIO/OpenUrlJob>
+#include <KIconLoader>
+#include <KIconTheme>
 #include <KJobWidgets>
 #include <KLocalizedString>
 #include <KMessageBox>
@@ -2637,9 +2639,51 @@ void DolphinMainWindow::newTabFromClipboard()
     openNewTab(url);
 }
 
+// The icon theme of the desktop, noted before the program changes it.
+// Makes the widgets that already have icons take the icons of the theme that is set.
+static void iconThemeChanged()
+{
+    KIconTheme::reconfigure();
+    KIconLoader::global()->newIconLoader();
+    for (QWidget *widget : QApplication::allWidgets()) {
+        QEvent event(QEvent::StyleChange);
+        QApplication::sendEvent(widget, &event);
+    }
+}
+
+static QString systemIconThemeName()
+{
+    static const QString name = QIcon::themeName();
+    return name;
+}
+
+// Breeze icons are dark on light; on a dark theme the light variant is easier to read, and back.
+static QString iconThemeForColors(bool dark)
+{
+    const QString system = systemIconThemeName();
+    const auto installed = [](const QString &theme) {
+        for (const QString &path : QIcon::themeSearchPaths()) {
+            if (QFile::exists(path + QLatin1Char('/') + theme + QLatin1String("/index.theme"))) {
+                return true;
+            }
+        }
+        return false;
+    };
+    if (dark && system == QLatin1String("breeze") && installed(QStringLiteral("breeze-dark"))) {
+        return QStringLiteral("breeze-dark");
+    }
+    if (!dark && system == QLatin1String("breeze-dark") && installed(QStringLiteral("breeze"))) {
+        return QStringLiteral("breeze");
+    }
+    return system;
+}
+
 void DolphinMainWindow::applyColorTheme(const QString &theme)
 {
+    systemIconThemeName();
     static const QPalette systemPalette = QApplication::palette();
+    // The views take their background from the program's palette while one of the fork's themes is on.
+    DolphinView::setUsesApplicationPalette(theme == QLatin1String("dark") || theme == QLatin1String("light") || theme == QLatin1String("custom"));
     if (theme == QLatin1String("dark") || theme == QLatin1String("light") || theme == QLatin1String("custom")) {
         const bool dark = theme == QLatin1String("dark");
         QPalette palette;
@@ -2677,19 +2721,25 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
     } else {
         QApplication::setPalette(systemPalette);
     }
+    // The icons that match the colors, unless an icon theme was chosen.
+    if (KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("IconTheme", QString()).isEmpty()) {
+        QIcon::setThemeName(iconThemeForColors(QApplication::palette().color(QPalette::Base).lightnessF() < 0.5));
+        iconThemeChanged();
+    }
     KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ColorTheme", theme);
 }
 
 void DolphinMainWindow::applyTextAndIcons(int fontPointSize, const QString &iconTheme)
 {
     static const QFont systemFont = QApplication::font();
-    static const QString systemIconTheme = QIcon::themeName();
+    const QString systemIconTheme = iconThemeForColors(QApplication::palette().color(QPalette::Base).lightnessF() < 0.5);
     QFont font = systemFont;
     if (fontPointSize > 0) {
         font.setPointSize(fontPointSize);
     }
     QApplication::setFont(font);
     QIcon::setThemeName(iconTheme.isEmpty() ? systemIconTheme : iconTheme);
+    iconThemeChanged();
     KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("Commander"));
     group.writeEntry("FontPointSize", fontPointSize);
     group.writeEntry("IconTheme", iconTheme);

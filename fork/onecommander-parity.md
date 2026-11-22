@@ -52,3 +52,9 @@ covered by `testSeveralSelectedItemsShowNoFolder` in `dolphincolumnsviewtest`), 
 - Network drives and phones: OneCommander scans the Windows network and points to Phone Link; on Linux this is KIO (smb, sftp, ftp, mtp) in
   the Places panel and the location bar, which the fork inherits from Dolphin.
 - First start asks for a layout and a theme (once; not in test mode). Keep Running When the Window Is Closed hides the window into the system tray (Show and Quit in its menu); a global key (Meta+Alt+E, set through KGlobalAccel, so the desktop can change it) brings the window back from the tray or from being minimized.
+
+## Looked at, not only tested
+`COMMANDER_SHOTS=<folder> build/bin/dolphincommanderfeaturestest testTakeScreenshots` saves screenshots of the main window (light and dark) into the folder.
+Looking at them found that the Dark theme left the file lists light (they read the desktop's color scheme, not the program's palette); that is fixed, and
+the Dark theme now also picks the breeze-dark icons. Still wrong in the Dark theme: the icons of the Places panel and the view buttons stay dark on dark
+until the program is restarted.

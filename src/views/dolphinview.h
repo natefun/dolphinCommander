@@ -280,6 +280,8 @@ public:
     /** When on, the details view hides the columns that do not fit, last first, as OneCommander's file views do. */
     static void setHideColumnsWhenNarrow(bool enabled);
     static bool hideColumnsWhenNarrow();
+    /** When on, the background of the views is the one of the application's palette (a color theme of the program), not the desktop's color scheme. */
+    static void setUsesApplicationPalette(bool enabled);
     /** The width of the view under which a column is hidden, by role; a role that is not in it follows the automatic rule. */
     static void setColumnHideThresholds(const QHash<QByteArray, int> &thresholds);
     static QHash<QByteArray, int> columnHideThresholds();
