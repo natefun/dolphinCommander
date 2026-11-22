@@ -95,6 +95,7 @@ private Q_SLOTS:
     void testTheColorThemesRecolorTheProgram();
     void testACustomThemeUsesTheColorsThatWereChosen();
     void testTheFileViewDesignerEditsAndAppliesAView();
+    void testColumnsCanBeHiddenWhenTheViewIsNarrow();
     void testItemScrollingStepsByRows();
     void testASavedFileViewKeepsTheColumnWidths();
     void testAFolderImageIsPaintedBehindTheItems();
@@ -370,6 +371,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "file_views",
                                "toggle_columns_view",
                                "folders_sorted_by_name",
+                               "hide_columns_when_narrow",
                                "item_scrolling",
                                "color_theme",
                                "show_notifications_panel",
@@ -1279,6 +1281,46 @@ void DolphinCommanderFeaturesTest::testTheFileViewDesignerEditsAndAppliesAView()
     const QStringList saved = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander FileViews")).readEntry("size first", QStringList());
     QVERIFY(!saved.isEmpty());
     QVERIFY(saved.contains(QString::fromLatin1(start.at(2))));
+}
+
+void DolphinCommanderFeaturesTest::testColumnsCanBeHiddenWhenTheViewIsNarrow()
+{
+    TestDir dir;
+    dir.createFile("x");
+    GeneralSettings::setGlobalViewProps(false);
+    GeneralSettings::self()->save();
+    {
+        ViewProperties props(dir.url());
+        props.setViewMode(DolphinView::DetailsView);
+        props.setVisibleRoles({"text", "size", "modificationtime", "type"});
+        props.save();
+    }
+    DolphinViewContainer container(dir.url(), nullptr);
+    container.resize(1000, 300);
+    container.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&container));
+    QTRY_COMPARE(container.view()->itemsCount(), 1);
+    auto *list = container.view()->findChild<KItemListContainer *>();
+    QVERIFY(list);
+    const auto shown = [&]() {
+        return list->controller()->view()->visibleRoles().count();
+    };
+    QTRY_COMPARE(shown(), 4);
+
+    DolphinView::setHideColumnsWhenNarrow(true);
+    container.view()->updateResponsiveColumns();
+    QTRY_COMPARE(shown(), 4); // 1000 pixels are enough for all of them
+    container.resize(520, 300);
+    QTRY_COMPARE(shown(), 2); // the name and one more
+    container.resize(300, 300);
+    QTRY_COMPARE(shown(), 1); // only the name
+    // The folder's own settings still have all the columns.
+    QCOMPARE(ViewProperties(dir.url()).visibleRoles().count(), 4);
+    container.resize(1000, 300);
+    QTRY_COMPARE(shown(), 4);
+    DolphinView::setHideColumnsWhenNarrow(false);
+    container.resize(300, 300);
+    QTRY_COMPARE(shown(), 4); // and with the setting off, nothing is hidden
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

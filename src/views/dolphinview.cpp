@@ -1199,6 +1199,12 @@ bool DolphinView::eventFilter(QObject *watched, QEvent *event)
         }
         break;
 
+    case QEvent::Resize:
+        if (watched == m_container) {
+            updateResponsiveColumns();
+        }
+        break;
+
     case QEvent::GraphicsSceneMouseRelease:
         if (watched == m_view) {
             // A click on the checkbox of a to-do marks it done, or open again.
@@ -2454,8 +2460,44 @@ void DolphinView::slotSortRoleChangedByHeader(const QByteArray &current, const Q
     Q_EMIT sortRoleChanged(current);
 }
 
+static bool s_hideColumnsWhenNarrow = false;
+
+void DolphinView::setHideColumnsWhenNarrow(bool enabled)
+{
+    s_hideColumnsWhenNarrow = enabled;
+}
+
+bool DolphinView::hideColumnsWhenNarrow()
+{
+    return s_hideColumnsWhenNarrow;
+}
+
+void DolphinView::updateResponsiveColumns()
+{
+    if (m_mode != DetailsView || m_visibleRoles.isEmpty()) {
+        return;
+    }
+    QList<QByteArray> shown = m_visibleRoles;
+    if (s_hideColumnsWhenNarrow) {
+        // The name needs room first; every other column needs about as much as a date.
+        const int room = m_container->width() - 320;
+        const int extra = qMax(0, room / 150);
+        shown = m_visibleRoles.mid(0, 1 + extra);
+    }
+    if (shown == m_view->visibleRoles()) {
+        return;
+    }
+    m_applyingResponsiveColumns = true;
+    m_view->setVisibleRoles(shown);
+    m_applyingResponsiveColumns = false;
+}
+
 void DolphinView::slotVisibleRolesChangedByHeader(const QList<QByteArray> &current, const QList<QByteArray> &previous)
 {
+    if (m_applyingResponsiveColumns) {
+        // Hiding the columns that do not fit is not a change of the folder's view.
+        return;
+    }
     Q_UNUSED(previous)
     Q_ASSERT(m_container->controller()->view()->visibleRoles() == current);
 

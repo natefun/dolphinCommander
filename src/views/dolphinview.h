@@ -277,6 +277,12 @@ public:
      */
     virtual void readSettings();
 
+    /** When on, the details view hides the columns that do not fit, last first, as OneCommander's file views do. */
+    static void setHideColumnsWhenNarrow(bool enabled);
+    static bool hideColumnsWhenNarrow();
+    /** Shows only the columns that fit when "hide columns when narrow" is on, and all of them otherwise. The properties of the folder are left as they are. */
+    void updateResponsiveColumns();
+
     /**
      * Saves the current settings (e.g. icons size, font, ..).
      */
@@ -1156,6 +1162,7 @@ private:
     QString m_viewPropertiesContext;
     Mode m_mode;
     QList<QByteArray> m_visibleRoles;
+    bool m_applyingResponsiveColumns = false;
 
     QPointer<KIO::StatJob> m_statJobForStatusBarText;
 

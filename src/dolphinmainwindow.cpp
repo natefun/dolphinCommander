@@ -3344,6 +3344,29 @@ void DolphinMainWindow::setupActions()
         }
     });
 
+    QAction *hideNarrow = actionCollection()->addAction(QStringLiteral("hide_columns_when_narrow"));
+    hideNarrow->setText(i18nc("@action:inmenu", "Hide Columns When Narrow"));
+    hideNarrow->setToolTip(i18nc("@info:tooltip", "Show only the columns that fit in the details view, the last ones go first."));
+    hideNarrow->setIcon(QIcon::fromTheme(QStringLiteral("view-list-details")));
+    hideNarrow->setCheckable(true);
+    const bool hideNarrowOn = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("HideColumnsWhenNarrow", false);
+    hideNarrow->setChecked(hideNarrowOn);
+    DolphinView::setHideColumnsWhenNarrow(hideNarrowOn);
+    connect(hideNarrow, &QAction::toggled, this, [this](bool on) {
+        DolphinView::setHideColumnsWhenNarrow(on);
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("HideColumnsWhenNarrow", on);
+        // Every view looks at its width again.
+        for (DolphinTabWidget *tabs : {m_leftTabs, m_rightTabs}) {
+            for (int i = 0; i < tabs->count(); ++i) {
+                for (DolphinViewContainer *container : {tabs->tabPageAt(i)->primaryViewContainer(), tabs->tabPageAt(i)->secondaryViewContainer()}) {
+                    if (container) {
+                        container->view()->updateResponsiveColumns();
+                    }
+                }
+            }
+        }
+    });
+
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));
     note->setToolTip(i18nc("@info:tooltip", "Make a text file named by the date in this folder."));

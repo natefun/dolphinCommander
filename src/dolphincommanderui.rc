@@ -83,6 +83,7 @@
             <Action name="folders_sorted_by_name" />
             <Action name="color_theme" />
             <Action name="item_scrolling" />
+            <Action name="hide_columns_when_narrow" />
             <Action name="new_note" />
             <Action name="new_todo" />
             <Action name="toggle_todo_done" />
