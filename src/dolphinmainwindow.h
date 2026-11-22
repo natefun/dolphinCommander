@@ -40,6 +40,7 @@ class DolphinSettingsDialog;
 class DolphinViewContainer;
 class QMenu;
 class QuickViewDialog;
+class QSystemTrayIcon;
 class DolphinRemoteEncoding;
 class DolphinDockWidget;
 class DolphinNavigatorsWidgetAction;
@@ -150,6 +151,14 @@ public:
 
     bool isInformationPanelEnabled() const;
     bool isSplitViewEnabledInCurrentTab() const;
+
+    /** True when closing the window only hides it and the program stays in the tray. */
+    static bool keepsRunningWhenClosed();
+    static void setKeepRunningWhenClosed(bool enabled);
+    /** True while the window is hidden by closing it with "keep running" on. */
+    bool isHiddenToTray() const;
+    /** For tests, where there is no system tray: acts as if there were one. */
+    static void pretendThereIsATray(bool pretend);
 
     /**
      * Activates a user set action when double clicking the view's background.
@@ -703,6 +712,8 @@ private Q_SLOTS:
     void mirrorToOtherSide();
     void swapSides();
     void showQuickView();
+    /** Hides the window and puts an icon in the tray that brings it back. */
+    void hideToTray();
     /** Moves the quick view to the previous (-1) or next (+1) file of the view it looks into, and selects it there. */
     void stepQuickView(int delta);
     /** Starts Ark to pack the selection, or to unpack it into the folder on the other side. */
@@ -888,6 +899,10 @@ private:
     /** The tab widget of the side that is currently active. It is always either #m_leftTabs or #m_rightTabs. */
     DolphinTabWidget *m_tabWidget;
     QPointer<QuickViewDialog> m_quickView;
+    /** Closing hides the window when "keep running" is on; Quit (or the tray menu) really closes it. */
+    bool m_quitting = false;
+    bool m_hiddenToTray = false;
+    QSystemTrayIcon *m_trayIcon = nullptr;
     /** The view whose files the quick view steps through. */
     QPointer<DolphinViewContainer> m_quickViewSource;
     QUrl m_syncPreviousUrl; // the active view's url before its last change, for synchronized browsing

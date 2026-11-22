@@ -57,6 +57,7 @@
 #include <QSignalSpy>
 #include <QSpinBox>
 #include <QStandardPaths>
+#include <QSystemTrayIcon>
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTest>
@@ -105,6 +106,7 @@ private Q_SLOTS:
     void testAStyleSheetRestylesTheProgramAndTravelsWithTheTheme();
     void testTheQuickViewStepsWithTheUpAndDownKeys();
     void testAViewDesignGoesToAFileAndComesBack();
+    void testClosingTheWindowCanOnlyHideIt();
     void testADesignCanBeTriedWithoutSavingIt();
     void testTheFirstStartAsksForALayoutAndATheme();
     void testTheFileViewDesignerEditsAndAppliesAView();
@@ -385,6 +387,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "file_views",
                                "toggle_columns_view",
                                "folders_sorted_by_name",
+                               "keep_running_when_closed",
                                "hide_columns_when_narrow",
                                "item_scrolling",
                                "color_theme",
@@ -1757,6 +1760,55 @@ void DolphinCommanderFeaturesTest::testADesignCanBeTriedWithoutSavingIt()
     QTRY_COMPARE(list->controller()->view()->visibleRoles(), (QList<QByteArray>{"text", "size"}));
     GeneralSettings::setGlobalViewProps(false);
     QCOMPARE(ViewProperties(dir.url()).visibleRoles(), (QList<QByteArray>{"text", "size", "modificationtime"}));
+}
+
+void DolphinCommanderFeaturesTest::testClosingTheWindowCanOnlyHideIt()
+{
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    DolphinMainWindow::pretendThereIsATray(true);
+    QAction *keep = window.actionCollection()->action(QStringLiteral("keep_running_when_closed"));
+    QVERIFY(keep);
+
+    // Off: closing is closing.
+    keep->setChecked(false);
+    QVERIFY(!DolphinMainWindow::keepsRunningWhenClosed());
+    window.close();
+    QVERIFY(!window.isHiddenToTray());
+    window.show();
+
+    // On: closing hides the window and leaves it waiting in the tray.
+    keep->setChecked(true);
+    QVERIFY(DolphinMainWindow::keepsRunningWhenClosed());
+    window.close();
+    QVERIFY(window.isHiddenToTray());
+    QVERIFY(window.isHidden());
+    // The menu of the tray icon shows the window again, and Quit closes it for good.
+    auto *tray = window.findChild<QSystemTrayIcon *>();
+    QVERIFY(tray);
+    QVERIFY(tray->contextMenu());
+    const QList<QAction *> trayActions = tray->contextMenu()->actions();
+    QCOMPARE(trayActions.size(), 2);
+    trayActions.first()->trigger(); // Show
+    QVERIFY(!window.isHiddenToTray());
+    QVERIFY(window.isVisible());
+    window.close();
+    QVERIFY(window.isHiddenToTray());
+    trayActions.last()->trigger(); // Quit
+    QVERIFY(!window.isHiddenToTray());
+
+    keep->setChecked(false);
+    DolphinMainWindow::pretendThereIsATray(false);
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

@@ -128,6 +128,7 @@
 #include <QSpinBox>
 #include <QSplitter>
 #include <QStandardPaths>
+#include <QSystemTrayIcon>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
@@ -858,6 +859,19 @@ void DolphinMainWindow::showEvent(QShowEvent *event)
     }
 }
 
+static bool s_keepRunning = false;
+static bool s_pretendTray = false;
+
+void DolphinMainWindow::pretendThereIsATray(bool pretend)
+{
+    s_pretendTray = pretend;
+}
+
+bool DolphinMainWindow::isHiddenToTray() const
+{
+    return m_hiddenToTray;
+}
+
 void DolphinMainWindow::closeEvent(QCloseEvent *event)
 {
     // Find out if Dolphin is closed directly by the user or
@@ -866,6 +880,17 @@ void DolphinMainWindow::closeEvent(QCloseEvent *event)
     if (qApp->isSavingSession()) {
         closedByUser = false;
     }
+
+    // With "keep running when closed" the window only hides; Quit really closes it.
+    if (s_keepRunning && closedByUser && !m_quitting && (s_pretendTray || QSystemTrayIcon::isSystemTrayAvailable())) {
+        event->ignore();
+        hideToTray();
+        return;
+    }
+    if (m_trayIcon) {
+        m_trayIcon->hide();
+    }
+    m_hiddenToTray = false;
 
     if (m_leftTabs->count() + m_rightTabs->count() > 2 && GeneralSettings::confirmClosingMultipleTabs() && !GeneralSettings::rememberOpenedTabs()
         && closedByUser) {
@@ -1105,8 +1130,50 @@ void DolphinMainWindow::createFile()
     }
 }
 
+bool DolphinMainWindow::keepsRunningWhenClosed()
+{
+    return s_keepRunning;
+}
+
+void DolphinMainWindow::setKeepRunningWhenClosed(bool enabled)
+{
+    s_keepRunning = enabled;
+}
+
+void DolphinMainWindow::hideToTray()
+{
+    if (!m_trayIcon) {
+        m_trayIcon = new QSystemTrayIcon(windowIcon(), this);
+        m_trayIcon->setToolTip(QGuiApplication::applicationDisplayName());
+        auto *menu = new QMenu(this);
+        menu->addAction(QIcon::fromTheme(QStringLiteral("window-restore")), i18nc("@action:inmenu", "Show"), this, [this]() {
+            m_hiddenToTray = false;
+            showNormal();
+            raise();
+            QWidget::activateWindow();
+        });
+        menu->addAction(QIcon::fromTheme(QStringLiteral("application-exit")), i18nc("@action:inmenu", "Quit"), this, [this]() {
+            m_quitting = true;
+            close();
+        });
+        m_trayIcon->setContextMenu(menu);
+        connect(m_trayIcon, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
+            if (reason == QSystemTrayIcon::Trigger) {
+                m_hiddenToTray = false;
+                showNormal();
+                raise();
+                QWidget::activateWindow();
+            }
+        });
+    }
+    m_trayIcon->show();
+    m_hiddenToTray = true;
+    hide();
+}
+
 void DolphinMainWindow::quit()
 {
+    m_quitting = true;
     close();
 }
 
@@ -3702,6 +3769,19 @@ void DolphinMainWindow::setupActions()
                 }
             }
         }
+    });
+
+    QAction *keepRunning = actionCollection()->addAction(QStringLiteral("keep_running_when_closed"));
+    keepRunning->setText(i18nc("@action:inmenu", "Keep Running When the Window Is Closed"));
+    keepRunning->setToolTip(i18nc("@info:tooltip", "Closing the window hides it and leaves an icon in the system tray; Quit closes it for good."));
+    keepRunning->setIcon(QIcon::fromTheme(QStringLiteral("system-run")));
+    keepRunning->setCheckable(true);
+    const bool keepRunningOn = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("KeepRunningWhenClosed", false);
+    keepRunning->setChecked(keepRunningOn);
+    setKeepRunningWhenClosed(keepRunningOn);
+    connect(keepRunning, &QAction::toggled, this, [](bool on) {
+        setKeepRunningWhenClosed(on);
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("KeepRunningWhenClosed", on);
     });
 
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
