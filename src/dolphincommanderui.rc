@@ -79,6 +79,7 @@
             <Action name="new_tab_from_clipboard" />
             <Action name="queue_jobs" />
             <Action name="toggle_columns_view" />
+            <Action name="folders_sorted_by_name" />
             <Action name="new_note" />
             <Action name="new_todo" />
             <Action name="toggle_todo_done" />

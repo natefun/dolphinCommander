@@ -7,6 +7,7 @@
  */
 
 #include "dolphinmainwindow.h"
+#include "kitemviews/kfileitemmodel.h"
 #include "kitemviews/kitemlistwidget.h"
 #include "sidessplitter.h"
 
@@ -3129,6 +3130,26 @@ void DolphinMainWindow::setupActions()
         if (QAction *target = actionCollection()->action(inColumns ? QStringLiteral("details") : QStringLiteral("columns"))) {
             target->trigger();
         }
+    });
+
+    QAction *foldersByName = actionCollection()->addAction(QStringLiteral("folders_sorted_by_name"));
+    foldersByName->setText(i18nc("@action:inmenu", "Always Sort Folders by Name"));
+    foldersByName->setToolTip(i18nc("@info:tooltip", "Sort the folders by name, whatever the files are sorted by."));
+    foldersByName->setIcon(QIcon::fromTheme(QStringLiteral("view-sort-ascending-name")));
+    foldersByName->setCheckable(true);
+    const bool byNameOn = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("FoldersSortedByName", false);
+    foldersByName->setChecked(byNameOn);
+    KFileItemModel::setFoldersAlwaysSortedByName(byNameOn);
+    connect(foldersByName, &QAction::toggled, this, [this](bool on) {
+        KFileItemModel::setFoldersAlwaysSortedByName(on);
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("FoldersSortedByName", on);
+        // The views sort again.
+        for (DolphinTabWidget *tabs : {m_leftTabs, m_rightTabs}) {
+            for (int i = 0; i < tabs->count(); ++i) {
+                tabs->tabPageAt(i)->refreshViews();
+            }
+        }
+        m_activeViewContainer->view()->reload();
     });
 
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));

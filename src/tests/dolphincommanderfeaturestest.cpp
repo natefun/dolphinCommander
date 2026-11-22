@@ -16,6 +16,7 @@
 #include "dolphintabwidget.h"
 #include "dolphinviewcontainer.h"
 #include "jobqueue.h"
+#include "kitemviews/kfileitemmodel.h"
 #include "kitemviews/kitemlistwidget.h"
 #include "testdir.h"
 #include "views/columnsstrip.h"
@@ -77,6 +78,7 @@ private Q_SLOTS:
     void testThePasteAndQueueActionsWork();
     void testSelectingByPatternAndTheColumnsToggle();
     void testTheDialogsOfTheToolsShowTheirResults();
+    void testFoldersCanAlwaysBeSortedByName();
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
@@ -349,6 +351,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "commander_layouts",
                                "file_views",
                                "toggle_columns_view",
+                               "folders_sorted_by_name",
                                "queue_jobs",
                                "paste_clipboard_as_file",
                                "new_tab_from_clipboard",
@@ -889,6 +892,34 @@ void DolphinCommanderFeaturesTest::testTheDialogsOfTheToolsShowTheirResults()
     actions->action(QStringLiteral("convert_images"))->trigger();
     QTRY_VERIFY(QFile::exists(dir.path() + QStringLiteral("/pic.jpg")));
     answerer.stop();
+}
+
+void DolphinCommanderFeaturesTest::testFoldersCanAlwaysBeSortedByName()
+{
+    TestDir dir;
+    const QDateTime now = QDateTime::currentDateTime();
+    dir.createDir(QStringLiteral("alpha"), now.addDays(-10));
+    dir.createDir(QStringLiteral("zulu"), now.addDays(-5));
+    dir.createDir(QStringLiteral("mike"), now.addDays(-1));
+    DolphinViewContainer container(dir.url(), nullptr);
+    container.show();
+    QTRY_COMPARE(container.view()->itemsCount(), 3);
+    const auto names = [&]() {
+        QStringList result;
+        for (const KFileItem &item : container.view()->items()) {
+            result << item.name();
+        }
+        return result;
+    };
+    container.view()->setSortRole("modificationtime");
+    container.view()->setSortOrder(Qt::DescendingOrder);
+    QTRY_COMPARE(names(), (QStringList{QStringLiteral("mike"), QStringLiteral("zulu"), QStringLiteral("alpha")}));
+
+    KFileItemModel::setFoldersAlwaysSortedByName(true);
+    container.view()->setSortOrder(Qt::AscendingOrder);
+    container.view()->setSortOrder(Qt::DescendingOrder);
+    QTRY_COMPARE(names(), (QStringList{QStringLiteral("alpha"), QStringLiteral("mike"), QStringLiteral("zulu")}));
+    KFileItemModel::setFoldersAlwaysSortedByName(false);
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()
