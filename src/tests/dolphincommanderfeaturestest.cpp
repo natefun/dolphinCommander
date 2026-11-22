@@ -44,9 +44,11 @@
 #include <QHBoxLayout>
 #include <QImage>
 #include <QInputDialog>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMimeData>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QSpinBox>
@@ -96,6 +98,7 @@ private Q_SLOTS:
     void testACustomThemeUsesTheColorsThatWereChosen();
     void testTheTextSizeAndIconThemeCanBeChosen();
     void testAThemeCanBeSavedToAFileAndLoadedAgain();
+    void testAStyleSheetRestylesTheProgramAndTravelsWithTheTheme();
     void testTheFileViewDesignerEditsAndAppliesAView();
     void testColumnsCanBeHiddenWhenTheViewIsNarrow();
     void testEachColumnCanHaveItsOwnHideWidth();
@@ -1037,7 +1040,7 @@ void DolphinCommanderFeaturesTest::testTheColorThemesRecolorTheProgram()
     auto *themes = qobject_cast<KActionMenu *>(window.actionCollection()->action(QStringLiteral("color_theme")));
     QVERIFY(themes);
     const QList<QAction *> choices = themes->menu()->actions();
-    QCOMPARE(choices.size(), 8); // the three themes, a separator, "Text and Icons…", saving and loading, and "Custom Colors…"
+    QCOMPARE(choices.size(), 9); // the three themes, a separator, "Text and Icons…", saving and loading, "Style Sheet…" and "Custom Colors…"
     const QColor before = QApplication::palette().color(QPalette::Base);
 
     choices.at(2)->trigger(); // Dark
@@ -1471,6 +1474,71 @@ void DolphinCommanderFeaturesTest::testAThemeCanBeSavedToAFileAndLoadedAgain()
     QMetaObject::invokeMethod(&window, "applyTextAndIcons", Qt::DirectConnection, Q_ARG(int, 0), Q_ARG(QString, QString()));
     QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("system")));
     QCOMPARE(QApplication::palette().color(QPalette::Base), before);
+}
+
+void DolphinCommanderFeaturesTest::testAStyleSheetRestylesTheProgramAndTravelsWithTheTheme()
+{
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    const QString style = QStringLiteral("QLabel#styled { color: #ff0000; }");
+
+    // The dialog's text is the style sheet of the program.
+    QTimer answerer;
+    answerer.setInterval(100);
+    connect(&answerer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            if (auto *editor = modal->findChild<QPlainTextEdit *>(QStringLiteral("styleSheetEditor"))) {
+                editor->setPlainText(style);
+                static_cast<QDialog *>(modal)->accept();
+            }
+        }
+    });
+    answerer.start();
+    auto *themes = qobject_cast<KActionMenu *>(window.actionCollection()->action(QStringLiteral("color_theme")));
+    QVERIFY(themes);
+    QAction *styleAction = nullptr;
+    for (QAction *action : themes->menu()->actions()) {
+        if (action->text() == QStringLiteral("Style Sheet…")) {
+            styleAction = action;
+        }
+    }
+    QVERIFY(styleAction);
+    styleAction->trigger();
+    answerer.stop();
+    QCOMPARE(qApp->styleSheet(), style);
+
+    // A widget of the program takes the style.
+    QLabel label(QStringLiteral("hello"));
+    label.setObjectName(QStringLiteral("styled"));
+    label.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&label));
+    QCOMPARE(label.palette().color(QPalette::WindowText), QColor(QStringLiteral("#ff0000")));
+    QCOMPARE(label.grab().toImage().isNull(), false);
+
+    // It goes into a theme file and comes back out of it.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.path() + QStringLiteral("/styled.theme");
+    bool saved = false;
+    QMetaObject::invokeMethod(&window, "exportTheme", Qt::DirectConnection, Q_RETURN_ARG(bool, saved), Q_ARG(QString, path));
+    QVERIFY(saved);
+    QMetaObject::invokeMethod(&window, "applyStyleSheet", Qt::DirectConnection, Q_ARG(QString, QString()));
+    QVERIFY(qApp->styleSheet().isEmpty());
+    bool loaded = false;
+    QMetaObject::invokeMethod(&window, "importTheme", Qt::DirectConnection, Q_RETURN_ARG(bool, loaded), Q_ARG(QString, path));
+    QVERIFY(loaded);
+    QCOMPARE(qApp->styleSheet(), style);
+
+    QMetaObject::invokeMethod(&window, "applyStyleSheet", Qt::DirectConnection, Q_ARG(QString, QString()));
+    QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("system")));
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

@@ -32,7 +32,8 @@ covered by `testSeveralSelectedItemsShowNoFolder` in `dolphincolumnsviewtest`), 
 
 ## Not done
 - File View Designer: a window (File Views > Design This View) picks the columns, their order and widths and can keep the design under a name; "Hide Columns When Narrow" hides the columns that do not fit; each column can have its own width of the view under which it is hidden, set in the designer
-- XAML themes: three color themes (Follow the Desktop, Light, Dark), one with four colors you choose, a text size and an icon theme to pick; themes can be saved to a .theme file and loaded again; no editable styles
+- XAML themes: not as such. Themes are colors, a text size, an icon theme and a Qt style sheet (the program's own CSS-like language, edited in
+  Color Theme > Style Sheet…), and they can be saved to a .theme file and loaded again; there is no XAML and no layout templates
 - Copy and move queue: copy, move and paste from a view, and Update the Other Side, are queued; a drop (drag and drop) is not
 - Column hover-expand tuning: does not apply here. The Miller columns of the fork scroll sideways instead of shrinking
   the columns farther back in the path, so there is no compressed column to expand

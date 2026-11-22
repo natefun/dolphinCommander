@@ -107,12 +107,15 @@
 #include <QDomDocument>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFontDatabase>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QInputDialog>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPlainTextEdit>
 #include <QProcess>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -2561,6 +2564,36 @@ void DolphinMainWindow::editTextAndIcons()
     }
 }
 
+void DolphinMainWindow::applyStyleSheet(const QString &styleSheet)
+{
+    qApp->setStyleSheet(styleSheet);
+    KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("StyleSheet", styleSheet);
+}
+
+void DolphinMainWindow::editStyleSheet()
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle(i18nc("@title:window", "Style Sheet"));
+    dialog.resize(560, 420);
+    auto *layout = new QVBoxLayout(&dialog);
+    layout->addWidget(new QLabel(
+        i18nc("@info",
+              "A style sheet changes how the widgets of the whole program look, for example:\nQTreeView, QListView { selection-background-color: #c0392b; }"),
+        &dialog));
+    auto *editor = new QPlainTextEdit(&dialog);
+    editor->setObjectName(QStringLiteral("styleSheetEditor"));
+    editor->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    editor->setPlainText(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("StyleSheet", QString()));
+    layout->addWidget(editor);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    if (dialog.exec() == QDialog::Accepted) {
+        applyStyleSheet(editor->toPlainText());
+    }
+}
+
 bool DolphinMainWindow::exportTheme(const QString &path)
 {
     const KConfigGroup current(KSharedConfig::openConfig(), QStringLiteral("Commander"));
@@ -2570,6 +2603,7 @@ bool DolphinMainWindow::exportTheme(const QString &path)
     theme.writeEntry("CustomTheme", current.readEntry("CustomTheme", QStringList()));
     theme.writeEntry("FontPointSize", current.readEntry("FontPointSize", 0));
     theme.writeEntry("IconTheme", current.readEntry("IconTheme", QString()));
+    theme.writeEntry("StyleSheet", current.readEntry("StyleSheet", QString()));
     return file.sync();
 }
 
@@ -2587,6 +2621,7 @@ bool DolphinMainWindow::importTheme(const QString &path)
     current.writeEntry("CustomTheme", theme.readEntry("CustomTheme", QStringList()));
     applyTextAndIcons(theme.readEntry("FontPointSize", 0), theme.readEntry("IconTheme", QString()));
     applyColorTheme(theme.readEntry("ColorTheme", QStringLiteral("system")));
+    applyStyleSheet(theme.readEntry("StyleSheet", QString()));
     return true;
 }
 
@@ -3451,6 +3486,15 @@ void DolphinMainWindow::setupActions()
             m_activeViewContainer->showMessage(i18nc("@info", "That file is not a theme."), KMessageWidget::Error);
         }
     });
+    auto *styleSheetAction = new QAction(i18nc("@action:inmenu", "Style Sheet…"), themeMenu);
+    themeMenu->addAction(styleSheetAction);
+    connect(styleSheetAction, &QAction::triggered, this, &DolphinMainWindow::editStyleSheet);
+    {
+        const QString savedStyleSheet = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("StyleSheet", QString());
+        if (!savedStyleSheet.isEmpty()) {
+            qApp->setStyleSheet(savedStyleSheet);
+        }
+    }
     auto *customTheme = new QAction(i18nc("@action:inmenu", "Custom Colors…"), themeMenu);
     themeMenu->addAction(customTheme);
     connect(customTheme, &QAction::triggered, this, &DolphinMainWindow::editCustomTheme);

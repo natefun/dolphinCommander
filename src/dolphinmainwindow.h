@@ -655,6 +655,9 @@ private Q_SLOTS:
     /** Sets the size of the text of the whole program (0: the desktop's) and the icon theme (empty: the desktop's). */
     void applyTextAndIcons(int fontPointSize, const QString &iconTheme);
     void editTextAndIcons();
+    /** Sets the style sheet of the whole program (Qt's CSS-like language); empty removes it. */
+    void applyStyleSheet(const QString &styleSheet);
+    void editStyleSheet();
     /** Writes the color theme, the custom colors, the text size and the icon theme into a file that can be shared, and reads such a file. */
     bool exportTheme(const QString &path);
     bool importTheme(const QString &path);
