@@ -12,14 +12,17 @@
 #include <QDialog>
 #include <QHash>
 #include <QList>
+#include <QPointF>
 #include <QStringList>
 #include <QUrl>
+#include <optional>
 
 class QMimeData;
 
 class FilePreviewWidget;
 class QLabel;
 class QKeyEvent;
+class QPushButton;
 class QMediaPlayer;
 class QVideoWidget;
 class QLineEdit;
@@ -56,6 +59,12 @@ QString toggledToDoName(const QString &fileName);
 /** Writes the clipboard's image as a dated .png, or its text as a dated .txt, into @p folder, and returns the path (empty if the clipboard has neither or it
  * failed). */
 QString saveClipboardAsFile(const QMimeData *clipboard, const QString &folder);
+
+/** Where a photo was taken, from its metadata: x is the longitude and y the latitude. Empty if the file has no position. */
+std::optional<QPointF> photoLocation(const QString &path);
+
+/** A map of OpenStreetMap that shows @p location. */
+QUrl mapUrl(const QPointF &location);
 
 /** The total size in bytes of the files below @p folder, without following symlinks. */
 qint64 folderSize(const QString &folder);
@@ -164,6 +173,8 @@ public:
     void stepFrame(int direction);
     /** Plays or pauses. */
     void togglePlayback();
+    /** The map to show where the photo was taken; empty when the file has no position. */
+    QUrl mapLink() const;
     /** Where the media is, in milliseconds, and how long it is; both 0 when no media is shown. */
     qint64 mediaPosition() const;
     qint64 mediaDuration() const;
@@ -178,6 +189,8 @@ protected:
 private:
     FilePreviewWidget *m_preview;
     QString m_shownName;
+    QUrl m_mapLink;
+    QPushButton *m_mapButton;
     QMediaPlayer *m_player;
     QVideoWidget *m_video;
 };

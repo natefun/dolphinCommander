@@ -55,6 +55,7 @@
 #include <QListWidget>
 #include <QMimeData>
 #include <QPlainTextEdit>
+#include <QProcess>
 #include <QPushButton>
 #include <QSignalSpy>
 #include <QSpinBox>
@@ -110,6 +111,7 @@ private Q_SLOTS:
     void testAViewDesignGoesToAFileAndComesBack();
     void testClosingTheWindowCanOnlyHideIt();
     void testTheTextOfOfficeDocumentsIsShown();
+    void testTheQuickViewOffersAMapForAPhotoWithAPosition();
     void testTheQuickViewSeeksAndStepsThroughSound();
     void testADesignCanBeTriedWithoutSavingIt();
     void testTheFirstStartAsksForALayoutAndATheme();
@@ -1916,6 +1918,59 @@ void DolphinCommanderFeaturesTest::testTheQuickViewSeeksAndStepsThroughSound()
     QTRY_VERIFY_WITH_TIMEOUT(qAbs(quick.mediaPosition() - 40) < 30, 3000);
     QTest::keyClick(&quick, Qt::Key_BracketLeft);
     QTRY_VERIFY_WITH_TIMEOUT(quick.mediaPosition() < 30, 3000);
+}
+
+void DolphinCommanderFeaturesTest::testTheQuickViewOffersAMapForAPhotoWithAPosition()
+{
+    QCOMPARE(CommanderTools::mapUrl(QPointF(13.405, 52.52)).toString(),
+             QStringLiteral("https://www.openstreetmap.org/?mlat=52.520000&mlon=13.405000#map=16/52.520000/13.405000"));
+    if (QStandardPaths::findExecutable(QStringLiteral("exiv2")).isEmpty()) {
+        QSKIP("exiv2 is needed to put a position into a test photo.");
+    }
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QImage image(32, 32, QImage::Format_RGB32);
+    image.fill(Qt::darkGreen);
+    const QString withPosition = dir.path() + QStringLiteral("/berlin.jpg");
+    const QString without = dir.path() + QStringLiteral("/plain.jpg");
+    QVERIFY(image.save(withPosition, "JPEG"));
+    QVERIFY(image.save(without, "JPEG"));
+    // 52°31'12" N, 13°24'18" E
+    QCOMPARE(QProcess::execute(QStringLiteral("exiv2"),
+                               {QStringLiteral("-M"),
+                                QStringLiteral("set Exif.GPSInfo.GPSLatitudeRef N"),
+                                QStringLiteral("-M"),
+                                QStringLiteral("set Exif.GPSInfo.GPSLatitude 52/1 31/1 12/1"),
+                                QStringLiteral("-M"),
+                                QStringLiteral("set Exif.GPSInfo.GPSLongitudeRef E"),
+                                QStringLiteral("-M"),
+                                QStringLiteral("set Exif.GPSInfo.GPSLongitude 13/1 24/1 18/1"),
+                                withPosition}),
+             0);
+
+    const auto location = CommanderTools::photoLocation(withPosition);
+    if (!location) {
+        QSKIP("No metadata extractor reads the position here.");
+    }
+    QVERIFY(qAbs(location->y() - 52.52) < 0.001);
+    QVERIFY(qAbs(location->x() - 13.405) < 0.001);
+    QVERIFY(!CommanderTools::photoLocation(without));
+
+    QuickViewDialog quick(nullptr);
+    KFileItem photo(QUrl::fromLocalFile(withPosition));
+    photo.determineMimeType();
+    quick.show(photo);
+    QVERIFY(quick.mapLink().isValid());
+    QVERIFY(quick.mapLink().toString().contains(QStringLiteral("mlat=52.52")));
+    bool hasMapButton = false;
+    for (QPushButton *candidate : quick.findChildren<QPushButton *>()) {
+        hasMapButton = hasMapButton || (candidate->text() == QStringLiteral("Show on Map") && candidate->isVisibleTo(&quick));
+    }
+    QVERIFY(hasMapButton);
+    KFileItem plainPhoto(QUrl::fromLocalFile(without));
+    plainPhoto.determineMimeType();
+    quick.show(plainPhoto);
+    QVERIFY(!quick.mapLink().isValid());
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

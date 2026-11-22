@@ -46,7 +46,7 @@ covered by `testSeveralSelectedItemsShowNoFolder` in `dolphincolumnsviewtest`), 
 - Preview Window: Space opens it in OneCommander, here it is Alt+F3 (Space selects); Up/Down step through the files and Esc closes it, as there.
   Word (.docx), Excel (.xlsx) and OpenDocument (.odt, .ods, .odp) files show their text in the preview (it needs KArchive, which is now a dependency).
   Quick view plays video and sound: Space plays and pauses, Left and Right seek by five seconds (Shift: a tenth of the length), [ and ] step by
-  about one frame. Not done: three viewing modes and a map button for photos with GPS.
+  about one frame. A photo with a position in its metadata has a Show on Map button (OpenStreetMap). Not done: three viewing modes.
 - Collapsing a side by dragging its divider: the fork's two sides do it (Ctrl+F3 and the splitter), the same as OneCommander's single-browser layout.
 - Network drives and phones: OneCommander scans the Windows network and points to Phone Link; on Linux this is KIO (smb, sftp, ftp, mtp) in
   the Places panel and the location bar, which the fork inherits from Dolphin.

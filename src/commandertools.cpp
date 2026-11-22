@@ -12,11 +12,15 @@
 #include <KIO/PreviewJob>
 #include <KLocalizedString>
 
+#include <KFileMetaData/Extractor>
+#include <KFileMetaData/ExtractorCollection>
+#include <KFileMetaData/SimpleExtractionResult>
 #include <KIO/FileUndoManager>
 #include <KIO/Global>
 #include <KJob>
 #include <QAudioOutput>
 #include <QCheckBox>
+#include <QDesktopServices>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QDirIterator>
@@ -153,6 +157,33 @@ QString CommanderTools::saveClipboardAsFile(const QMimeData *clipboard, const QS
         }
     }
     return QString();
+}
+
+std::optional<QPointF> CommanderTools::photoLocation(const QString &path)
+{
+    const QMimeType mime = QMimeDatabase().mimeTypeForFile(path);
+    if (!mime.name().startsWith(QLatin1String("image/"))) {
+        return std::nullopt;
+    }
+    KFileMetaData::ExtractorCollection extractors;
+    for (KFileMetaData::Extractor *extractor : extractors.fetchExtractors(mime.name())) {
+        KFileMetaData::SimpleExtractionResult result(path, mime.name(), KFileMetaData::ExtractionResult::ExtractMetaData);
+        extractor->extract(&result);
+        const auto properties = result.properties();
+        const auto latitude = properties.constFind(KFileMetaData::Property::PhotoGpsLatitude);
+        const auto longitude = properties.constFind(KFileMetaData::Property::PhotoGpsLongitude);
+        if (latitude != properties.cend() && longitude != properties.cend()) {
+            return QPointF(longitude.value().toDouble(), latitude.value().toDouble());
+        }
+    }
+    return std::nullopt;
+}
+
+QUrl CommanderTools::mapUrl(const QPointF &location)
+{
+    const QString lat = QString::number(location.y(), 'f', 6);
+    const QString lon = QString::number(location.x(), 'f', 6);
+    return QUrl(QStringLiteral("https://www.openstreetmap.org/?mlat=%1&mlon=%2#map=16/%1/%2").arg(lat, lon));
 }
 
 qint64 CommanderTools::folderSize(const QString &folder)
@@ -638,6 +669,12 @@ QuickViewDialog::QuickViewDialog(QWidget *parent)
     auto *layout = new QVBoxLayout(this);
     m_preview = new FilePreviewWidget(this);
     layout->addWidget(m_preview);
+    m_mapButton = new QPushButton(QIcon::fromTheme(QStringLiteral("globe")), i18nc("@action:button", "Show on Map"), this);
+    m_mapButton->hide();
+    connect(m_mapButton, &QPushButton::clicked, this, [this]() {
+        QDesktopServices::openUrl(m_mapLink);
+    });
+    layout->addWidget(m_mapButton);
     m_video = new QVideoWidget(this);
     m_video->hide();
     layout->addWidget(m_video, 1);
@@ -685,6 +722,11 @@ qint64 QuickViewDialog::mediaPosition() const
 qint64 QuickViewDialog::mediaDuration() const
 {
     return qMax<qint64>(0, m_player->duration());
+}
+
+QUrl QuickViewDialog::mapLink() const
+{
+    return m_mapLink;
 }
 
 QString QuickViewDialog::shownName() const
@@ -741,6 +783,14 @@ void QuickViewDialog::show(const KFileItem &item)
         m_player->setSource(QUrl());
         m_preview->setItem(item);
     }
+    // A photo with a position has a button for the map.
+    m_mapLink = QUrl();
+    if (item.isLocalFile()) {
+        if (const auto location = CommanderTools::photoLocation(item.localPath())) {
+            m_mapLink = CommanderTools::mapUrl(*location);
+        }
+    }
+    m_mapButton->setVisible(m_mapLink.isValid());
     QDialog::show();
     raise();
 }
