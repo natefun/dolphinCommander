@@ -33,6 +33,8 @@ custom folder icons (the folder's Properties, which writes its .directory file),
 - File View Designer: a window (File Views > Design This View) picks the columns, their order and widths and can keep the design under a name; "Hide Columns When Narrow" hides the columns that do not fit; each column can have its own width of the view under which it is hidden, set in the designer
 - XAML themes: three color themes (Follow the Desktop, Light, Dark), one with four colors you choose, a text size and an icon theme to pick; themes can be saved to a .theme file and loaded again; no editable styles
 - Copy and move queue: copy, move and paste from a view, and Update the Other Side, are queued; a drop (drag and drop) is not
-- Ctrl+click in a parent column to add to the selection
-- Settings: column hover-expand tuning
+- Ctrl+click in a parent column to add to the selection: not done. In the Miller columns the selection belongs to one column,
+  so a selection across columns needs its own design (what is selected, how it is drawn, what Copy and Delete act on)
+- Column hover-expand tuning: does not apply here. The Miller columns of the fork scroll sideways instead of shrinking
+  the columns farther back in the path, so there is no compressed column to expand
 - OneCommander's plain ~ for the notifications (Ctrl+Shift+~ opens the panel, Ctrl+Alt+N the menu); Ctrl+` toggles the Miller columns
