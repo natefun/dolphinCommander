@@ -639,6 +639,8 @@ private Q_SLOTS:
     void showChecksum();
     void showBatchRename();
     void showDuplicateFinder();
+    /** Copies what is missing or older on the other side from the active side (one way, no deletions). */
+    void syncToOtherSide();
     /** Gives the selected local files the color label (a tag named like the color), or none when empty. */
     void setColorLabel(const QString &color);
     /** Asks for a wildcard pattern and (de)selects the matching items of the active view. */

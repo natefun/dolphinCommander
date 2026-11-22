@@ -61,6 +61,7 @@
             <Action name="mirror_to_other_side" />
             <Action name="swap_sides" />
             <Action name="compare_directories" />
+            <Action name="sync_to_other_side" />
             <Action name="folder_hotlist" />
             <Action name="quick_view" />
             <Action name="show_checksum" />

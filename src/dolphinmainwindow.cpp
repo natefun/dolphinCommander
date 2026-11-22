@@ -52,6 +52,7 @@
 #include <KFileItemListProperties>
 #include <KFileMetaData/UserMetaData>
 #include <KIO/CommandLauncherJob>
+#include <KIO/CopyJob>
 #include <KIO/Global>
 #include <KIO/JobUiDelegateFactory>
 #include <KIO/OpenFileManagerWindowJob>
@@ -2062,6 +2063,37 @@ void DolphinMainWindow::setColorLabel(const QString &color)
     }
 }
 
+void DolphinMainWindow::syncToOtherSide()
+{
+    DolphinTabPage *otherPage = inactiveTabWidget()->currentTabPage();
+    DolphinViewContainer *other = otherPage ? otherPage->activeViewContainer() : nullptr;
+    if (!other || !m_activeViewContainer || other == m_activeViewContainer) {
+        return;
+    }
+    QHash<QString, KFileItem> theirs;
+    for (const KFileItem &item : other->view()->items()) {
+        theirs.insert(item.name(), item);
+    }
+    QList<QUrl> toCopy;
+    for (const KFileItem &item : m_activeViewContainer->view()->items()) {
+        const auto match = theirs.constFind(item.name());
+        const bool missing = match == theirs.cend();
+        const bool newer = !missing && !item.isDir() && !match->isDir() && item.time(KFileItem::ModificationTime) > match->time(KFileItem::ModificationTime);
+        if (missing || newer) {
+            toCopy.append(item.url());
+        }
+    }
+    if (toCopy.isEmpty()) {
+        m_activeViewContainer->showMessage(i18nc("@info:status", "The other side is up to date."), KMessageWidget::Information);
+        return;
+    }
+    auto *job = KIO::copy(toCopy, other->url());
+    job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, this));
+    KIO::FileUndoManager::self()->recordCopyJob(job);
+    m_activeViewContainer->showMessage(i18ncp("@info:status", "Copying %1 item to the other side.", "Copying %1 items to the other side.", toCopy.size()),
+                                       KMessageWidget::Information);
+}
+
 void DolphinMainWindow::showDuplicateFinder()
 {
     const QUrl url = m_activeViewContainer->url();
@@ -2585,6 +2617,13 @@ void DolphinMainWindow::setupActions()
     connect(noLabel, &QAction::triggered, this, [this]() {
         setColorLabel(QString());
     });
+
+    QAction *syncFolders = actionCollection()->addAction(QStringLiteral("sync_to_other_side"));
+    syncFolders->setText(i18nc("@action:inmenu", "Update the Other Side"));
+    syncFolders->setToolTip(i18nc("@info:tooltip", "Copy what is missing or older on the other side from this side."));
+    syncFolders->setIcon(QIcon::fromTheme(QStringLiteral("folder-sync")));
+    actionCollection()->setDefaultShortcut(syncFolders, Qt::CTRL | Qt::ALT | Qt::Key_U);
+    connect(syncFolders, &QAction::triggered, this, &DolphinMainWindow::syncToOtherSide);
 
     QAction *duplicates = actionCollection()->addAction(QStringLiteral("find_duplicates"));
     duplicates->setText(i18nc("@action:inmenu", "Find Duplicate Files…"));
