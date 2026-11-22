@@ -21,6 +21,7 @@ class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
 class QTableWidget;
+class QCheckBox;
 class QDialogButtonBox;
 
 /** What dolphinCommander adds beyond Dolphin: helpers and dialogs for checksums, batch renaming and quick view. */
@@ -73,6 +74,32 @@ class DuplicateFinderDialog : public QDialog
     Q_OBJECT
 public:
     DuplicateFinderDialog(const QString &folder, QWidget *parent);
+};
+
+/**
+ * A window to design a file view: which columns it shows, in what order and how wide they are.
+ * The columns are the roles of the file model; the rows are in the order of the view, the shown ones first.
+ */
+class FileViewDesignerDialog : public QDialog
+{
+    Q_OBJECT
+public:
+    /** @p roles are the columns now shown, in order, and @p widths their widths (empty: automatic). */
+    FileViewDesignerDialog(const QList<QByteArray> &roles, const QList<int> &widths, QWidget *parent);
+
+    /** The columns that are ticked, in the order of the rows. */
+    QList<QByteArray> roles() const;
+    /** The width of each of roles(); empty when "Automatic widths" is ticked. */
+    QList<int> widths() const;
+    /** The name to keep the design under; empty if it is not to be saved. */
+    QString name() const;
+
+private:
+    void moveCurrentRow(int by);
+
+    QTableWidget *m_table;
+    QCheckBox *m_automatic;
+    QLineEdit *m_name;
 };
 
 /** Shows MD5, SHA-1 and SHA-256 of a file and checks them against a checksum that is pasted in. */

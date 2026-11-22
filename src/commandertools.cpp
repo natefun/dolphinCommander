@@ -4,6 +4,7 @@
 
 #include "commandertools.h"
 
+#include "kitemviews/kfileitemmodel.h"
 #include "views/filepreviewwidget.h"
 
 #include <KFileItem>
@@ -14,6 +15,7 @@
 #include <KIO/FileUndoManager>
 #include <KIO/Global>
 #include <KJob>
+#include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QDirIterator>
@@ -22,6 +24,7 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QFutureWatcher>
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QImage>
 #include <QLabel>
@@ -33,6 +36,7 @@
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSet>
+#include <QSpinBox>
 #include <QTableWidget>
 #include <QThread>
 #include <QTreeWidget>
@@ -281,6 +285,156 @@ DuplicateFinderDialog::DuplicateFinderDialog(const QString &folder, QWidget *par
             }
         });
     });
+}
+
+FileViewDesignerDialog::FileViewDesignerDialog(const QList<QByteArray> &roles, const QList<int> &widths, QWidget *parent)
+    : QDialog(parent)
+{
+    setWindowTitle(i18nc("@title:window", "File View Designer"));
+    resize(520, 480);
+    auto *layout = new QVBoxLayout(this);
+    layout->addWidget(new QLabel(i18nc("@info", "Tick the columns to show and drag them into order with the buttons; the width is in pixels."), this));
+
+    m_table = new QTableWidget(0, 3, this);
+    m_table->setHorizontalHeaderLabels({i18nc("@title:column", "Show"), i18nc("@title:column", "Column"), i18nc("@title:column", "Width")});
+    m_table->horizontalHeader()->setStretchLastSection(false);
+    m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_table->setSelectionMode(QAbstractItemView::SingleSelection);
+
+    // The name comes first, then the shown columns in their order, then the others.
+    QList<QByteArray> order = roles;
+    order.removeAll("text");
+    order.prepend("text");
+    const QList<KFileItemModel::RoleInfo> infos = KFileItemModel::rolesInformation();
+    for (const KFileItemModel::RoleInfo &info : infos) {
+        if (!order.contains(info.role) && !info.requiresBaloo) {
+            order << info.role;
+        }
+    }
+    for (const QByteArray &role : std::as_const(order)) {
+        QString title = QString::fromLatin1(role);
+        for (const KFileItemModel::RoleInfo &info : infos) {
+            if (info.role == role) {
+                title = info.translation;
+            }
+        }
+        const int row = m_table->rowCount();
+        m_table->insertRow(row);
+        auto *shown = new QTableWidgetItem();
+        shown->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable | Qt::ItemIsSelectable);
+        shown->setCheckState(roles.contains(role) || role == "text" ? Qt::Checked : Qt::Unchecked);
+        if (role == "text") {
+            // The name is always the first column.
+            shown->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        }
+        m_table->setItem(row, 0, shown);
+        auto *name = new QTableWidgetItem(title);
+        name->setData(Qt::UserRole, role);
+        name->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        m_table->setItem(row, 1, name);
+        auto *width = new QSpinBox(m_table);
+        width->setRange(30, 3000);
+        const int index = roles.indexOf(role);
+        width->setValue(index >= 0 && index < widths.size() ? widths.at(index) : 150);
+        m_table->setCellWidget(row, 2, width);
+    }
+    layout->addWidget(m_table);
+
+    auto *moveRow = new QHBoxLayout();
+    auto *up = new QPushButton(QIcon::fromTheme(QStringLiteral("go-up")), i18nc("@action:button", "Move Up"), this);
+    auto *down = new QPushButton(QIcon::fromTheme(QStringLiteral("go-down")), i18nc("@action:button", "Move Down"), this);
+    connect(up, &QPushButton::clicked, this, [this]() {
+        moveCurrentRow(-1);
+    });
+    connect(down, &QPushButton::clicked, this, [this]() {
+        moveCurrentRow(1);
+    });
+    moveRow->addWidget(up);
+    moveRow->addWidget(down);
+    moveRow->addStretch();
+    layout->addLayout(moveRow);
+
+    m_automatic = new QCheckBox(i18nc("@option:check", "Automatic widths"), this);
+    m_automatic->setChecked(widths.isEmpty());
+    layout->addWidget(m_automatic);
+    connect(m_automatic, &QCheckBox::toggled, this, [this](bool automatic) {
+        for (int row = 0; row < m_table->rowCount(); ++row) {
+            m_table->cellWidget(row, 2)->setEnabled(!automatic);
+        }
+    });
+    for (int row = 0; row < m_table->rowCount(); ++row) {
+        m_table->cellWidget(row, 2)->setEnabled(widths.isEmpty() ? false : true);
+    }
+
+    m_name = new QLineEdit(this);
+    m_name->setPlaceholderText(i18nc("@info:placeholder", "Keep this design as a named file view (optional)"));
+    layout->addWidget(m_name);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    layout->addWidget(buttons);
+}
+
+void FileViewDesignerDialog::moveCurrentRow(int by)
+{
+    const int row = m_table->currentRow();
+    const int target = row + by;
+    // The name, in the first row, stays where it is.
+    if (row < 1 || target < 1 || target >= m_table->rowCount()) {
+        return;
+    }
+    // The cells are swapped, one by one: the spin boxes keep their values.
+    const auto swapCells = [this](int a, int b) {
+        const Qt::CheckState shownA = m_table->item(a, 0)->checkState();
+        const Qt::CheckState shownB = m_table->item(b, 0)->checkState();
+        m_table->item(a, 0)->setCheckState(shownB);
+        m_table->item(b, 0)->setCheckState(shownA);
+        const QString nameA = m_table->item(a, 1)->text();
+        const QVariant roleA = m_table->item(a, 1)->data(Qt::UserRole);
+        m_table->item(a, 1)->setText(m_table->item(b, 1)->text());
+        m_table->item(a, 1)->setData(Qt::UserRole, m_table->item(b, 1)->data(Qt::UserRole));
+        m_table->item(b, 1)->setText(nameA);
+        m_table->item(b, 1)->setData(Qt::UserRole, roleA);
+        auto *widthA = static_cast<QSpinBox *>(m_table->cellWidget(a, 2));
+        auto *widthB = static_cast<QSpinBox *>(m_table->cellWidget(b, 2));
+        const int valueA = widthA->value();
+        widthA->setValue(widthB->value());
+        widthB->setValue(valueA);
+    };
+    swapCells(row, target);
+    m_table->setCurrentCell(target, 1);
+}
+
+QList<QByteArray> FileViewDesignerDialog::roles() const
+{
+    QList<QByteArray> result;
+    for (int row = 0; row < m_table->rowCount(); ++row) {
+        if (m_table->item(row, 0)->checkState() == Qt::Checked) {
+            result << m_table->item(row, 1)->data(Qt::UserRole).toByteArray();
+        }
+    }
+    return result;
+}
+
+QList<int> FileViewDesignerDialog::widths() const
+{
+    QList<int> result;
+    if (m_automatic->isChecked()) {
+        return result;
+    }
+    for (int row = 0; row < m_table->rowCount(); ++row) {
+        if (m_table->item(row, 0)->checkState() == Qt::Checked) {
+            result << static_cast<QSpinBox *>(m_table->cellWidget(row, 2))->value();
+        }
+    }
+    return result;
+}
+
+QString FileViewDesignerDialog::name() const
+{
+    return m_name->text().trimmed();
 }
 
 ChecksumDialog::ChecksumDialog(const KFileItem &item, QWidget *parent)

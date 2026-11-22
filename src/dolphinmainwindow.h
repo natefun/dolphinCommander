@@ -658,6 +658,8 @@ private Q_SLOTS:
     void pasteClipboardAsFile();
     /** Keeps the view mode, the previews and the columns of the active view under a name, as one more file view. */
     void saveFileView();
+    /** Opens the File View Designer for the active view. */
+    void designFileView();
     /** Applies a named file view (view mode, previews and the columns shown) to the active view. */
     void applyFileView(const QString &name);
     /** The layouts: Standard (both sides), Columns (Miller columns) and Classic (one side with the information panel). */

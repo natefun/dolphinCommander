@@ -2329,6 +2329,7 @@ void DolphinMainWindow::applyFileView(const QString &name)
             // The widths only count when there is one for each column that is shown.
             if (widths.count() == roles.count() && view->url().isLocalFile()) {
                 ViewProperties props(view->url());
+                props.setVisibleRoles(roles);
                 props.setHeaderColumnWidths(widths);
                 props.save();
                 view->readSettings();
@@ -2339,6 +2340,54 @@ void DolphinMainWindow::applyFileView(const QString &name)
         view->setPreviewsShown(true);
         view->setVisibleRoles({"text", "size", "modificationtime", "type"});
     }
+}
+
+void DolphinMainWindow::designFileView()
+{
+    DolphinView *view = m_activeViewContainer->view();
+    if (!view->url().isLocalFile()) {
+        m_activeViewContainer->showMessage(i18nc("@info", "File views can only be designed for folders on this computer."), KMessageWidget::Information);
+        return;
+    }
+    auto *dialog = new FileViewDesignerDialog(view->visibleRoles(), ViewProperties(view->url()).headerColumnWidths(), this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    connect(dialog, &QDialog::accepted, this, [this, dialog]() {
+        DolphinView *target = m_activeViewContainer->view();
+        const QList<QByteArray> roles = dialog->roles();
+        const QList<int> widths = dialog->widths();
+        if (roles.isEmpty()) {
+            return;
+        }
+        target->setVisibleRoles(roles);
+        {
+            ViewProperties props(target->url());
+            // The view takes its columns from the properties when it reads the settings again.
+            props.setVisibleRoles(roles);
+            props.setHeaderColumnWidths(widths.count() == roles.count() ? widths : QList<int>());
+            props.save();
+        }
+        target->readSettings();
+        if (!dialog->name().isEmpty()) {
+            QString modeAction = QStringLiteral("details");
+            if (target->viewMode() == DolphinView::IconsView) {
+                modeAction = QStringLiteral("icons");
+            } else if (target->viewMode() == DolphinView::CompactView) {
+                modeAction = QStringLiteral("compact");
+            }
+            QStringList widthText;
+            for (const int width : widths) {
+                widthText << QString::number(width);
+            }
+            QStringList entry{modeAction,
+                              target->previewsShown() ? QStringLiteral("1") : QStringLiteral("0"),
+                              QLatin1String("W=") + widthText.join(QLatin1Char(','))};
+            for (const QByteArray &role : roles) {
+                entry << QString::fromLatin1(role);
+            }
+            KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander FileViews")).writeEntry(dialog->name(), entry);
+        }
+    });
+    dialog->open();
 }
 
 void DolphinMainWindow::saveFileView()
@@ -3140,7 +3189,12 @@ void DolphinMainWindow::setupActions()
         auto *saveViewAction = actionCollection()->addAction(QStringLiteral("save_file_view"));
         saveViewAction->setText(i18nc("@action:inmenu", "Save Current View As…"));
         connect(saveViewAction, &QAction::triggered, this, &DolphinMainWindow::saveFileView);
+        auto *designViewAction = actionCollection()->addAction(QStringLiteral("design_file_view"));
+        designViewAction->setText(i18nc("@action:inmenu", "Design This View…"));
+        designViewAction->setIcon(QIcon::fromTheme(QStringLiteral("configure")));
+        connect(designViewAction, &QAction::triggered, this, &DolphinMainWindow::designFileView);
         fileViewsMenu->addSeparator();
+        fileViewsMenu->addAction(designViewAction);
         fileViewsMenu->addAction(saveViewAction);
         // The saved views are listed each time the menu opens.
         auto *savedSeparator = fileViewsMenu->addSeparator();

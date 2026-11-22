@@ -35,6 +35,7 @@
 
 #include <KIO/CopyJob>
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QColorDialog>
 #include <QDir>
@@ -43,9 +44,12 @@
 #include <QHBoxLayout>
 #include <QImage>
 #include <QInputDialog>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMimeData>
+#include <QPushButton>
 #include <QSignalSpy>
+#include <QSpinBox>
 #include <QStandardPaths>
 #include <QTableWidget>
 #include <QTemporaryDir>
@@ -90,6 +94,7 @@ private Q_SLOTS:
     void testAToDoIsCheckedOffByClickingItsCheckbox();
     void testTheColorThemesRecolorTheProgram();
     void testACustomThemeUsesTheColorsThatWereChosen();
+    void testTheFileViewDesignerEditsAndAppliesAView();
     void testItemScrollingStepsByRows();
     void testASavedFileViewKeepsTheColumnWidths();
     void testAFolderImageIsPaintedBehindTheItems();
@@ -1083,8 +1088,9 @@ void DolphinCommanderFeaturesTest::testASavedFileViewKeepsTheColumnWidths()
     window.openDirectories({dir.url().toString()}, false);
     QTRY_VERIFY(window.activeViewContainer());
     QTRY_COMPARE(window.activeViewContainer()->view()->itemsCount(), 1);
-    // Reading the settings again would bring back the setting of the whole program for the view properties.
+    // Reading the settings again brings back what is stored: it has to be stored.
     GeneralSettings::setGlobalViewProps(false);
+    GeneralSettings::self()->save();
 
     const int columns = window.activeViewContainer()->view()->visibleRoles().count();
     QVERIFY(columns >= 2);
@@ -1157,6 +1163,122 @@ void DolphinCommanderFeaturesTest::testACustomThemeUsesTheColorsThatWereChosen()
     themes->menu()->actions().first()->trigger();
     QCOMPARE(QApplication::palette().color(QPalette::Base), before);
     answerer.stop();
+}
+
+void DolphinCommanderFeaturesTest::testTheFileViewDesignerEditsAndAppliesAView()
+{
+    // The dialog on its own: the shown columns come first and moving and ticking change what it answers.
+    // It is gone before the one of the menu is looked for among the windows of the program.
+    {
+        FileViewDesignerDialog standalone({"text", "size", "modificationtime"}, {300, 80, 150}, nullptr);
+        QCOMPARE(standalone.roles(), (QList<QByteArray>{"text", "size", "modificationtime"}));
+        QCOMPARE(standalone.widths(), (QList<int>{300, 80, 150}));
+        auto *table = standalone.findChild<QTableWidget *>();
+        QVERIFY(table);
+        QVERIFY(table->rowCount() > 3);
+        // The name stays first: it cannot be moved, nor can a column go above it.
+        table->setCurrentCell(0, 1);
+        const auto click = [&](QDialog &dialog, const QString &text) {
+            for (QPushButton *button : dialog.findChildren<QPushButton *>()) {
+                if (button->text() == text) {
+                    button->click();
+                }
+            }
+        };
+        click(standalone, QStringLiteral("Move Down"));
+        QCOMPARE(standalone.roles(), (QList<QByteArray>{"text", "size", "modificationtime"}));
+        table->setCurrentCell(1, 1);
+        click(standalone, QStringLiteral("Move Up"));
+        QCOMPARE(standalone.roles(), (QList<QByteArray>{"text", "size", "modificationtime"}));
+        table->setCurrentCell(1, 1);
+        click(standalone, QStringLiteral("Move Down"));
+        QCOMPARE(standalone.roles(), (QList<QByteArray>{"text", "modificationtime", "size"}));
+        QCOMPARE(standalone.widths(), (QList<int>{300, 150, 80})); // the widths go with their columns
+        table->item(2, 0)->setCheckState(Qt::Unchecked);
+        QCOMPARE(standalone.roles(), (QList<QByteArray>{"text", "modificationtime"}));
+        for (QCheckBox *box : standalone.findChildren<QCheckBox *>()) {
+            box->setChecked(true);
+        }
+        QVERIFY(standalone.widths().isEmpty());
+    }
+
+    // From the menu: the designer's answer is applied to the view and can be kept under a name.
+    TestDir dir;
+    dir.createFile("x");
+    // The folder has its own view properties, with the usual columns, whatever other runs left behind.
+    GeneralSettings::setGlobalViewProps(false);
+    GeneralSettings::self()->save();
+    {
+        ViewProperties props(dir.url());
+        props.setViewMode(DolphinView::DetailsView);
+        props.setVisibleRoles({"text", "size", "modificationtime"});
+        props.save();
+    }
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.openDirectories({dir.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    QTRY_COMPARE(window.activeViewContainer()->view()->itemsCount(), 1);
+    GeneralSettings::setGlobalViewProps(false);
+    GeneralSettings::self()->save();
+    window.activeViewContainer()->view()->setVisibleRoles({"text", "size", "modificationtime"});
+    QTRY_COMPARE(window.activeViewContainer()->view()->visibleRoles(), (QList<QByteArray>{"text", "size", "modificationtime"}));
+
+    window.actionCollection()->action(QStringLiteral("design_file_view"))->trigger();
+    FileViewDesignerDialog *designer = nullptr;
+    QTRY_VERIFY((designer = [&]() -> FileViewDesignerDialog * {
+        for (QWidget *top : QApplication::topLevelWidgets()) {
+            if (auto *found = qobject_cast<FileViewDesignerDialog *>(top)) {
+                return found;
+            }
+        }
+        return nullptr;
+    }()));
+    auto *rows = designer->findChild<QTableWidget *>();
+    QVERIFY(rows);
+    // Swap the two columns after the name and drop the last: the rows start with the columns the view shows.
+    const QList<QByteArray> start = designer->roles();
+    QVERIFY2(start.size() >= 3,
+             qPrintable(QStringLiteral("shown %1; view %2")
+                            .arg(QString::fromLatin1(start.join(',')), QString::fromLatin1(window.activeViewContainer()->view()->visibleRoles().join(',')))));
+    QCOMPARE(start.first(), QByteArray("text"));
+    rows->setCurrentCell(2, 1);
+    for (QPushButton *button : designer->findChildren<QPushButton *>()) {
+        if (button->text() == QStringLiteral("Move Up")) {
+            button->click();
+        }
+    }
+    rows->item(2, 0)->setCheckState(Qt::Unchecked);
+    for (QCheckBox *box : designer->findChildren<QCheckBox *>()) {
+        box->setChecked(false);
+    }
+    // The rows are now name, the former third column, the former second one, ...: the one dropped is the former second.
+    for (int row = 0; row < rows->rowCount(); ++row) {
+        static_cast<QSpinBox *>(rows->cellWidget(row, 2))->setValue(200 + row);
+    }
+    designer->findChild<QLineEdit *>()->setText(QStringLiteral("size first"));
+    const QList<QByteArray> expectedRoles = designer->roles();
+    const QList<int> expectedWidths = designer->widths();
+    QCOMPARE(expectedRoles, (QList<QByteArray>{start.at(0), start.at(2)}));
+    QCOMPARE(expectedWidths.size(), 2);
+    designer->accept();
+
+    QTRY_COMPARE(window.activeViewContainer()->view()->visibleRoles(), expectedRoles);
+    GeneralSettings::setGlobalViewProps(false);
+    QCOMPARE(ViewProperties(dir.url()).headerColumnWidths(), expectedWidths);
+    const QStringList saved = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander FileViews")).readEntry("size first", QStringList());
+    QVERIFY(!saved.isEmpty());
+    QVERIFY(saved.contains(QString::fromLatin1(start.at(2))));
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()
