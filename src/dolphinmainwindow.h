@@ -40,6 +40,7 @@ class DolphinSettingsDialog;
 class DolphinViewContainer;
 class QMenu;
 class QuickViewDialog;
+class QSystemTrayIcon;
 class DolphinRemoteEncoding;
 class DolphinDockWidget;
 class DolphinNavigatorsWidgetAction;
@@ -75,6 +76,13 @@ class ActionTextHelper;
  *
  * Handles the menus, toolbars and Dolphin views.
  */
+/** The layouts of the main window: Standard (both sides), Columns (Miller columns) and Classic (one side with the information panel). */
+enum class CommanderLayout {
+    Standard,
+    Columns,
+    Classic
+};
+
 class DolphinMainWindow : public KXmlGuiWindow
 {
     Q_OBJECT
@@ -143,6 +151,14 @@ public:
 
     bool isInformationPanelEnabled() const;
     bool isSplitViewEnabledInCurrentTab() const;
+
+    /** True when closing the window only hides it and the program stays in the tray. */
+    static bool keepsRunningWhenClosed();
+    static void setKeepRunningWhenClosed(bool enabled);
+    /** True while the window is hidden by closing it with "keep running" on. */
+    bool isHiddenToTray() const;
+    /** For tests, where there is no system tray: acts as if there were one. */
+    static void pretendThereIsATray(bool pretend);
 
     /**
      * Activates a user set action when double clicking the view's background.
@@ -634,9 +650,79 @@ private Q_SLOTS:
     void updateWindowTitle();
 
     void showFolderHotlist();
+    /** Remembers a folder the user visited, newest first, for the recent folders of the hotlist. */
+    void rememberRecentFolder(const QUrl &url);
     void showChecksum();
     void showBatchRename();
+    void showDuplicateFinder();
+    /** Makes a text file named by the date in the folder and starts renaming it. */
+    void newNote();
+    /** Sets the colors of the whole program: "system" follows the desktop, "light" and "dark" are the fork's own. */
+    void applyColorTheme(const QString &theme);
+    /** Asks for the colors of the "custom" theme (window, base, text and highlight) and applies it. */
+    void editCustomTheme();
+    /** Sets the size of the text of the whole program (0: the desktop's) and the icon theme (empty: the desktop's). */
+    void applyTextAndIcons(int fontPointSize, const QString &iconTheme);
+    void editTextAndIcons();
+    /** Sets the style sheet of the whole program (Qt's CSS-like language); empty removes it. */
+    void applyStyleSheet(const QString &styleSheet);
+    void editStyleSheet();
+    /** Writes the color theme, the custom colors, the text size and the icon theme into a file that can be shared, and reads such a file. */
+    bool exportTheme(const QString &path);
+    bool importTheme(const QString &path);
+    /** Opens a tab at the folder whose path is on the clipboard. */
+    void newTabFromClipboard();
+    /** Makes a file of what is on the clipboard: a dated .png for an image, a dated .txt for text. */
+    void pasteClipboardAsFile();
+    /** Keeps the view mode, the previews and the columns of the active view under a name, as one more file view. */
+    void saveFileView();
+    /** Writes the design of the active view (mode, previews, columns and their widths) to a .json file, and reads such a file. */
+    bool exportViewDesign(const QString &path);
+    bool importViewDesign(const QString &path);
+    /** Asks for a layout and a theme, once, the first time the program is started. */
+    void askFirstStartChoices();
+    /** Opens the File View Designer for the active view. */
+    void designFileView();
+    /** Applies a named file view (view mode, previews and the columns shown) to the active view. */
+    void applyFileView(const QString &name);
+    /** The layouts: Standard (both sides), Columns (Miller columns) and Classic (one side with the information panel). */
+    void setCommanderLayout(CommanderLayout layout);
+    static bool runAsAdministrator(const QString &program, const QStringList &arguments);
+    /** Pops up the messages shown lately. */
+    void showRecentNotifications();
+    /** Makes a to-do (a .2do file) in the folder, or marks the selected to-dos done or open again. */
+    void newToDo();
+    void toggleToDoDone();
+    /** Asks which program opens the selected items. */
+    void openWithDialog();
+    /** Asks for arguments and runs the selected program or script with them. */
+    void runWithArguments();
+    /** Saves the selected images in another format, next to the originals. */
+    void convertImages();
+    /** Shows the sizes of the selected folders, or of all the folders shown when none is selected. */
+    void showFolderSizes();
+    /** Fills the Scripts menu with the executables of the scripts folder; they are run with the selection as arguments. */
+    void fillScriptsMenu(QMenu *menu);
+    /** Copies what is missing or older on the other side from the active side (one way, no deletions). */
+    void syncToOtherSide();
+    /** Gives the selected local files the color label (a tag named like the color), or none when empty. */
+    void setColorLabel(const QString &color);
+    /** Asks for a wildcard pattern and (de)selects the matching items of the active view. */
+    void selectByPattern(bool select);
+    /** Makes the other side show this folder (mirror), or swaps the folders of the two sides. */
+    void mirrorToOtherSide();
+    void swapSides();
     void showQuickView();
+    /** Hides the window and puts an icon in the tray that brings it back. */
+    void hideToTray();
+    /** Shows the window from wherever it is: hidden in the tray, minimized or behind others. */
+    void bringBack();
+    /** Puts the window in the middle of the main screen (for a window that was lost when a monitor was detached). */
+    void centerOnMainScreen();
+    /** Reads the theme, the text size, the icons and the style sheet from the settings again. */
+    void reloadTheme();
+    /** Moves the quick view to the previous (-1) or next (+1) file of the view it looks into, and selects it there. */
+    void stepQuickView(int delta);
     /** Starts Ark to pack the selection, or to unpack it into the folder on the other side. */
     void runArk(bool unpack);
     void fillWorkspacesMenu(QMenu *menu);
@@ -820,6 +906,14 @@ private:
     /** The tab widget of the side that is currently active. It is always either #m_leftTabs or #m_rightTabs. */
     DolphinTabWidget *m_tabWidget;
     QPointer<QuickViewDialog> m_quickView;
+    /** Closing hides the window when "keep running" is on; Quit (or the tray menu) really closes it. */
+    bool m_quitting = false;
+    bool m_hiddenToTray = false;
+    /** True while the Light or Dark theme is one of the desktop's color schemes. */
+    bool m_schemeThemeActive = false;
+    QSystemTrayIcon *m_trayIcon = nullptr;
+    /** The view whose files the quick view steps through. */
+    QPointer<DolphinViewContainer> m_quickViewSource;
     QUrl m_syncPreviousUrl; // the active view's url before its last change, for synchronized browsing
     SidesSplitter *m_sidesSplitter = nullptr;
     DolphinTabWidget *m_leftTabs = nullptr;

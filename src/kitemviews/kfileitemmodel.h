@@ -90,6 +90,10 @@ public:
     void setSortDirectoriesFirst(bool dirsFirst);
     bool sortDirectoriesFirst() const;
 
+    /** Sorts the folders by name, in whatever role and order the rest is sorted, as OneCommander's "Sort folders by name always" does. */
+    static void setFoldersAlwaysSortedByName(bool enabled);
+    static bool foldersAlwaysSortedByName();
+
     /**
      * Sets a separate sorting with hidden files and folders last (true) or not (false).
      */

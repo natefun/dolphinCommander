@@ -33,7 +33,11 @@
 
 #include <QApplication>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QFileInfo>
+#ifdef Q_OS_LINUX
+#include <sys/xattr.h>
+#endif
 #include <QImage>
 #include <QPainter>
 #include <QPluginLoader>
@@ -306,8 +310,11 @@ void KFileItemModelRolesUpdater::resetFolderPreviews()
     updateAllPreviews();
 }
 
-void KFileItemModelRolesUpdater::setRoles(const QSet<QByteArray> &roles)
+void KFileItemModelRolesUpdater::setRoles(const QSet<QByteArray> &requestedRoles)
 {
+    QSet<QByteArray> roles = requestedRoles;
+    // The tags are always read, because the color labels tint the rows.
+    roles.insert(QByteArrayLiteral("tags"));
     if (m_roles != roles) {
         const QSet<QByteArray> addedRoles = roles - m_roles;
         for (const QByteArray &role : addedRoles) {
@@ -1449,6 +1456,19 @@ SmallHash KFileItemModelRolesUpdater::rolesData(const KFileItem &item, int index
     if (m_balooFileMonitor) {
         m_balooFileMonitor->addFile(item.localPath());
         applyChangedBalooRolesForItem(item);
+    }
+#endif
+#ifdef Q_OS_LINUX
+    // The color labels are tags kept in the file's extended attribute, which is read here without Baloo.
+    if (!data.contains("tags") && item.isLocalFile() && m_roles.contains("tags")) {
+        const QByteArray path = QFile::encodeName(item.localPath());
+        char buffer[512];
+        const ssize_t size = getxattr(path.constData(), "user.xdg.tags", buffer, sizeof(buffer));
+        if (size > 0) {
+            QString tags = QString::fromUtf8(buffer, int(size));
+            tags.replace(QLatin1Char(','), QLatin1String(", "));
+            data.insert("tags", tags);
+        }
     }
 #endif
     return data;

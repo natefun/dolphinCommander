@@ -64,6 +64,14 @@ bool isSearchUrl(const QUrl &url);
  * @see KUrlNavigator
  * @see DolphinStatusBar
  */
+/** Tells that a view has shown a message. */
+class MessageNotifier : public QObject
+{
+    Q_OBJECT
+Q_SIGNALS:
+    void messageShown(const QString &message);
+};
+
 class DolphinViewContainer : public QWidget
 {
     Q_OBJECT
@@ -195,6 +203,11 @@ public:
      * \buttonActions defines actions which the user can trigger as a response to this message. They are presented as buttons below the \message.
      */
     void showMessage(const QString &message, KMessageWidget::MessageType messageType, std::initializer_list<QAction *> buttonActions = {});
+
+    /** The messages shown by any view, newest first, at most 50. */
+    static QStringList recentMessages();
+    /** Emits messageShown() for each message shown by any view, for the notifications panel. */
+    static class MessageNotifier *messageNotifier();
 
     /**
      * Forwards to DolphinStatusBar::showProgress(). Only exception: The button to cancel the task is hidden.

@@ -370,6 +370,12 @@ void DolphinTabBar::mouseReleaseEvent(QMouseEvent *event)
 
     const int index = tabAt(event->pos());
     if (index >= 0 && index == m_tabToBeClosedOnMiddleMouseButtonRelease && event->button() == Qt::MiddleButton) {
+        m_tabToBeClosedOnMiddleMouseButtonRelease = -1;
+        if (event->modifiers() & Qt::AltModifier) {
+            // As in OneCommander, Alt + the middle button sends the tab to the other side.
+            Q_EMIT tabMoveToOtherSideRequested(index);
+            return;
+        }
         if (!isPinned(index)) {
             Q_EMIT tabCloseRequested(index);
         }

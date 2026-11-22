@@ -116,6 +116,7 @@ target_sources(dolphinprivate PRIVATE
     views/dolphinnewfilemenuobserver.cpp
     views/columnsstrip.cpp
     views/filepreviewwidget.cpp
+    jobqueue.cpp
     views/viewheader.cpp
     views/dolphinremoteencoding.cpp
     views/dolphinview.cpp
@@ -231,6 +232,8 @@ target_link_libraries(
     KF6::I18n
     KF6::GuiAddons
     KF6::IconThemes
+    KF6::Archive
+    KF6::GlobalAccel
     KF6::KIOCore
     KF6::KIOWidgets
     KF6::KIOFileWidgets
@@ -452,11 +455,13 @@ if(HAVE_BALOO)
         panels/information/dolphin_informationpanelsettings.kcfgc
     )
 
-    target_link_libraries(dolphinstatic
-        Qt::Multimedia
-        Qt::MultimediaWidgets
-    )
 endif()
+
+# The quick view plays video and sound.
+target_link_libraries(dolphinstatic
+    Qt::Multimedia
+    Qt::MultimediaWidgets
+)
 
 if(KF6KIO_VERSION VERSION_GREATER_EQUAL "6.24.0")
     target_sources(dolphinstatic PRIVATE

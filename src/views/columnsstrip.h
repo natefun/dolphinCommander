@@ -41,11 +41,16 @@ public:
 
     void setShowHiddenFiles(bool show);
 
+    /** While locked, the dividers between the columns cannot be dragged (OneCommander's F8). Applies to every strip. */
+    static void setResizingLocked(bool locked);
+    static bool isResizingLocked();
+
 Q_SIGNALS:
     /** Emitted when the user picks a folder in any column. */
     void urlRequested(const QUrl &url);
 
 protected:
+    QSplitterHandle *createHandle() override;
     void resizeEvent(QResizeEvent *event) override;
     void showEvent(QShowEvent *event) override;
 

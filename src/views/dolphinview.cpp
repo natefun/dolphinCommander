@@ -6,6 +6,9 @@
  */
 
 #include "dolphinview.h"
+#include "commandertools.h"
+#include "jobqueue.h"
+#include "kitemviews/kitemlistwidget.h"
 
 #include "dolphin_detailsmodesettings.h"
 #include "dolphin_generalsettings.h"
@@ -70,6 +73,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QDropEvent>
+#include <QGraphicsSceneMouseEvent>
 #if KIO_VERSION < QT_VERSION_CHECK(6, 31, 0)
 #include <QFile>
 #endif
@@ -1009,6 +1013,7 @@ void DolphinView::copySelectedItems(const KFileItemList &selection, const QUrl &
 
     KIO::CopyJob *job = KIO::copy(selection.urlList(), destinationUrl, KIO::DefaultFlags);
     KJobWidgets::setWindow(job, this);
+    JobQueue::add(job);
 
     connect(job, &KIO::CopyJob::result, this, &DolphinView::slotJobResult);
     connect(job, &KIO::CopyJob::copying, this, &DolphinView::slotItemCreatedFromJob);
@@ -1031,6 +1036,7 @@ void DolphinView::moveSelectedItems(const KFileItemList &selection, const QUrl &
 
     KIO::CopyJob *job = KIO::move(selection.urlList(), destinationUrl, KIO::DefaultFlags);
     KJobWidgets::setWindow(job, this);
+    JobQueue::add(job);
 
     connect(job, &KIO::CopyJob::result, this, &DolphinView::slotJobResult);
     connect(job, &KIO::CopyJob::moving, this, &DolphinView::slotItemCreatedFromJob);
@@ -1137,9 +1143,13 @@ void DolphinView::updateUrl(const QUrl &url)
     m_url = url;
 }
 
+static bool s_usesApplicationPalette = false;
+
 void DolphinView::updatePalette()
 {
-    QColor color = KColorScheme(isActiveWindow() ? QPalette::Active : QPalette::Inactive, KColorScheme::View).background().color();
+    const QPalette::ColorGroup group = isActiveWindow() ? QPalette::Active : QPalette::Inactive;
+    QColor color =
+        s_usesApplicationPalette ? QApplication::palette().color(group, QPalette::Base) : KColorScheme(group, KColorScheme::View).background().color();
     if (!m_active) {
         color.setAlpha(150);
     }
@@ -1190,6 +1200,43 @@ bool DolphinView::eventFilter(QObject *watched, QEvent *event)
     case QEvent::StyleChange:
         if (watched == m_container) {
             updateContainerFrame();
+        }
+        break;
+
+    case QEvent::Resize:
+        if (watched == m_container) {
+            updateResponsiveColumns();
+        }
+        break;
+
+    case QEvent::GraphicsSceneMouseRelease:
+        if (watched == m_view) {
+            // A click on the checkbox of a to-do marks it done, or open again.
+            const auto *mouseEvent = static_cast<QGraphicsSceneMouseEvent *>(event);
+            if (mouseEvent->button() == Qt::LeftButton) {
+                // The to-dos shown are looked for by their rows: only the visible ones can be under the mouse.
+                const KItemListView *listView = m_view;
+                if (auto *model = static_cast<KFileItemModel *>(listView->model())) {
+                    const int first = listView->firstVisibleIndex();
+                    const int last = listView->lastVisibleIndex();
+                    for (int i = qMax(first, 0); i <= last && i < model->count(); ++i) {
+                        const QRectF row = listView->itemRect(i);
+                        if (!KItemListWidget::todoCheckboxRect(row).contains(mouseEvent->pos())) {
+                            continue;
+                        }
+                        const KFileItem item = model->fileItem(i);
+                        if (!item.isNull() && item.isLocalFile() && KItemListWidget::isToDoName(item.name())) {
+                            // .2do (open) becomes .2dx (done) and back.
+                            QString toggled = item.name();
+                            const bool open = toggled.endsWith(QLatin1Char('o'), Qt::CaseInsensitive);
+                            toggled.chop(1);
+                            toggled += open ? QLatin1Char('x') : QLatin1Char('o');
+                            QFile::rename(item.localPath(), item.url().adjusted(QUrl::RemoveFilename).toLocalFile() + toggled);
+                        }
+                        break;
+                    }
+                }
+            }
         }
         break;
 
@@ -1644,6 +1691,10 @@ void DolphinView::dropUrls(const QUrl &destUrl, QDropEvent *dropEvent, QWidget *
 
     if (job) {
         connect(job, &KIO::DropJob::result, this, &DolphinView::slotJobResult);
+        // A copy or move that a drop starts waits for the ones before it, like a paste does.
+        connect(job, &KIO::DropJob::copyJobStarted, this, [](KIO::CopyJob *copyJob) {
+            JobQueue::add(copyJob);
+        });
 
         if (selectDroppedItems) {
             // Mark the dropped urls as selected.
@@ -2351,6 +2402,9 @@ void DolphinView::slotDirectoryLoadingCompleted()
 {
     m_loadingState = LoadingState::Completed;
 
+    // A cover.jpg, folder.jpg, ... in a local folder is shown behind the items.
+    m_view->setBackgroundImage(url().isLocalFile() ? DolphinItemListView::backgroundImageIn(url().toLocalFile()) : QString());
+
     // Update the view-state. This has to be done asynchronously
     // because the view might not be in its final state yet.
     QTimer::singleShot(0, this, &DolphinView::updateViewState);
@@ -2414,8 +2468,97 @@ void DolphinView::slotSortRoleChangedByHeader(const QByteArray &current, const Q
     Q_EMIT sortRoleChanged(current);
 }
 
+static bool s_hideColumnsWhenNarrow = false;
+static bool s_namesOnly = false;
+
+void DolphinView::setNamesOnly(bool enabled)
+{
+    s_namesOnly = enabled;
+}
+
+bool DolphinView::namesOnly()
+{
+    return s_namesOnly;
+}
+void DolphinView::setUsesApplicationPalette(bool enabled)
+{
+    s_usesApplicationPalette = enabled;
+}
+static QHash<QByteArray, int> s_columnHideThresholds;
+
+void DolphinView::setColumnHideThresholds(const QHash<QByteArray, int> &thresholds)
+{
+    s_columnHideThresholds = thresholds;
+}
+
+QHash<QByteArray, int> DolphinView::columnHideThresholds()
+{
+    return s_columnHideThresholds;
+}
+
+void DolphinView::setHideColumnsWhenNarrow(bool enabled)
+{
+    s_hideColumnsWhenNarrow = enabled;
+}
+
+bool DolphinView::hideColumnsWhenNarrow()
+{
+    return s_hideColumnsWhenNarrow;
+}
+
+void DolphinView::updateResponsiveColumns()
+{
+    if (m_mode != DetailsView || m_visibleRoles.isEmpty()) {
+        return;
+    }
+    QList<QByteArray> shown = m_visibleRoles;
+    if (s_namesOnly) {
+        shown = m_visibleRoles.mid(0, 1);
+    } else if (s_hideColumnsWhenNarrow) {
+        // The name needs room first; every other column needs about as much as a date.
+        const int width = m_container->width();
+        const int extra = qMax(0, (width - 320) / 150);
+        shown = m_visibleRoles.mid(0, 1);
+        for (int i = 1; i < m_visibleRoles.count(); ++i) {
+            const int threshold = s_columnHideThresholds.value(m_visibleRoles.at(i), 0);
+            // A column with a threshold of its own is shown from that width; the others follow their place in the row.
+            if (threshold > 0 ? width >= threshold : i <= extra) {
+                shown << m_visibleRoles.at(i);
+            }
+        }
+    }
+    if (shown == m_view->visibleRoles()) {
+        return;
+    }
+    m_applyingResponsiveColumns = true;
+    m_view->setVisibleRoles(shown);
+    m_applyingResponsiveColumns = false;
+}
+
+void DolphinView::showColumnsTemporarily(const QList<QByteArray> &roles, const QList<int> &widths)
+{
+    m_applyingResponsiveColumns = true;
+    m_view->setVisibleRoles(roles);
+    m_applyingResponsiveColumns = false;
+    KItemListHeader *header = m_view->header();
+    if (widths.count() == roles.count()) {
+        QHash<QByteArray, qreal> columnWidths;
+        for (int i = 0; i < roles.count(); ++i) {
+            columnWidths.insert(roles.at(i), widths.at(i));
+        }
+        header->setAutomaticColumnResizing(false);
+        header->setColumnWidths(columnWidths);
+    } else {
+        header->setAutomaticColumnResizing(true);
+    }
+}
+
 void DolphinView::slotVisibleRolesChangedByHeader(const QList<QByteArray> &current, const QList<QByteArray> &previous)
 {
+    if (m_applyingResponsiveColumns) {
+        // Hiding the columns that do not fit is not a change of the folder's view.
+        return;
+    }
     Q_UNUSED(previous)
     Q_ASSERT(m_container->controller()->view()->visibleRoles() == current);
 
@@ -2862,6 +3005,7 @@ void DolphinView::pasteToUrl(const QUrl &url)
 {
     KIO::PasteJob *job = KIO::paste(QApplication::clipboard()->mimeData(), url);
     KJobWidgets::setWindow(job, this);
+    JobQueue::add(job);
     m_clearSelectionBeforeSelectingNewItems = true;
     m_markFirstNewlySelectedItemAsCurrent = true;
     m_selectJobCreatedItems = true;
