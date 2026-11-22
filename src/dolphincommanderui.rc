@@ -71,6 +71,7 @@
             <Action name="convert_images" />
             <Action name="open_with_dialog" />
             <Action name="recent_notifications" />
+            <Action name="age_stripes" />
             <Action name="new_note" />
             <Action name="new_todo" />
             <Action name="toggle_todo_done" />

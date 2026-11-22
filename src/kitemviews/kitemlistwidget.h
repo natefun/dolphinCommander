@@ -62,6 +62,10 @@ public:
 
     void setData(const SmallHash &data, const QSet<QByteArray> &roles = QSet<QByteArray>());
     SmallHash data() const;
+
+    /** Draws a stripe at the left of each row whose color tells how long ago the item was changed: red for today, blue for years. */
+    static void setAgeStripesShown(bool shown);
+    static bool ageStripesShown();
     QVariant value(const QByteArray &key) const;
 
     /**

@@ -16,9 +16,11 @@
 #include <KSharedConfig>
 
 #include <QApplication>
+#include <QDateTime>
 #include <QPainter>
 #include <QPropertyAnimation>
 #include <QStyleOption>
+#include <cmath>
 
 KItemListWidgetInformant::KItemListWidgetInformant() = default;
 
@@ -101,6 +103,18 @@ QVariant KItemListWidget::value(const QByteArray &key) const
     return m_data.value(key);
 }
 
+static bool s_ageStripes = false;
+
+void KItemListWidget::setAgeStripesShown(bool shown)
+{
+    s_ageStripes = shown;
+}
+
+bool KItemListWidget::ageStripesShown()
+{
+    return s_ageStripes;
+}
+
 void KItemListWidget::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
 {
     Q_UNUSED(option)
@@ -134,6 +148,16 @@ void KItemListWidget::paint(QPainter *painter, const QStyleOptionGraphicsItem *o
                 painter->fillRect(QRectF(0, 0, size().width(), size().height()), tint);
                 break;
             }
+        }
+    }
+
+    if (s_ageStripes) {
+        const qlonglong seconds = m_data.value("modificationtime").toLongLong();
+        if (seconds > 0) {
+            const double days = (QDateTime::currentSecsSinceEpoch() - seconds) / 86400.0;
+            // Hue from red (0) for today to blue (240) for a year and more.
+            const double hue = 240.0 * qBound(0.0, std::log1p(qMax(days, 0.0)) / std::log1p(365.0), 1.0);
+            painter->fillRect(QRectF(0, 0, 3, size().height()), QColor::fromHsvF(hue / 360.0, 0.8, 0.9));
         }
     }
 

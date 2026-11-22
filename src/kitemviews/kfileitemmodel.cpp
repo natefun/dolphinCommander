@@ -875,8 +875,11 @@ void KFileItemModel::clear()
     slotClear();
 }
 
-void KFileItemModel::setRoles(const QSet<QByteArray> &roles)
+void KFileItemModel::setRoles(const QSet<QByteArray> &requestedRoles)
 {
+    // The age stripes of the rows need the modification time, whatever columns are shown.
+    QSet<QByteArray> roles = requestedRoles;
+    roles.insert(QByteArrayLiteral("modificationtime"));
     if (m_roles == roles) {
         return;
     }

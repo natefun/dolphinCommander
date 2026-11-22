@@ -7,6 +7,7 @@
  */
 
 #include "dolphinmainwindow.h"
+#include "kitemviews/kitemlistwidget.h"
 #include "sidessplitter.h"
 
 #include "admin/workerintegration.h"
@@ -2815,6 +2816,22 @@ void DolphinMainWindow::setupActions()
     notifications->setIcon(QIcon::fromTheme(QStringLiteral("notifications")));
     actionCollection()->setDefaultShortcut(notifications, Qt::CTRL | Qt::ALT | Qt::Key_N);
     connect(notifications, &QAction::triggered, this, &DolphinMainWindow::showRecentNotifications);
+
+    QAction *ageStripes = actionCollection()->addAction(QStringLiteral("age_stripes"));
+    ageStripes->setText(i18nc("@action:inmenu", "Color Rows by Age"));
+    ageStripes->setToolTip(i18nc("@info:tooltip", "Show a stripe at the left of each row: red for what changed today, blue for what is a year old."));
+    ageStripes->setIcon(QIcon::fromTheme(QStringLiteral("color-management")));
+    ageStripes->setCheckable(true);
+    const bool ageOn = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("AgeStripes", false);
+    ageStripes->setChecked(ageOn);
+    KItemListWidget::setAgeStripesShown(ageOn);
+    connect(ageStripes, &QAction::toggled, this, [this](bool on) {
+        KItemListWidget::setAgeStripesShown(on);
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("AgeStripes", on);
+        for (QWidget *w : findChildren<QWidget *>()) {
+            w->update();
+        }
+    });
 
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));
