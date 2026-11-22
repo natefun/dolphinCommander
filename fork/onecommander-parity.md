@@ -58,6 +58,7 @@ covered by `testSeveralSelectedItemsShowNoFolder` in `dolphincolumnsviewtest`), 
 Columns and Classic layouts) and of the tool windows into the folder.
 Looking at them found: the Dark theme left the file lists light (they read the desktop's color scheme; fixed, they now follow the program's palette
 while one of the fork's themes is on) and the quick view's picture used half the window (fixed).
-Still wrong, and not fixable by the program's palette: Breeze icons are single-color and take their color from the desktop's color scheme, so in the
-Dark theme the icons of the Places panel and most folder icons are dark on dark. Switching to the breeze-dark icon theme made them vanish, so that
-was left out. For a dark look with icons, use the desktop's own dark color scheme (View > Color Scheme), which Dolphin already has.
+Breeze icons are single-color and take their color from the desktop's color scheme, so a palette alone left them dark on dark. The Light and Dark themes
+now activate the desktop's BreezeLight and BreezeDark color schemes when they are installed (the way View > Color Scheme does), and use the fork's own
+palette only when they are not, or for Custom Colors. In the offscreen window used for the screenshots the icons stay dark even then, so whether the
+schemes recolor them in a real desktop session is not verified.

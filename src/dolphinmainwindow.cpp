@@ -2687,6 +2687,31 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
     static const QPalette systemPalette = QApplication::palette();
     // The views take their background from the program's palette while one of the fork's themes is on.
     DolphinView::setUsesApplicationPalette(theme == QLatin1String("dark") || theme == QLatin1String("light") || theme == QLatin1String("custom"));
+
+    // Light and Dark are the desktop's own Breeze color schemes when they are installed: their icons are recolored with them.
+    const auto installedScheme = [](const QString &id) {
+        QStringList dirs = QStandardPaths::locateAll(QStandardPaths::GenericDataLocation, QStringLiteral("color-schemes"), QStandardPaths::LocateDirectory);
+        dirs << QStringLiteral("/usr/share/color-schemes") << QStringLiteral("/usr/local/share/color-schemes");
+        for (const QString &dir : std::as_const(dirs)) {
+            if (QFile::exists(dir + QLatin1Char('/') + id + QLatin1String(".colors"))) {
+                return true;
+            }
+        }
+        return false;
+    };
+    const QString schemeId =
+        theme == QLatin1String("dark") ? QStringLiteral("BreezeDark") : (theme == QLatin1String("light") ? QStringLiteral("BreezeLight") : QString());
+    if (!schemeId.isEmpty() && installedScheme(schemeId)) {
+        KColorSchemeManager::instance()->activateSchemeId(schemeId);
+        m_schemeThemeActive = true;
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ColorTheme", theme);
+        QPixmapCache::clear();
+        return;
+    }
+    if (theme == QLatin1String("system") && m_schemeThemeActive) {
+        KColorSchemeManager::instance()->activateSchemeId(QString());
+        m_schemeThemeActive = false;
+    }
     if (theme == QLatin1String("dark") || theme == QLatin1String("light") || theme == QLatin1String("custom")) {
         const bool dark = theme == QLatin1String("dark");
         QPalette palette;

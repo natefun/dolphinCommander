@@ -904,6 +904,8 @@ private:
     /** Closing hides the window when "keep running" is on; Quit (or the tray menu) really closes it. */
     bool m_quitting = false;
     bool m_hiddenToTray = false;
+    /** True while the Light or Dark theme is one of the desktop's color schemes. */
+    bool m_schemeThemeActive = false;
     QSystemTrayIcon *m_trayIcon = nullptr;
     /** The view whose files the quick view steps through. */
     QPointer<DolphinViewContainer> m_quickViewSource;
