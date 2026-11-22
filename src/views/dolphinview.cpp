@@ -2510,6 +2510,24 @@ void DolphinView::updateResponsiveColumns()
     m_applyingResponsiveColumns = false;
 }
 
+void DolphinView::showColumnsTemporarily(const QList<QByteArray> &roles, const QList<int> &widths)
+{
+    m_applyingResponsiveColumns = true;
+    m_view->setVisibleRoles(roles);
+    m_applyingResponsiveColumns = false;
+    KItemListHeader *header = m_view->header();
+    if (widths.count() == roles.count()) {
+        QHash<QByteArray, qreal> columnWidths;
+        for (int i = 0; i < roles.count(); ++i) {
+            columnWidths.insert(roles.at(i), widths.at(i));
+        }
+        header->setAutomaticColumnResizing(false);
+        header->setColumnWidths(columnWidths);
+    } else {
+        header->setAutomaticColumnResizing(true);
+    }
+}
+
 void DolphinView::slotVisibleRolesChangedByHeader(const QList<QByteArray> &current, const QList<QByteArray> &previous)
 {
     if (m_applyingResponsiveColumns) {

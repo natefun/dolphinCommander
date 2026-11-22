@@ -285,6 +285,8 @@ public:
     static QHash<QByteArray, int> columnHideThresholds();
     /** Shows only the columns that fit when "hide columns when narrow" is on, and all of them otherwise. The properties of the folder are left as they are. */
     void updateResponsiveColumns();
+    /** Shows these columns, with these widths (none: automatic), until the folder is loaded again; the folder's settings are not changed. */
+    void showColumnsTemporarily(const QList<QByteArray> &roles, const QList<int> &widths);
 
     /**
      * Saves the current settings (e.g. icons size, font, ..).

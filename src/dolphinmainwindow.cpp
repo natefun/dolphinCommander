@@ -2375,6 +2375,11 @@ void DolphinMainWindow::designFileView()
         if (roles.isEmpty()) {
             return;
         }
+        if (dialog->temporaryOnly()) {
+            // Only tried on the folder: its settings and the named views stay as they are.
+            target->showColumnsTemporarily(roles, widths);
+            return;
+        }
         // The widths of the view under which the columns are hidden (when that is on) are kept for the whole program.
         QHash<QByteArray, int> thresholds = DolphinView::columnHideThresholds();
         const QList<int> hideBelow = dialog->hideBelow();

@@ -42,7 +42,7 @@ covered by `testSeveralSelectedItemsShowNoFolder` in `dolphincolumnsviewtest`), 
 ## From the later help pages (File View Designer, Resizing panes, Network drives, Phone storage, Preview, first start)
 - Removal Order and Minwidth of a column: the designer's "Hide below" width per column does the same job, in pixels of the view instead of an order.
 - Designs as .json files: File Views > Save View Design to File… and Apply View Design from File… (mode, previews, columns, widths).
-- "Apply to the current folder and close, without saving": the designer applies to the folder and saves it; there is no temporary apply.
+- "Apply to the current folder and close, without saving": the designer has an "Apply Without Saving" button; the folder's own settings stay as they were.
 - Preview Window: Space opens it in OneCommander, here it is Alt+F3 (Space selects); Up/Down step through the files and Esc closes it, as there.
   Not done: three viewing modes, a map button for photos with GPS, video seeking and frame stepping, Word/Excel previews.
 - Collapsing a side by dragging its divider: the fork's two sides do it (Ctrl+F3 and the splitter), the same as OneCommander's single-browser layout.

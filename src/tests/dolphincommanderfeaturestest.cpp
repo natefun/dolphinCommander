@@ -105,6 +105,7 @@ private Q_SLOTS:
     void testAStyleSheetRestylesTheProgramAndTravelsWithTheTheme();
     void testTheQuickViewStepsWithTheUpAndDownKeys();
     void testAViewDesignGoesToAFileAndComesBack();
+    void testADesignCanBeTriedWithoutSavingIt();
     void testTheFirstStartAsksForALayoutAndATheme();
     void testTheFileViewDesignerEditsAndAppliesAView();
     void testColumnsCanBeHiddenWhenTheViewIsNarrow();
@@ -1700,6 +1701,62 @@ void DolphinCommanderFeaturesTest::testTheFirstStartAsksForALayoutAndATheme()
     QCOMPARE(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ColorTheme"), QStringLiteral("dark"));
     QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("system")));
     QCOMPARE(QApplication::palette().color(QPalette::Base), before);
+}
+
+void DolphinCommanderFeaturesTest::testADesignCanBeTriedWithoutSavingIt()
+{
+    TestDir dir;
+    dir.createFile("x");
+    GeneralSettings::setGlobalViewProps(false);
+    GeneralSettings::self()->save();
+    {
+        ViewProperties props(dir.url());
+        props.setViewMode(DolphinView::DetailsView);
+        props.setVisibleRoles({"text", "size", "modificationtime"});
+        props.save();
+    }
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.openDirectories({dir.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    QTRY_COMPARE(window.activeViewContainer()->view()->itemsCount(), 1);
+    GeneralSettings::setGlobalViewProps(false);
+    GeneralSettings::self()->save();
+    QTRY_COMPARE(window.activeViewContainer()->view()->visibleRoles(), (QList<QByteArray>{"text", "size", "modificationtime"}));
+
+    window.actionCollection()->action(QStringLiteral("design_file_view"))->trigger();
+    FileViewDesignerDialog *designer = nullptr;
+    QTRY_VERIFY((designer = [&]() -> FileViewDesignerDialog * {
+        for (QWidget *top : QApplication::topLevelWidgets()) {
+            if (auto *found = qobject_cast<FileViewDesignerDialog *>(top)) {
+                return found;
+            }
+        }
+        return nullptr;
+    }()));
+    auto *rows = designer->findChild<QTableWidget *>();
+    QVERIFY(rows);
+    rows->item(2, 0)->setCheckState(Qt::Unchecked); // no date
+    auto *apply = designer->findChild<QPushButton *>(QStringLiteral("applyWithoutSaving"));
+    QVERIFY(apply);
+    apply->click();
+
+    // The view shows the design now (the list of the columns on screen), the folder's own settings are as they were.
+    auto *list = window.activeViewContainer()->view()->findChild<KItemListContainer *>();
+    QVERIFY(list);
+    QTRY_COMPARE(list->controller()->view()->visibleRoles(), (QList<QByteArray>{"text", "size"}));
+    GeneralSettings::setGlobalViewProps(false);
+    QCOMPARE(ViewProperties(dir.url()).visibleRoles(), (QList<QByteArray>{"text", "size", "modificationtime"}));
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

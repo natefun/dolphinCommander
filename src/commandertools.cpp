@@ -380,9 +380,20 @@ FileViewDesignerDialog::FileViewDesignerDialog(const QList<QByteArray> &roles, c
     layout->addWidget(m_name);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    auto *temporary = buttons->addButton(i18nc("@action:button", "Apply Without Saving"), QDialogButtonBox::ActionRole);
+    temporary->setObjectName(QStringLiteral("applyWithoutSaving"));
+    connect(temporary, &QPushButton::clicked, this, [this]() {
+        m_temporaryOnly = true;
+        accept();
+    });
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     layout->addWidget(buttons);
+}
+
+bool FileViewDesignerDialog::temporaryOnly() const
+{
+    return m_temporaryOnly;
 }
 
 void FileViewDesignerDialog::moveCurrentRow(int by)
