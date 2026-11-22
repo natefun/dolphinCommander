@@ -875,8 +875,11 @@ void KFileItemModel::clear()
     slotClear();
 }
 
-void KFileItemModel::setRoles(const QSet<QByteArray> &roles)
+void KFileItemModel::setRoles(const QSet<QByteArray> &requestedRoles)
 {
+    // The age stripes of the rows need the modification time, whatever columns are shown.
+    QSet<QByteArray> roles = requestedRoles;
+    roles.insert(QByteArrayLiteral("modificationtime"));
     if (m_roles == roles) {
         return;
     }
@@ -2490,6 +2493,18 @@ QString KFileItemModel::groupKeyForItem(const ItemData *item, const QByteArray &
     }
 }
 
+static bool s_foldersAlwaysSortedByName = false;
+
+void KFileItemModel::setFoldersAlwaysSortedByName(bool enabled)
+{
+    s_foldersAlwaysSortedByName = enabled;
+}
+
+bool KFileItemModel::foldersAlwaysSortedByName()
+{
+    return s_foldersAlwaysSortedByName;
+}
+
 bool KFileItemModel::lessThan(const ItemData *a, const ItemData *b, const QCollator &collator) const
 {
     int result = 0;
@@ -2544,6 +2559,13 @@ bool KFileItemModel::lessThan(const ItemData *a, const ItemData *b, const QColla
             return true;
         } else if (!isDirA && isDirB) {
             return false;
+        }
+    }
+
+    if (s_foldersAlwaysSortedByName && a->item.isDir() && b->item.isDir()) {
+        const int byName = stringCompare(a->item.text(), b->item.text(), collator);
+        if (byName != 0) {
+            return byName < 0;
         }
     }
 

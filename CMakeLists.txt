@@ -60,6 +60,8 @@ find_package(Qt6 ${QT_MIN_VERSION} CONFIG REQUIRED COMPONENTS
     Widgets
     Gui
     DBus
+    Multimedia
+    MultimediaWidgets
 )
 
 if (Qt6Gui_VERSION VERSION_GREATER_EQUAL "6.10.0")
@@ -75,7 +77,9 @@ find_package(KF6 ${KF6_MIN_VERSION} REQUIRED COMPONENTS
     CoreAddons
     I18n
     DBusAddons
+    Archive
     Bookmarks
+    GlobalAccel
     Config
     KIO
     Parts
@@ -130,10 +134,6 @@ if (KF6Baloo_FOUND AND KF6BalooWidgets_FOUND)
     message(STATUS "Baloo packages are found")
     set(HAVE_BALOO TRUE)
 
-    find_package(Qt6 ${QT_MIN_VERSION} CONFIG REQUIRED COMPONENTS
-        Multimedia
-        MultimediaWidgets
-    )
 else ()
     message(WARNING "Baloo packages not found. They are needed for the metadata features of Dolphin (including the information panel).")
 endif()

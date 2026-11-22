@@ -32,6 +32,8 @@ Q_SIGNALS:
     void tabDetachRequested(int index);
     /** Emitted when the tab at @p index was dropped on @p target, the tab bar of the other side, to go to @p targetIndex there (-1 for the end). */
     void tabMoveRequested(int index, DolphinTabBar *target, int targetIndex);
+    /** Emitted when the tab at @p index was clicked with the middle button while Alt was held: it is to go to the other side. */
+    void tabMoveToOtherSideRequested(int index);
     void tabRenamed(int index, const QString &label);
     void newTabRequested();
     void tabPinStateChanged(int index, bool pinned);

@@ -19,7 +19,7 @@ url="https://github.com/natefun/dolphinCommander"
 license=(GPL-2.0-or-later)
 depends=(
     gcc-libs glibc qt6-base qt6-multimedia
-    kbookmarks kcmutils kcodecs kcolorscheme kcompletion kconfig kcoreaddons kcrash
+    karchive kbookmarks kglobalaccel kcmutils kcodecs kcolorscheme kcompletion kconfig kcoreaddons kcrash
     kdbusaddons kfilemetadata kguiaddons ki18n kiconthemes kio knotifications kparts
     kservice ktextwidgets kwidgetsaddons kwindowsystem kxmlgui solid
 )

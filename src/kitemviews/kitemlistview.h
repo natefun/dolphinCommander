@@ -187,6 +187,14 @@ public:
      */
     virtual qreal scrollSingleStep() const;
 
+    /** Item scrolling: a step of the mouse wheel moves by the height of a row instead of by a few lines of text, as OneCommander's "Item" scrolling does. */
+    static void setItemScrolling(bool enabled);
+    static bool itemScrolling();
+
+private:
+    qreal textScrollSingleStep() const;
+
+public:
     /**
      * @return Index of the item that is below the point \a pos.
      *         The position is relative to the upper right of

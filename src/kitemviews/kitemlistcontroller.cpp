@@ -657,6 +657,11 @@ bool KItemListController::mousePressEvent(QGraphicsSceneMouseEvent *event, const
         return false;
     }
 
+    // As in OneCommander, the middle button draws a selection rectangle from empty space.
+    if ((buttons & Qt::MiddleButton) && !m_pressedIndex.has_value()) {
+        startRubberBand();
+    }
+
     return true;
 }
 
