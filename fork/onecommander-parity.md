@@ -13,7 +13,7 @@ type-to-filter, move-by-default drag, F5/F6 copy and move to the other side, bac
 hidden files, folders first, search (Dolphin's).
 
 ## Added on this branch
-Select/deselect by pattern, open folder on the other side, swap sides, update the other side,
+Select/deselect by pattern (Alt++ and Alt+-), open folder on the other side, swap sides, update the other side,
 duplicate finder, recent folders in the hotlist, color labels (menu + row tint, stored as tags),
 New Note (Alt+N), Scripts menu, Folder Sizes dialog, Convert Images, Alt+C / Alt+M / Alt+S,
 Open With on Ctrl+Enter, middle-button selection rectangle, folder background image,

@@ -2823,14 +2823,14 @@ void DolphinMainWindow::setupActions()
     QAction *selectPattern = actionCollection()->addAction(QStringLiteral("select_by_pattern"));
     selectPattern->setText(i18nc("@action:inmenu", "Select by Pattern…"));
     selectPattern->setIcon(QIcon::fromTheme(QStringLiteral("edit-select-text")));
-    actionCollection()->setDefaultShortcut(selectPattern, Qt::CTRL | Qt::Key_Plus);
+    actionCollection()->setDefaultShortcut(selectPattern, Qt::ALT | Qt::Key_Plus);
     connect(selectPattern, &QAction::triggered, this, [this]() {
         selectByPattern(true);
     });
     QAction *deselectPattern = actionCollection()->addAction(QStringLiteral("deselect_by_pattern"));
     deselectPattern->setText(i18nc("@action:inmenu", "Deselect by Pattern…"));
     deselectPattern->setIcon(QIcon::fromTheme(QStringLiteral("edit-select-none")));
-    actionCollection()->setDefaultShortcut(deselectPattern, Qt::CTRL | Qt::Key_Minus);
+    actionCollection()->setDefaultShortcut(deselectPattern, Qt::ALT | Qt::Key_Minus);
     connect(deselectPattern, &QAction::triggered, this, [this]() {
         selectByPattern(false);
     });
@@ -2987,10 +2987,7 @@ void DolphinMainWindow::setupActions()
         QKeySequence key;
     } extraKeys[] = {{"duplicate", QKeySequence(Qt::CTRL | Qt::Key_D)},
                      {"create_dir", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N)},
-                     {"properties", QKeySequence(Qt::CTRL | Qt::Key_I)},
                      {"focus_inactive_split_view", QKeySequence(Qt::ALT | Qt::Key_F)},
-                     {"copy_location", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C)},
-                     {"editable_location", QKeySequence(Qt::ALT | Qt::Key_D)},
                      {"color_label", QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_T)}};
     for (const auto &extra : extraKeys) {
         QAction *target = actionCollection()->action(QString::fromLatin1(extra.action));

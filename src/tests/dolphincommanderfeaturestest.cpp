@@ -9,6 +9,7 @@
 
 #include "commandertools.h"
 #include "dolphin_generalsettings.h"
+#include "dolphinmainwindow.h"
 #include "dolphinnavigatorswidgetaction.h"
 #include "dolphintabbar.h"
 #include "dolphintabpage.h"
@@ -20,6 +21,7 @@
 #include "views/dolphinview.h"
 #include "views/viewheader.h"
 
+#include <KActionCollection>
 #include <KCoreDirLister>
 
 #include <QApplication>
@@ -30,6 +32,7 @@
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QTest>
+#include <QTimer>
 #include <QToolButton>
 
 class DolphinCommanderFeaturesTest : public QObject
@@ -55,6 +58,7 @@ private Q_SLOTS:
     void testFolderSize();
     void testToDoNames();
     void testConvertImage();
+    void testTheMainWindowHasTheOneCommanderActions();
 
 private:
     void waitForViewReady(DolphinViewContainer *container);
@@ -273,6 +277,69 @@ void DolphinCommanderFeaturesTest::testChecksums()
     QVERIFY(CommanderTools::checksumsMatch(QStringLiteral("  900150983CD24FB0D6963F7D28E17F72\n"), QStringLiteral("900150983cd24fb0d6963f7d28e17f72")));
     QVERIFY(!CommanderTools::checksumsMatch(QString(), QString()));
     QVERIFY(!CommanderTools::checksumsMatch(QStringLiteral("aa"), QStringLiteral("ab")));
+}
+
+void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
+{
+    // A shortcut that two actions share makes KXmlGuiWindow ask the user about it at startup, which would hang here: close that dialog.
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    KActionCollection *actions = window.actionCollection();
+    QMultiHash<QKeySequence, QString> owners;
+    for (QAction *action : actions->actions()) {
+        for (const QKeySequence &key : action->shortcuts()) {
+            owners.insert(key, action->objectName());
+        }
+    }
+    QStringList ambiguous;
+    for (const QKeySequence &key : owners.uniqueKeys()) {
+        // Dolphin's own Del for "delete_shortcut" and "movetotrash" is not ours.
+        if (owners.count(key) > 1 && key != QKeySequence(Qt::Key_Delete)) {
+            ambiguous << key.toString() + QLatin1Char('=') + owners.values(key).join(QLatin1Char('+'));
+        }
+    }
+    QVERIFY2(ambiguous.isEmpty(), qPrintable(ambiguous.join(QLatin1String("; "))));
+    const QStringList names = {"select_by_pattern",
+                               "deselect_by_pattern",
+                               "mirror_to_other_side",
+                               "swap_sides",
+                               "sync_to_other_side",
+                               "find_duplicates",
+                               "color_label",
+                               "new_note",
+                               "new_todo",
+                               "toggle_todo_done",
+                               "scripts_menu",
+                               "folder_sizes",
+                               "convert_images",
+                               "open_with_dialog",
+                               "recent_notifications",
+                               "age_stripes",
+                               "commander_layouts",
+                               "file_views"};
+    for (const QString &name : names) {
+        QVERIFY2(actions->action(name), qPrintable(name));
+    }
+    const QList<QPair<QString, QKeySequence>> keys = {{"copy_to_inactive_split_view", QKeySequence(Qt::ALT | Qt::Key_C)},
+                                                      {"move_to_inactive_split_view", QKeySequence(Qt::ALT | Qt::Key_M)},
+                                                      {"show_places_panel", QKeySequence(Qt::ALT | Qt::Key_S)},
+                                                      {"duplicate", QKeySequence(Qt::CTRL | Qt::Key_D)},
+                                                      {"create_dir", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N)},
+                                                      {"focus_inactive_split_view", QKeySequence(Qt::ALT | Qt::Key_F)},
+                                                      {"replace_location", QKeySequence(Qt::ALT | Qt::Key_D)}};
+    for (const auto &[name, key] : keys) {
+        QAction *action = actions->action(name);
+        QVERIFY2(action, qPrintable(name));
+        QVERIFY2(action->shortcuts().contains(key), qPrintable(name + QStringLiteral(" lacks ") + key.toString()));
+    }
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()
