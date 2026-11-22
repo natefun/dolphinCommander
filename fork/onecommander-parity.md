@@ -33,5 +33,5 @@ custom folder icons (the folder's Properties, which writes its .directory file),
 - XAML themes, custom folder icons per theme: there are three color themes (Follow the Desktop, Light, Dark) and no editable ones
 - Copy and move queue: copy, move and paste from a view, and Update the Other Side, are queued; a drop (drag and drop) is not
 - Ctrl+click in a parent column to add to the selection
-- Settings: pixel/item scrolling, column hover-expand tuning
+- Settings: column hover-expand tuning
 - OneCommander's plain ~ for the notifications (Ctrl+Shift+~ opens the panel, Ctrl+Alt+N the menu); Ctrl+` toggles the Miller columns
