@@ -24,6 +24,7 @@
 #include "views/viewheader.h"
 
 #include <KActionCollection>
+#include <KActionMenu>
 #include <KCoreDirLister>
 #include <KFileMetaData/UserMetaData>
 
@@ -66,6 +67,7 @@ private Q_SLOTS:
     void testTheTwoSidesCanBeSwapped();
     void testAFolderCanBeMirroredToTheOtherSide();
     void testTheOtherSideCanBeUpdated();
+    void testNotesAndColorLabelsAreMadeFromTheMenus();
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
@@ -603,6 +605,53 @@ void DolphinCommanderFeaturesTest::testTheOtherSideCanBeUpdated()
     QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(target.path() + QStringLiteral("/new.txt")), 10000);
     QTRY_VERIFY_WITH_TIMEOUT(QFile(target.path() + QStringLiteral("/both.txt")).size() == 5, 10000);
     QVERIFY(QFile::exists(target.path() + QStringLiteral("/only-there.txt")));
+}
+
+void DolphinCommanderFeaturesTest::testNotesAndColorLabelsAreMadeFromTheMenus()
+{
+    TestDir dir;
+    dir.createFile("thing.txt", "x");
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    KActionCollection *actions = window.actionCollection();
+    window.openDirectories({dir.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    QTRY_COMPARE(window.activeViewContainer()->view()->itemsCount(), 1);
+
+    // New Note makes a dated .txt file in the folder.
+    actions->action(QStringLiteral("new_note"))->trigger();
+    const QStringList notes = QDir(dir.path()).entryList({QStringLiteral("* note.txt")});
+    QCOMPARE(notes.size(), 1);
+
+    // A color label from the menu ends up as a tag of the selected file.
+    QTRY_COMPARE(window.activeViewContainer()->view()->itemsCount(), 2);
+    // The new note is the selected item now: it is the one to label.
+    QTRY_COMPARE(window.activeViewContainer()->view()->selectedItemsCount(), 1);
+    const QString labeled = window.activeViewContainer()->view()->selectedItems().first().localPath();
+    QVERIFY(labeled.endsWith(QStringLiteral(" note.txt")));
+    auto *labels = qobject_cast<KActionMenu *>(actions->action(QStringLiteral("color_label")));
+    QVERIFY(labels);
+    labels->menu()->actions().first()->trigger();
+    const QStringList tags = KFileMetaData::UserMetaData(labeled).tags();
+    if (tags.isEmpty()) {
+        QSKIP("The file system keeps no extended attributes here.");
+    }
+    QCOMPARE(tags, QStringList{QStringLiteral("red")});
+    // The selection is still there for the next label.
+    QTRY_COMPARE(window.activeViewContainer()->view()->selectedItemsCount(), 1);
+    // And "No Color Label" takes it off again.
+    labels->menu()->actions().last()->trigger();
+    QVERIFY(KFileMetaData::UserMetaData(labeled).tags().isEmpty());
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

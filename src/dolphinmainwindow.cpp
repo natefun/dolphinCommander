@@ -85,6 +85,9 @@
 #include <QDir>
 #include <QFile>
 #include <QPixmap>
+#ifdef Q_OS_LINUX
+#include <sys/xattr.h>
+#endif
 
 #include <kwidgetsaddons_version.h>
 
@@ -2081,8 +2084,16 @@ void DolphinMainWindow::setColorLabel(const QString &color)
             tags.append(color);
         }
         data.setTags(tags);
+#ifdef Q_OS_LINUX
+        if (tags.isEmpty()) {
+            // setTags() with no tags leaves the old ones in place, so the attribute is removed.
+            removexattr(QFile::encodeName(item.localPath()).constData(), "user.xdg.tags");
+        }
+#endif
     }
+    // Reloading shows the new color, and would forget the selection.
     m_activeViewContainer->view()->reload();
+    m_activeViewContainer->view()->markUrlsAsSelected(items.urlList());
 }
 
 void DolphinMainWindow::syncToOtherSide()
