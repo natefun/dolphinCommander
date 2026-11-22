@@ -648,6 +648,8 @@ private Q_SLOTS:
     void showDuplicateFinder();
     /** Makes a text file named by the date in the folder and starts renaming it. */
     void newNote();
+    /** Makes a file of what is on the clipboard: a dated .png for an image, a dated .txt for text. */
+    void pasteClipboardAsFile();
     /** Keeps the view mode, the previews and the columns of the active view under a name, as one more file view. */
     void saveFileView();
     /** Applies a named file view (view mode, previews and the columns shown) to the active view. */

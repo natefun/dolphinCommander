@@ -14,6 +14,8 @@
 #include <QStringList>
 #include <QUrl>
 
+class QMimeData;
+
 class FilePreviewWidget;
 class QLabel;
 class QLineEdit;
@@ -45,6 +47,10 @@ QString convertImage(const QString &source, const QString &format);
 
 /** The name of a to-do file with its state flipped: .2do (open) becomes .2dx (done) and back. Other names stay as they are. */
 QString toggledToDoName(const QString &fileName);
+
+/** Writes the clipboard's image as a dated .png, or its text as a dated .txt, into @p folder, and returns the path (empty if the clipboard has neither or it
+ * failed). */
+QString saveClipboardAsFile(const QMimeData *clipboard, const QString &folder);
 
 /** The total size in bytes of the files below @p folder, without following symlinks. */
 qint64 folderSize(const QString &folder);

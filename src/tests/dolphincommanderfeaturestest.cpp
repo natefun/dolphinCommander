@@ -29,6 +29,7 @@
 #include <QFile>
 #include <QHBoxLayout>
 #include <QImage>
+#include <QMimeData>
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QTest>
@@ -58,6 +59,7 @@ private Q_SLOTS:
     void testFolderSize();
     void testToDoNames();
     void testConvertImage();
+    void testClipboardAsFile();
     void testTheMainWindowHasTheOneCommanderActions();
 
 private:
@@ -340,6 +342,27 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
         QVERIFY2(action, qPrintable(name));
         QVERIFY2(action->shortcuts().contains(key), qPrintable(name + QStringLiteral(" lacks ") + key.toString()));
     }
+}
+
+void DolphinCommanderFeaturesTest::testClipboardAsFile()
+{
+    TestDir dir;
+    QMimeData text;
+    text.setText(QStringLiteral("hello"));
+    const QString txt = CommanderTools::saveClipboardAsFile(&text, dir.path());
+    QVERIFY(txt.endsWith(QStringLiteral(".txt")));
+    QFile file(txt);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QCOMPARE(file.readAll(), QByteArray("hello"));
+
+    QImage image(2, 2, QImage::Format_RGB32);
+    image.fill(Qt::blue);
+    QMimeData picture;
+    picture.setImageData(image);
+    QVERIFY(CommanderTools::saveClipboardAsFile(&picture, dir.path()).endsWith(QStringLiteral(".png")));
+
+    QMimeData nothing;
+    QVERIFY(CommanderTools::saveClipboardAsFile(&nothing, dir.path()).isEmpty());
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

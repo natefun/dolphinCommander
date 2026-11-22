@@ -2300,6 +2300,19 @@ void DolphinMainWindow::saveFileView()
     m_activeViewContainer->showMessage(i18nc("@info:status", "Saved the file view %1.", name), KMessageWidget::Information);
 }
 
+void DolphinMainWindow::pasteClipboardAsFile()
+{
+    const QUrl folder = m_activeViewContainer->url();
+    const QString path = folder.isLocalFile() ? CommanderTools::saveClipboardAsFile(QApplication::clipboard()->mimeData(), folder.toLocalFile()) : QString();
+    if (path.isEmpty()) {
+        m_activeViewContainer->showMessage(
+            i18nc("@info", "There is no image or text on the clipboard to make a file of, or this folder is not on this computer."),
+            KMessageWidget::Information);
+        return;
+    }
+    m_activeViewContainer->view()->markUrlsAsSelected({QUrl::fromLocalFile(path)});
+}
+
 void DolphinMainWindow::newNote()
 {
     const QUrl folder = m_activeViewContainer->url();
@@ -3002,6 +3015,13 @@ void DolphinMainWindow::setupActions()
             actionCollection()->setDefaultShortcuts(target, target->shortcuts() + QList<QKeySequence>{extra.key});
         }
     }
+
+    QAction *pasteAsFile = actionCollection()->addAction(QStringLiteral("paste_clipboard_as_file"));
+    pasteAsFile->setText(i18nc("@action:inmenu", "Paste Clipboard as File"));
+    pasteAsFile->setToolTip(i18nc("@info:tooltip", "Make a dated .png of a copied image, or a dated .txt of copied text."));
+    pasteAsFile->setIcon(QIcon::fromTheme(QStringLiteral("edit-paste")));
+    actionCollection()->setDefaultShortcut(pasteAsFile, Qt::CTRL | Qt::ALT | Qt::Key_V);
+    connect(pasteAsFile, &QAction::triggered, this, &DolphinMainWindow::pasteClipboardAsFile);
 
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));

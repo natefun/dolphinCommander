@@ -25,6 +25,7 @@
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMimeData>
 #include <QMimeDatabase>
 #include <QPlainTextEdit>
 #include <QPointer>
@@ -115,6 +116,34 @@ QString CommanderTools::toggledToDoName(const QString &fileName)
         return fileName.chopped(1) + QLatin1Char('o');
     }
     return fileName;
+}
+
+QString CommanderTools::saveClipboardAsFile(const QMimeData *clipboard, const QString &folder)
+{
+    if (!clipboard) {
+        return QString();
+    }
+    const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH.mm.ss"));
+    const auto freeName = [&](const QString &extension) {
+        QString path = folder + QLatin1Char('/') + stamp + QLatin1Char('.') + extension;
+        for (int i = 2; QFile::exists(path); ++i) {
+            path = folder + QLatin1Char('/') + stamp + QLatin1Char(' ') + QString::number(i) + QLatin1Char('.') + extension;
+        }
+        return path;
+    };
+    if (clipboard->hasImage()) {
+        const QImage image = qvariant_cast<QImage>(clipboard->imageData());
+        const QString path = freeName(QStringLiteral("png"));
+        return !image.isNull() && image.save(path, "PNG") ? path : QString();
+    }
+    if (clipboard->hasText()) {
+        const QString path = freeName(QStringLiteral("txt"));
+        QFile file(path);
+        if (file.open(QIODevice::WriteOnly) && file.write(clipboard->text().toUtf8()) >= 0) {
+            return path;
+        }
+    }
+    return QString();
 }
 
 qint64 CommanderTools::folderSize(const QString &folder)
