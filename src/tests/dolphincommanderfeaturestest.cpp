@@ -64,6 +64,7 @@ private Q_SLOTS:
     void testToDoNames();
     void testConvertImage();
     void testTheTwoSidesCanBeSwapped();
+    void testAFolderCanBeMirroredToTheOtherSide();
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
@@ -531,6 +532,39 @@ void DolphinCommanderFeaturesTest::testTheTwoSidesCanBeSwapped()
     DolphinViewContainer *thisSide = window.activeViewContainer();
     actions->action(QStringLiteral("swap_sides"))->trigger();
     QTRY_COMPARE(plain(thisSide->url()), there);
+}
+
+void DolphinCommanderFeaturesTest::testAFolderCanBeMirroredToTheOtherSide()
+{
+    TestDir a;
+    TestDir b;
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    KActionCollection *actions = window.actionCollection();
+
+    window.openDirectories({a.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    DolphinViewContainer *first = window.activeViewContainer();
+    actions->action(QStringLiteral("focus_inactive_split_view"))->trigger();
+    window.openDirectories({b.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer() && window.activeViewContainer() != first);
+    DolphinViewContainer *second = window.activeViewContainer();
+    QTRY_COMPARE(second->url().adjusted(QUrl::StripTrailingSlash).path(), b.url().adjusted(QUrl::StripTrailingSlash).path());
+
+    // The active side is the second one: its folder is to appear on the first.
+    actions->action(QStringLiteral("mirror_to_other_side"))->trigger();
+    QTRY_COMPARE(first->url().adjusted(QUrl::StripTrailingSlash).path(), b.url().adjusted(QUrl::StripTrailingSlash).path());
+    QCOMPARE(second->url().adjusted(QUrl::StripTrailingSlash).path(), b.url().adjusted(QUrl::StripTrailingSlash).path());
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()
