@@ -50,6 +50,7 @@
 #include <QRegularExpression>
 #include <QScrollBar>
 #include <QStyle>
+#include <QTime>
 #include <QTimer>
 #include <QToolButton>
 #include <QUrl>
@@ -648,10 +649,25 @@ void DolphinViewContainer::slotSplitTabDisabled()
     }
 }
 
+static QStringList &messageHistory()
+{
+    static QStringList history;
+    return history;
+}
+
+QStringList DolphinViewContainer::recentMessages()
+{
+    return messageHistory();
+}
+
 void DolphinViewContainer::showMessage(const QString &message, KMessageWidget::MessageType messageType, std::initializer_list<QAction *> buttonActions)
 {
     if (message.isEmpty()) {
         return;
+    }
+    messageHistory().prepend(QTime::currentTime().toString(Qt::TextDate) + QLatin1String("  ") + message);
+    while (messageHistory().size() > 50) {
+        messageHistory().removeLast();
     }
 
     m_messageWidget->setText(message);

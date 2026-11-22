@@ -2194,6 +2194,20 @@ void DolphinMainWindow::toggleToDoDone()
     }
 }
 
+void DolphinMainWindow::showRecentNotifications()
+{
+    auto *menu = new QMenu(this);
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+    const QStringList messages = DolphinViewContainer::recentMessages();
+    if (messages.isEmpty()) {
+        menu->addAction(i18nc("@info:status", "No notifications yet."))->setEnabled(false);
+    }
+    for (const QString &message : messages) {
+        menu->addAction(message)->setEnabled(false);
+    }
+    menu->popup(m_activeViewContainer->mapToGlobal(QPoint(24, 24)));
+}
+
 void DolphinMainWindow::newNote()
 {
     const QUrl folder = m_activeViewContainer->url();
@@ -2795,6 +2809,12 @@ void DolphinMainWindow::setupActions()
     toggleToDo->setText(i18nc("@action:inmenu", "Mark To-Do Done or Open"));
     toggleToDo->setIcon(QIcon::fromTheme(QStringLiteral("checkbox")));
     connect(toggleToDo, &QAction::triggered, this, &DolphinMainWindow::toggleToDoDone);
+
+    QAction *notifications = actionCollection()->addAction(QStringLiteral("recent_notifications"));
+    notifications->setText(i18nc("@action:inmenu", "Recent Notifications"));
+    notifications->setIcon(QIcon::fromTheme(QStringLiteral("notifications")));
+    actionCollection()->setDefaultShortcut(notifications, Qt::CTRL | Qt::ALT | Qt::Key_N);
+    connect(notifications, &QAction::triggered, this, &DolphinMainWindow::showRecentNotifications);
 
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));

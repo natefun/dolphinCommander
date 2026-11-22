@@ -196,6 +196,9 @@ public:
      */
     void showMessage(const QString &message, KMessageWidget::MessageType messageType, std::initializer_list<QAction *> buttonActions = {});
 
+    /** The messages shown by any view, newest first, at most 50. */
+    static QStringList recentMessages();
+
     /**
      * Forwards to DolphinStatusBar::showProgress(). Only exception: The button to cancel the task is hidden.
      * @see DolphinStatusBar::showProgress().

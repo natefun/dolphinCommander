@@ -70,6 +70,7 @@
             <Action name="folder_sizes" />
             <Action name="convert_images" />
             <Action name="open_with_dialog" />
+            <Action name="recent_notifications" />
             <Action name="new_note" />
             <Action name="new_todo" />
             <Action name="toggle_todo_done" />
