@@ -2090,6 +2090,45 @@ void DolphinCommanderFeaturesTest::testTakeScreenshots()
     QTest::qWait(800);
     QVERIFY(window.grab().save(outDir + QStringLiteral("/dark.png")));
     QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("system")));
+
+    // The windows of the tools.
+    FileViewDesignerDialog designer({"text", "size", "modificationtime"}, {300, 90, 160}, nullptr);
+    designer.show();
+    QTest::qWait(300);
+    QVERIFY(designer.grab().save(outDir + QStringLiteral("/designer.png")));
+
+    QImage picture(600, 300, QImage::Format_RGB32);
+    picture.fill(QColor(30, 120, 200));
+    QVERIFY(picture.save(left.path() + QStringLiteral("/picture.png")));
+    QuickViewDialog quick(nullptr);
+    KFileItem item(QUrl::fromLocalFile(left.path() + QStringLiteral("/picture.png")));
+    item.determineMimeType();
+    quick.show(item);
+    QTest::qWait(600);
+    QVERIFY(quick.grab().save(outDir + QStringLiteral("/quickview.png")));
+
+    FolderSizesDialog sizes({left.path() + QStringLiteral("/projects"), left.path() + QStringLiteral("/archive")}, nullptr);
+    sizes.show();
+    QTest::qWait(600);
+    QVERIFY(sizes.grab().save(outDir + QStringLiteral("/sizes.png")));
+
+    left.createFile(QStringLiteral("twin1.txt"), "same");
+    left.createFile(QStringLiteral("twin2.txt"), "same");
+    DuplicateFinderDialog duplicates(left.path(), nullptr);
+    duplicates.show();
+    QTest::qWait(800);
+    QVERIFY(duplicates.grab().save(outDir + QStringLiteral("/duplicates.png")));
+
+    auto *themes = qobject_cast<KActionMenu *>(window.actionCollection()->action(QStringLiteral("file_views")));
+    themes->menu()->popup(QPoint(0, 0));
+    QTest::qWait(300);
+    QVERIFY(themes->menu()->grab().save(outDir + QStringLiteral("/fileviews-menu.png")));
+    themes->menu()->hide();
+    auto *toolsThemes = qobject_cast<KActionMenu *>(window.actionCollection()->action(QStringLiteral("color_theme")));
+    toolsThemes->menu()->popup(QPoint(0, 0));
+    QTest::qWait(300);
+    QVERIFY(toolsThemes->menu()->grab().save(outDir + QStringLiteral("/theme-menu.png")));
+    toolsThemes->menu()->hide();
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

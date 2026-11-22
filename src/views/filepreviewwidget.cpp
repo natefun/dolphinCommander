@@ -86,12 +86,11 @@ FilePreviewWidget::FilePreviewWidget(QWidget *parent)
     m_image->setAlignment(Qt::AlignCenter);
     m_scroll->setWidget(m_image);
     m_scroll->viewport()->installEventFilter(this);
-    layout->addWidget(m_scroll);
+    layout->addWidget(m_scroll, 1);
     m_text = new QPlainTextEdit(this);
     m_text->setReadOnly(true);
     m_text->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-    layout->addWidget(m_text);
-    layout->addStretch();
+    layout->addWidget(m_text, 1);
     m_scroll->hide();
     m_text->hide();
 }
