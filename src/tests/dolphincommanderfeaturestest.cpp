@@ -994,6 +994,10 @@ void DolphinCommanderFeaturesTest::testTheNotificationsPanelListsTheMessages()
     QVERIFY(list);
     QAction *panel = window.actionCollection()->action(QStringLiteral("show_notifications_panel"));
     QVERIFY(panel);
+    // The window remembers whether the panel was open the last time (an earlier run of the tests may have left it open).
+    if (list->isVisible()) {
+        panel->trigger();
+    }
     QVERIFY(!list->isVisible());
     panel->trigger();
     QTRY_VERIFY(list->isVisible());
@@ -2082,7 +2086,8 @@ void DolphinCommanderFeaturesTest::testTakeScreenshots()
     window.openDirectories({right.url().toString()}, false);
     QTest::qWait(1500);
     window.actionCollection()->action(QStringLiteral("age_stripes"))->trigger();
-    window.actionCollection()->action(QStringLiteral("show_notifications_panel"))->trigger();
+    QAction *notificationsPanel = window.actionCollection()->action(QStringLiteral("show_notifications_panel"));
+    notificationsPanel->trigger();
     window.activeViewContainer()->showMessage(QStringLiteral("a message in the panel"), KMessageWidget::Information);
     QTest::qWait(800);
     QVERIFY(window.grab().save(outDir + QStringLiteral("/light.png")));
@@ -2129,6 +2134,7 @@ void DolphinCommanderFeaturesTest::testTakeScreenshots()
     QTest::qWait(300);
     QVERIFY(toolsThemes->menu()->grab().save(outDir + QStringLiteral("/theme-menu.png")));
     toolsThemes->menu()->hide();
+    notificationsPanel->trigger(); // closed again, as it was
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()
