@@ -655,6 +655,9 @@ private Q_SLOTS:
     /** Sets the size of the text of the whole program (0: the desktop's) and the icon theme (empty: the desktop's). */
     void applyTextAndIcons(int fontPointSize, const QString &iconTheme);
     void editTextAndIcons();
+    /** Writes the color theme, the custom colors, the text size and the icon theme into a file that can be shared, and reads such a file. */
+    bool exportTheme(const QString &path);
+    bool importTheme(const QString &path);
     /** Opens a tab at the folder whose path is on the clipboard. */
     void newTabFromClipboard();
     /** Makes a file of what is on the clipboard: a dated .png for an image, a dated .txt for text. */

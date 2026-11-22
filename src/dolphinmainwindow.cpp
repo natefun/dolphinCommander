@@ -105,6 +105,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDomDocument>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -2560,6 +2561,35 @@ void DolphinMainWindow::editTextAndIcons()
     }
 }
 
+bool DolphinMainWindow::exportTheme(const QString &path)
+{
+    const KConfigGroup current(KSharedConfig::openConfig(), QStringLiteral("Commander"));
+    KConfig file(path, KConfig::SimpleConfig);
+    KConfigGroup theme(&file, QStringLiteral("Theme"));
+    theme.writeEntry("ColorTheme", current.readEntry("ColorTheme", QStringLiteral("system")));
+    theme.writeEntry("CustomTheme", current.readEntry("CustomTheme", QStringList()));
+    theme.writeEntry("FontPointSize", current.readEntry("FontPointSize", 0));
+    theme.writeEntry("IconTheme", current.readEntry("IconTheme", QString()));
+    return file.sync();
+}
+
+bool DolphinMainWindow::importTheme(const QString &path)
+{
+    if (!QFile::exists(path)) {
+        return false;
+    }
+    KConfig file(path, KConfig::SimpleConfig);
+    const KConfigGroup theme(&file, QStringLiteral("Theme"));
+    if (!theme.exists()) {
+        return false;
+    }
+    KConfigGroup current(KSharedConfig::openConfig(), QStringLiteral("Commander"));
+    current.writeEntry("CustomTheme", theme.readEntry("CustomTheme", QStringList()));
+    applyTextAndIcons(theme.readEntry("FontPointSize", 0), theme.readEntry("IconTheme", QString()));
+    applyColorTheme(theme.readEntry("ColorTheme", QStringLiteral("system")));
+    return true;
+}
+
 void DolphinMainWindow::editCustomTheme()
 {
     KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("Commander"));
@@ -3403,6 +3433,24 @@ void DolphinMainWindow::setupActions()
             applyTextAndIcons(saved.readEntry("FontPointSize", 0), saved.readEntry("IconTheme", QString()));
         }
     }
+    auto *saveTheme = new QAction(i18nc("@action:inmenu", "Save Theme to File…"), themeMenu);
+    themeMenu->addAction(saveTheme);
+    connect(saveTheme, &QAction::triggered, this, [this]() {
+        const QString path =
+            QFileDialog::getSaveFileName(this, i18nc("@title:window", "Save Theme"), QString(), i18nc("@info file type filter", "Theme files (*.theme)"));
+        if (!path.isEmpty() && !exportTheme(path)) {
+            m_activeViewContainer->showMessage(i18nc("@info", "The theme could not be saved."), KMessageWidget::Error);
+        }
+    });
+    auto *loadTheme = new QAction(i18nc("@action:inmenu", "Load Theme from File…"), themeMenu);
+    themeMenu->addAction(loadTheme);
+    connect(loadTheme, &QAction::triggered, this, [this]() {
+        const QString path =
+            QFileDialog::getOpenFileName(this, i18nc("@title:window", "Load Theme"), QString(), i18nc("@info file type filter", "Theme files (*.theme)"));
+        if (!path.isEmpty() && !importTheme(path)) {
+            m_activeViewContainer->showMessage(i18nc("@info", "That file is not a theme."), KMessageWidget::Error);
+        }
+    });
     auto *customTheme = new QAction(i18nc("@action:inmenu", "Custom Colors…"), themeMenu);
     themeMenu->addAction(customTheme);
     connect(customTheme, &QAction::triggered, this, &DolphinMainWindow::editCustomTheme);

@@ -95,6 +95,7 @@ private Q_SLOTS:
     void testTheColorThemesRecolorTheProgram();
     void testACustomThemeUsesTheColorsThatWereChosen();
     void testTheTextSizeAndIconThemeCanBeChosen();
+    void testAThemeCanBeSavedToAFileAndLoadedAgain();
     void testTheFileViewDesignerEditsAndAppliesAView();
     void testColumnsCanBeHiddenWhenTheViewIsNarrow();
     void testEachColumnCanHaveItsOwnHideWidth();
@@ -1036,7 +1037,7 @@ void DolphinCommanderFeaturesTest::testTheColorThemesRecolorTheProgram()
     auto *themes = qobject_cast<KActionMenu *>(window.actionCollection()->action(QStringLiteral("color_theme")));
     QVERIFY(themes);
     const QList<QAction *> choices = themes->menu()->actions();
-    QCOMPARE(choices.size(), 6); // the three themes, a separator, "Text and Icons…" and "Custom Colors…"
+    QCOMPARE(choices.size(), 8); // the three themes, a separator, "Text and Icons…", saving and loading, and "Custom Colors…"
     const QColor before = QApplication::palette().color(QPalette::Base);
 
     choices.at(2)->trigger(); // Dark
@@ -1414,6 +1415,62 @@ void DolphinCommanderFeaturesTest::testTheTextSizeAndIconThemeCanBeChosen()
     QCOMPARE(QApplication::font().pointSize(), before.pointSize());
     QMetaObject::invokeMethod(&window, "applyTextAndIcons", Qt::DirectConnection, Q_ARG(int, 0), Q_ARG(QString, QString()));
     QCOMPARE(QIcon::themeName(), iconThemeBefore);
+}
+
+void DolphinCommanderFeaturesTest::testAThemeCanBeSavedToAFileAndLoadedAgain()
+{
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.path() + QStringLiteral("/mine.theme");
+    const QColor before = QApplication::palette().color(QPalette::Base);
+
+    // A theme of four chosen colors and a text size...
+    KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("Commander"));
+    group.writeEntry("CustomTheme", QStringList{QStringLiteral("#0a141e"), QStringLiteral("#c8d2dc"), QStringLiteral("#010203"), QStringLiteral("#fa0000")});
+    QMetaObject::invokeMethod(&window, "applyTextAndIcons", Qt::DirectConnection, Q_ARG(int, 15), Q_ARG(QString, QString()));
+    QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("custom")));
+    bool saved = false;
+    QMetaObject::invokeMethod(&window, "exportTheme", Qt::DirectConnection, Q_RETURN_ARG(bool, saved), Q_ARG(QString, path));
+    QVERIFY(saved);
+    QVERIFY(QFile::exists(path));
+
+    // ...is gone when the desktop's look is chosen...
+    QMetaObject::invokeMethod(&window, "applyTextAndIcons", Qt::DirectConnection, Q_ARG(int, 0), Q_ARG(QString, QString()));
+    QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("system")));
+    group.writeEntry("CustomTheme", QStringList());
+    QCOMPARE(QApplication::palette().color(QPalette::Base), before);
+
+    // ...and comes back from the file.
+    bool loaded = false;
+    QMetaObject::invokeMethod(&window, "importTheme", Qt::DirectConnection, Q_RETURN_ARG(bool, loaded), Q_ARG(QString, path));
+    QVERIFY(loaded);
+    QCOMPARE(QApplication::palette().color(QPalette::Base), QColor(QStringLiteral("#c8d2dc")));
+    QCOMPARE(QApplication::palette().color(QPalette::Highlight), QColor(QStringLiteral("#fa0000")));
+    QCOMPARE(QApplication::font().pointSize(), 15);
+
+    // A file that is not a theme is refused.
+    QFile other(dir.path() + QStringLiteral("/other.txt"));
+    QVERIFY(other.open(QIODevice::WriteOnly));
+    other.write("nothing here");
+    other.close();
+    bool refused = true;
+    QMetaObject::invokeMethod(&window, "importTheme", Qt::DirectConnection, Q_RETURN_ARG(bool, refused), Q_ARG(QString, other.fileName()));
+    QVERIFY(!refused);
+
+    // Back to the desktop's look for the tests that follow.
+    QMetaObject::invokeMethod(&window, "applyTextAndIcons", Qt::DirectConnection, Q_ARG(int, 0), Q_ARG(QString, QString()));
+    QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("system")));
+    QCOMPARE(QApplication::palette().color(QPalette::Base), before);
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()
