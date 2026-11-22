@@ -90,7 +90,7 @@
         </entry>
         <entry name="BrowseThroughArchives" type="Bool">
             <label>Browse through archives</label>
-            <default>false</default>
+            <default>true</default>
         </entry>
         <entry name="ConfirmClosingMultipleTabs" type="Bool">
             <label>Ask for confirmation when closing windows with multiple tabs.</label>

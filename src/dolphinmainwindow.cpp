@@ -90,6 +90,7 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
+#include <QProcess>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QScopeGuard>
@@ -1984,6 +1985,31 @@ void DolphinMainWindow::showBatchRename()
     dialog->open();
 }
 
+void DolphinMainWindow::runArk(bool unpack)
+{
+    const KFileItemList items = m_activeViewContainer->view()->selectedItems();
+    if (items.isEmpty()) {
+        m_activeViewContainer->showMessage(i18nc("@info", "Select the items first."), KMessageWidget::Information);
+        return;
+    }
+    const QString ark = QStandardPaths::findExecutable(QStringLiteral("ark"));
+    if (ark.isEmpty()) {
+        m_activeViewContainer->showMessage(i18nc("@info", "Ark is needed to pack and unpack, and it is not installed."), KMessageWidget::Warning);
+        return;
+    }
+    QStringList arguments;
+    if (unpack) {
+        const QUrl destination = inactiveViewContainer() == m_activeViewContainer ? m_activeViewContainer->url() : inactiveViewContainer()->url();
+        arguments << QStringLiteral("--batch") << QStringLiteral("--destination") << destination.toLocalFile();
+    } else {
+        arguments << QStringLiteral("--add") << QStringLiteral("--dialog");
+    }
+    for (const KFileItem &item : items) {
+        arguments << item.url().toString(QUrl::PreferLocalFile);
+    }
+    QProcess::startDetached(ark, arguments);
+}
+
 void DolphinMainWindow::showQuickView()
 {
     KFileItemList items;
@@ -2422,6 +2448,24 @@ void DolphinMainWindow::setupActions()
     quickView->setIcon(QIcon::fromTheme(QStringLiteral("view-preview")));
     actionCollection()->setDefaultShortcut(quickView, Qt::ALT | Qt::Key_F3);
     connect(quickView, &QAction::triggered, this, &DolphinMainWindow::showQuickView);
+
+    QAction *packAction = actionCollection()->addAction(QStringLiteral("pack_selection"));
+    packAction->setText(i18nc("@action:inmenu", "Pack…"));
+    packAction->setToolTip(i18nc("@info:tooltip", "Pack the selected items into an archive with Ark."));
+    packAction->setIcon(QIcon::fromTheme(QStringLiteral("archive-insert")));
+    actionCollection()->setDefaultShortcut(packAction, Qt::ALT | Qt::Key_F5);
+    connect(packAction, &QAction::triggered, this, [this]() {
+        runArk(false);
+    });
+
+    QAction *unpackAction = actionCollection()->addAction(QStringLiteral("unpack_to_other_side"));
+    unpackAction->setText(i18nc("@action:inmenu", "Unpack to Other Side"));
+    unpackAction->setToolTip(i18nc("@info:tooltip", "Unpack the selected archives into the folder on the other side."));
+    unpackAction->setIcon(QIcon::fromTheme(QStringLiteral("archive-extract")));
+    actionCollection()->setDefaultShortcut(unpackAction, Qt::ALT | Qt::Key_F9);
+    connect(unpackAction, &QAction::triggered, this, [this]() {
+        runArk(true);
+    });
 
     auto *workspaces = new KActionMenu(QIcon::fromTheme(QStringLiteral("window-duplicate")), i18nc("@action:inmenu", "Workspaces"), this);
     actionCollection()->addAction(QStringLiteral("workspaces_menu"), workspaces);

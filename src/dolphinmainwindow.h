@@ -637,6 +637,8 @@ private Q_SLOTS:
     void showChecksum();
     void showBatchRename();
     void showQuickView();
+    /** Starts Ark to pack the selection, or to unpack it into the folder on the other side. */
+    void runArk(bool unpack);
     void fillWorkspacesMenu(QMenu *menu);
     void saveWorkspace(const QString &name);
     void openWorkspace(const QString &name);
