@@ -68,6 +68,7 @@ private Q_SLOTS:
     void testAFolderCanBeMirroredToTheOtherSide();
     void testTheOtherSideCanBeUpdated();
     void testNotesAndColorLabelsAreMadeFromTheMenus();
+    void testToDosFileViewsAndLayoutsWork();
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
@@ -652,6 +653,71 @@ void DolphinCommanderFeaturesTest::testNotesAndColorLabelsAreMadeFromTheMenus()
     // And "No Color Label" takes it off again.
     labels->menu()->actions().last()->trigger();
     QVERIFY(KFileMetaData::UserMetaData(labeled).tags().isEmpty());
+}
+
+void DolphinCommanderFeaturesTest::testToDosFileViewsAndLayoutsWork()
+{
+    TestDir dir;
+    dir.createFile("buy milk.2do", "milk");
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    KActionCollection *actions = window.actionCollection();
+    window.openDirectories({dir.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    DolphinView *view = window.activeViewContainer()->view();
+    QTRY_COMPARE(view->itemsCount(), 1);
+
+    // A to-do is marked done with the extension .2dx, and open again with .2do.
+    view->selectAll();
+    QTRY_COMPARE(view->selectedItemsCount(), 1);
+    actions->action(QStringLiteral("toggle_todo_done"))->trigger();
+    QVERIFY(QFile::exists(dir.path() + QStringLiteral("/buy milk.2dx")));
+    QVERIFY(!QFile::exists(dir.path() + QStringLiteral("/buy milk.2do")));
+
+    // The named file views set the view mode and the previews.
+    auto *fileViews = qobject_cast<KActionMenu *>(actions->action(QStringLiteral("file_views")));
+    QVERIFY(fileViews);
+    const auto applyView = [&](const QString &name) {
+        for (QAction *action : fileViews->menu()->actions()) {
+            if (action->text() == name) {
+                action->trigger();
+                return true;
+            }
+        }
+        return false;
+    };
+    QVERIFY(applyView(QStringLiteral("Name Only")));
+    QTRY_COMPARE(window.activeViewContainer()->view()->viewMode(), DolphinView::CompactView);
+    QVERIFY(applyView(QStringLiteral("Thumbnail Grid")));
+    QTRY_COMPARE(window.activeViewContainer()->view()->viewMode(), DolphinView::IconsView);
+    QVERIFY(window.activeViewContainer()->view()->previewsShown());
+    QVERIFY(applyView(QStringLiteral("Details")));
+    QTRY_COMPARE(window.activeViewContainer()->view()->viewMode(), DolphinView::DetailsView);
+    QVERIFY(!window.activeViewContainer()->view()->previewsShown());
+
+    // The layouts: Classic shows the information panel, Standard hides it, Columns switches to the columns view.
+    auto *layouts = qobject_cast<KActionMenu *>(actions->action(QStringLiteral("commander_layouts")));
+    QVERIFY(layouts);
+    // Without Baloo there is no information panel: the layouts then only differ in the sides and the columns.
+    QAction *infoPanel = actions->action(QStringLiteral("show_information_panel"));
+    const QList<QAction *> layoutActions = layouts->menu()->actions();
+    QCOMPARE(layoutActions.size(), 3);
+    layoutActions.at(2)->trigger(); // Classic
+    QVERIFY(!infoPanel || infoPanel->isChecked());
+    layoutActions.at(0)->trigger(); // Standard
+    QVERIFY(!infoPanel || !infoPanel->isChecked());
+    layoutActions.at(1)->trigger(); // Columns
+    QTRY_VERIFY(qobject_cast<DolphinColumnsView *>(window.activeViewContainer()->view()));
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()
