@@ -35,13 +35,16 @@
 #include <QFile>
 #include <QHBoxLayout>
 #include <QImage>
+#include <QInputDialog>
 #include <QMimeData>
 #include <QSignalSpy>
 #include <QStandardPaths>
+#include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
 #include <QToolButton>
+#include <QTreeWidget>
 
 class DolphinCommanderFeaturesTest : public QObject
 {
@@ -72,6 +75,8 @@ private Q_SLOTS:
     void testNotesAndColorLabelsAreMadeFromTheMenus();
     void testToDosFileViewsAndLayoutsWork();
     void testThePasteAndQueueActionsWork();
+    void testSelectingByPatternAndTheColumnsToggle();
+    void testTheDialogsOfTheToolsShowTheirResults();
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
@@ -769,6 +774,121 @@ void DolphinCommanderFeaturesTest::testThePasteAndQueueActionsWork()
     actions->action(QStringLiteral("new_tab_from_clipboard"))->trigger();
     const int tabsAfter = window.findChildren<DolphinTabWidget *>().first()->count() + window.findChildren<DolphinTabWidget *>().last()->count();
     QCOMPARE(tabsAfter, tabsBefore + 1);
+}
+
+void DolphinCommanderFeaturesTest::testSelectingByPatternAndTheColumnsToggle()
+{
+    TestDir dir;
+    dir.createFiles({QStringLiteral("a.jpg"), QStringLiteral("b.jpg"), QStringLiteral("c.png")});
+    QString pattern;
+    QTimer answerer;
+    answerer.setInterval(100);
+    connect(&answerer, &QTimer::timeout, this, [&]() {
+        // The pattern dialog gets its answer; any other dialog is closed.
+        if (auto *input = qobject_cast<QInputDialog *>(QApplication::activeModalWidget())) {
+            input->setTextValue(pattern);
+            input->accept();
+        } else if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    answerer.start();
+    DolphinMainWindow window;
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    KActionCollection *actions = window.actionCollection();
+    window.openDirectories({dir.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    QTRY_COMPARE(window.activeViewContainer()->view()->itemsCount(), 3);
+
+    pattern = QStringLiteral("*.jpg");
+    actions->action(QStringLiteral("select_by_pattern"))->trigger();
+    QTRY_COMPARE(window.activeViewContainer()->view()->selectedItemsCount(), 2);
+    pattern = QStringLiteral("a*");
+    actions->action(QStringLiteral("deselect_by_pattern"))->trigger();
+    QTRY_COMPARE(window.activeViewContainer()->view()->selectedItemsCount(), 1);
+    QCOMPARE(window.activeViewContainer()->view()->selectedItems().first().name(), QStringLiteral("b.jpg"));
+
+    // The toggle goes to the Miller columns and back to the details.
+    QCOMPARE(window.activeViewContainer()->view()->viewMode(), DolphinView::DetailsView);
+    actions->action(QStringLiteral("toggle_columns_view"))->trigger();
+    QTRY_VERIFY(qobject_cast<DolphinColumnsView *>(window.activeViewContainer()->view()));
+    actions->action(QStringLiteral("toggle_columns_view"))->trigger();
+    QTRY_VERIFY(!qobject_cast<DolphinColumnsView *>(window.activeViewContainer()->view()));
+    QCOMPARE(window.activeViewContainer()->view()->viewMode(), DolphinView::DetailsView);
+    answerer.stop();
+}
+
+void DolphinCommanderFeaturesTest::testTheDialogsOfTheToolsShowTheirResults()
+{
+    TestDir dir;
+    dir.createFile("same1.txt", "twin");
+    dir.createFile("same2.txt", "twin");
+    dir.createFile("folder/inside.bin", "12345678");
+    QImage image(3, 3, QImage::Format_RGB32);
+    image.fill(Qt::green);
+    QVERIFY(image.save(dir.path() + QStringLiteral("/pic.png")));
+
+    QTimer answerer;
+    answerer.setInterval(100);
+    connect(&answerer, &QTimer::timeout, this, [&]() {
+        if (auto *input = qobject_cast<QInputDialog *>(QApplication::activeModalWidget())) {
+            input->setTextValue(QStringLiteral("jpg"));
+            input->accept();
+        } else if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    answerer.start();
+    DolphinMainWindow window;
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    KActionCollection *actions = window.actionCollection();
+    window.openDirectories({dir.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    DolphinView *view = window.activeViewContainer()->view();
+    QTRY_COMPARE(view->itemsCount(), 4);
+
+    // Folder Sizes: the dialog lists the folder with its size, worked out in the background.
+    actions->action(QStringLiteral("folder_sizes"))->trigger();
+    FolderSizesDialog *sizes = nullptr;
+    QTRY_VERIFY((sizes = [&]() -> FolderSizesDialog * {
+        for (QWidget *top : QApplication::topLevelWidgets()) {
+            if (auto *found = qobject_cast<FolderSizesDialog *>(top)) {
+                return found;
+            }
+        }
+        return nullptr;
+    }()));
+    auto *table = sizes->findChild<QTableWidget *>();
+    QVERIFY(table);
+    QTRY_VERIFY(table->rowCount() == 1 && table->item(0, 1) && table->item(0, 1)->data(Qt::UserRole).toLongLong() == 8);
+    QCOMPARE(table->item(0, 0)->text(), QStringLiteral("folder"));
+    sizes->close();
+
+    // Find Duplicate Files: the dialog lists the two copies as one group.
+    actions->action(QStringLiteral("find_duplicates"))->trigger();
+    DuplicateFinderDialog *finder = nullptr;
+    QTRY_VERIFY((finder = [&]() -> DuplicateFinderDialog * {
+        for (QWidget *top : QApplication::topLevelWidgets()) {
+            if (auto *found = qobject_cast<DuplicateFinderDialog *>(top)) {
+                return found;
+            }
+        }
+        return nullptr;
+    }()));
+    auto *tree = finder->findChild<QTreeWidget *>();
+    QVERIFY(tree);
+    QTRY_COMPARE(tree->topLevelItemCount(), 1);
+    QCOMPARE(tree->topLevelItem(0)->childCount(), 2);
+    finder->close();
+
+    // Convert Images: the selected picture is saved again as a .jpg.
+    view->selectAll();
+    QTRY_COMPARE(view->selectedItemsCount(), 4);
+    actions->action(QStringLiteral("convert_images"))->trigger();
+    QTRY_VERIFY(QFile::exists(dir.path() + QStringLiteral("/pic.jpg")));
+    answerer.stop();
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()
