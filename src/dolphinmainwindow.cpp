@@ -21,6 +21,7 @@
 #include "dolphinnewfilemenu.h"
 #include "dolphinplacesmodelsingleton.h"
 #include "dolphinrecenttabsmenu.h"
+#include "dolphintabbar.h"
 #include "dolphintabpage.h"
 #include "dolphinurlnavigatorscontroller.h"
 #include "dolphinviewcontainer.h"
@@ -197,6 +198,15 @@ DolphinMainWindow::DolphinMainWindow()
     m_rightTabs->setObjectName("rightTabWidget");
     m_tabWidget = m_leftTabs;
     for (DolphinTabWidget *tabs : {m_leftTabs, m_rightTabs}) {
+        connect(tabs, &DolphinTabWidget::tabMoveToOtherSideRequested, this, [this, tabs](int index) {
+            DolphinTabWidget *other = tabs == m_leftTabs ? m_rightTabs : m_leftTabs;
+            // The slot that moves a tab is private to the tab widget; it is a slot, so it can be called by name.
+            QMetaObject::invokeMethod(tabs,
+                                      "moveTabToOtherSide",
+                                      Q_ARG(int, index),
+                                      Q_ARG(DolphinTabBar *, static_cast<DolphinTabBar *>(other->tabBar())),
+                                      Q_ARG(int, -1));
+        });
         connect(tabs, &DolphinTabWidget::activeViewChanged, this, [this, tabs](DolphinViewContainer *viewContainer) {
             setActiveSide(tabs);
             activeViewChanged(viewContainer);

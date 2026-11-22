@@ -33,4 +33,3 @@ a delete key for the trash and permanent delete.
 - Settings: hide temporary files, sort folders by name always, pixel/item scrolling, column hover-expand tuning
 - Notes and To-Dos shown in the name column, with a checkbox
 - Shift+` notifications pane, backtick toggle between breadcrumb and columns
-- Alt+middle-click to move a tab to the other side
