@@ -514,13 +514,13 @@ void DolphinCommanderFeaturesTest::testColorLabelsAndAgeStripesArePainted()
 
     KItemListWidget::setAgeStripesShown(false);
     m_container->view()->reload();
-    QTest::qWait(1000);
+    QTest::qWait(1000); // UNAVOIDABLE: the rows are painted after the roles arrive; no signal says that a grab shows them
     const QImage plain = m_container->grab().toImage();
 
     KItemListWidget::setAgeStripesShown(true);
     KFileMetaData::UserMetaData(path).setTags({QStringLiteral("blue")});
     m_container->view()->reload();
-    QTest::qWait(1500);
+    QTest::qWait(1500); // UNAVOIDABLE: the rows are painted after the roles arrive; no signal says that a grab shows them
     const QImage painted = m_container->grab().toImage();
     KItemListWidget::setAgeStripesShown(false);
 
@@ -545,14 +545,14 @@ void DolphinCommanderFeaturesTest::testAFolderImageIsPaintedBehindTheItems()
     m_container->resize(700, 500);
     m_container->show();
     QVERIFY(QTest::qWaitForWindowExposed(m_container));
-    QTest::qWait(800);
+    QTest::qWait(800); // UNAVOIDABLE: the rows are painted after the roles arrive; no signal says that a grab shows them
     const int before = green(m_container->grab().toImage());
 
     QImage cover(200, 200, QImage::Format_RGB32);
     cover.fill(QColor(0, 200, 0));
     QVERIFY(cover.save(m_testDir->path() + QStringLiteral("/cover.png")));
     m_container->view()->reload();
-    QTest::qWait(1500);
+    QTest::qWait(1500); // UNAVOIDABLE: the rows are painted after the roles arrive; no signal says that a grab shows them
     const int after = green(m_container->grab().toImage());
     QVERIFY2(after > before + 2000, qPrintable(QStringLiteral("green pixels %1 before, %2 after").arg(before).arg(after)));
 }
@@ -582,9 +582,9 @@ void DolphinCommanderFeaturesTest::testTheTwoSidesCanBeSwapped()
     actions->action(QStringLiteral("focus_inactive_split_view"))->trigger();
     window.openDirectories({b.url().toString()}, false);
     QTRY_VERIFY(window.activeViewContainer());
-    QTest::qWait(300);
+    QTest::qWait(300); // UNAVOIDABLE: the item list lays out its rows after the first paint; no signal says it is done
     actions->action(QStringLiteral("focus_inactive_split_view"))->trigger();
-    QTest::qWait(300);
+    QTest::qWait(300); // UNAVOIDABLE: the item list lays out its rows after the first paint; no signal says it is done
     // A path is all that matters: the view may report it with or without the file scheme.
     const auto plain = [](const QUrl &url) {
         return url.adjusted(QUrl::StripTrailingSlash).path();
@@ -1017,7 +1017,7 @@ void DolphinCommanderFeaturesTest::testAToDoIsCheckedOffByClickingItsCheckbox()
     container.show();
     QVERIFY(QTest::qWaitForWindowExposed(&container));
     QTRY_COMPARE(container.view()->itemsCount(), 1);
-    QTest::qWait(500);
+    QTest::qWait(500); // UNAVOIDABLE: a grab shows what was painted; no signal says the checkbox was painted
 
     auto *list = container.view()->findChild<KItemListContainer *>();
     QVERIFY(list);
@@ -1034,7 +1034,7 @@ void DolphinCommanderFeaturesTest::testAToDoIsCheckedOffByClickingItsCheckbox()
     QTest::mouseClick(graphicsView->viewport(), Qt::LeftButton, Qt::NoModifier, graphicsView->mapFromScene(box));
     QTRY_VERIFY(QFile::exists(dir.path() + QStringLiteral("/walk the dog.2dx")));
     QVERIFY(!QFile::exists(dir.path() + QStringLiteral("/walk the dog.2do")));
-    QTest::qWait(1000);
+    QTest::qWait(1000); // UNAVOIDABLE: a grab shows what was painted; no signal says the checkbox was painted
     const QImage done = graphicsView->viewport()->grab(boxRect).toImage();
     QVERIFY(open != done);
     // Neither is blank: both show a drawn box.
@@ -2084,33 +2084,33 @@ void DolphinCommanderFeaturesTest::testTakeScreenshots()
     QTRY_VERIFY(window.activeViewContainer());
     window.actionCollection()->action(QStringLiteral("focus_inactive_split_view"))->trigger();
     window.openDirectories({right.url().toString()}, false);
-    QTest::qWait(1500);
+    QTest::qWait(1500); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
     window.actionCollection()->action(QStringLiteral("age_stripes"))->trigger();
     QAction *notificationsPanel = window.actionCollection()->action(QStringLiteral("show_notifications_panel"));
     notificationsPanel->trigger();
     window.activeViewContainer()->showMessage(QStringLiteral("a message in the panel"), KMessageWidget::Information);
-    QTest::qWait(800);
+    QTest::qWait(800); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
     QVERIFY(window.grab().save(outDir + QStringLiteral("/light.png")));
     QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("dark")));
-    QTest::qWait(800);
+    QTest::qWait(800); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
     QVERIFY(window.grab().save(outDir + QStringLiteral("/dark.png")));
     QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("system")));
 
     // The other layouts.
     auto *layoutMenu = qobject_cast<KActionMenu *>(window.actionCollection()->action(QStringLiteral("commander_layouts")));
     layoutMenu->menu()->actions().at(1)->trigger(); // Columns
-    QTest::qWait(1200);
+    QTest::qWait(1200); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
     QVERIFY(window.grab().save(outDir + QStringLiteral("/layout-columns.png")));
     layoutMenu->menu()->actions().at(2)->trigger(); // Classic
-    QTest::qWait(1200);
+    QTest::qWait(1200); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
     QVERIFY(window.grab().save(outDir + QStringLiteral("/layout-classic.png")));
     layoutMenu->menu()->actions().at(0)->trigger(); // Standard
-    QTest::qWait(500);
+    QTest::qWait(500); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
 
     // The windows of the tools.
     FileViewDesignerDialog designer({"text", "size", "modificationtime"}, {300, 90, 160}, nullptr);
     designer.show();
-    QTest::qWait(300);
+    QTest::qWait(300); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
     QVERIFY(designer.grab().save(outDir + QStringLiteral("/designer.png")));
 
     QImage picture(600, 300, QImage::Format_RGB32);
@@ -2120,29 +2120,29 @@ void DolphinCommanderFeaturesTest::testTakeScreenshots()
     KFileItem item(QUrl::fromLocalFile(left.path() + QStringLiteral("/picture.png")));
     item.determineMimeType();
     quick.show(item);
-    QTest::qWait(600);
+    QTest::qWait(600); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
     QVERIFY(quick.grab().save(outDir + QStringLiteral("/quickview.png")));
 
     FolderSizesDialog sizes({left.path() + QStringLiteral("/projects"), left.path() + QStringLiteral("/archive")}, nullptr);
     sizes.show();
-    QTest::qWait(600);
+    QTest::qWait(600); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
     QVERIFY(sizes.grab().save(outDir + QStringLiteral("/sizes.png")));
 
     left.createFile(QStringLiteral("twin1.txt"), "same");
     left.createFile(QStringLiteral("twin2.txt"), "same");
     DuplicateFinderDialog duplicates(left.path(), nullptr);
     duplicates.show();
-    QTest::qWait(800);
+    QTest::qWait(800); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
     QVERIFY(duplicates.grab().save(outDir + QStringLiteral("/duplicates.png")));
 
     auto *themes = qobject_cast<KActionMenu *>(window.actionCollection()->action(QStringLiteral("file_views")));
     themes->menu()->popup(QPoint(0, 0));
-    QTest::qWait(300);
+    QTest::qWait(300); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
     QVERIFY(themes->menu()->grab().save(outDir + QStringLiteral("/fileviews-menu.png")));
     themes->menu()->hide();
     auto *toolsThemes = qobject_cast<KActionMenu *>(window.actionCollection()->action(QStringLiteral("color_theme")));
     toolsThemes->menu()->popup(QPoint(0, 0));
-    QTest::qWait(300);
+    QTest::qWait(300); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
     QVERIFY(toolsThemes->menu()->grab().save(outDir + QStringLiteral("/theme-menu.png")));
     toolsThemes->menu()->hide();
     notificationsPanel->trigger(); // closed again, as it was
