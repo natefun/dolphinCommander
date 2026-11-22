@@ -51,6 +51,7 @@
 #include <KDualAction>
 #include <KFileItemListProperties>
 #include <KFileMetaData/UserMetaData>
+#include <KIO/ApplicationLauncherJob>
 #include <KIO/CommandLauncherJob>
 #include <KIO/CopyJob>
 #include <KIO/Global>
@@ -2145,6 +2146,18 @@ void DolphinMainWindow::convertImages()
     m_activeViewContainer->showMessage(i18ncp("@info:status", "%1 image converted.", "%1 images converted.", done), KMessageWidget::Information);
 }
 
+void DolphinMainWindow::openWithDialog()
+{
+    const KFileItemList items = m_activeViewContainer->view()->selectedItems();
+    if (items.isEmpty()) {
+        return;
+    }
+    auto *job = new KIO::ApplicationLauncherJob(KService::Ptr(), this);
+    job->setUrls(items.urlList());
+    job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, this));
+    job->start();
+}
+
 void DolphinMainWindow::newNote()
 {
     const QUrl folder = m_activeViewContainer->url();
@@ -2731,6 +2744,12 @@ void DolphinMainWindow::setupActions()
     convert->setText(i18nc("@action:inmenu", "Convert Images…"));
     convert->setIcon(QIcon::fromTheme(QStringLiteral("viewimage")));
     connect(convert, &QAction::triggered, this, &DolphinMainWindow::convertImages);
+
+    QAction *openWith = actionCollection()->addAction(QStringLiteral("open_with_dialog"));
+    openWith->setText(i18nc("@action:inmenu", "Open With…"));
+    openWith->setIcon(QIcon::fromTheme(QStringLiteral("document-open")));
+    actionCollection()->setDefaultShortcut(openWith, Qt::CTRL | Qt::Key_Return);
+    connect(openWith, &QAction::triggered, this, &DolphinMainWindow::openWithDialog);
 
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));

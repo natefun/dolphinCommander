@@ -69,6 +69,7 @@
             <Action name="find_duplicates" />
             <Action name="folder_sizes" />
             <Action name="convert_images" />
+            <Action name="open_with_dialog" />
             <Action name="new_note" />
             <Action name="scripts_menu" />
             <Action name="color_label" />

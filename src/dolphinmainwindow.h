@@ -641,6 +641,8 @@ private Q_SLOTS:
     void showDuplicateFinder();
     /** Makes a text file named by the date in the folder and starts renaming it. */
     void newNote();
+    /** Asks which program opens the selected items. */
+    void openWithDialog();
     /** Saves the selected images in another format, next to the originals. */
     void convertImages();
     /** Shows the sizes of the selected folders, or of all the folders shown when none is selected. */
