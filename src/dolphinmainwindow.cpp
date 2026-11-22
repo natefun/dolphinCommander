@@ -93,6 +93,7 @@
 
 #include <kwidgetsaddons_version.h>
 
+#include <QActionGroup>
 #include <QApplication>
 #include <QClipboard>
 #include <QCloseEvent>
@@ -2371,6 +2372,39 @@ void DolphinMainWindow::newTabFromClipboard()
     openNewTab(url);
 }
 
+void DolphinMainWindow::applyColorTheme(const QString &theme)
+{
+    static const QPalette systemPalette = QApplication::palette();
+    if (theme == QLatin1String("dark") || theme == QLatin1String("light")) {
+        const bool dark = theme == QLatin1String("dark");
+        QPalette palette;
+        const QColor window = dark ? QColor(37, 39, 43) : QColor(244, 244, 246);
+        const QColor base = dark ? QColor(27, 29, 33) : QColor(255, 255, 255);
+        const QColor text = dark ? QColor(230, 232, 236) : QColor(30, 32, 36);
+        const QColor highlight = dark ? QColor(61, 132, 220) : QColor(42, 110, 200);
+        palette.setColor(QPalette::Window, window);
+        palette.setColor(QPalette::WindowText, text);
+        palette.setColor(QPalette::Base, base);
+        palette.setColor(QPalette::AlternateBase, dark ? QColor(33, 35, 39) : QColor(248, 248, 250));
+        palette.setColor(QPalette::Text, text);
+        palette.setColor(QPalette::Button, window);
+        palette.setColor(QPalette::ButtonText, text);
+        palette.setColor(QPalette::ToolTipBase, base);
+        palette.setColor(QPalette::ToolTipText, text);
+        palette.setColor(QPalette::Highlight, highlight);
+        palette.setColor(QPalette::HighlightedText, Qt::white);
+        palette.setColor(QPalette::PlaceholderText, dark ? QColor(140, 144, 150) : QColor(120, 124, 130));
+        palette.setColor(QPalette::Link, highlight);
+        palette.setColor(QPalette::Disabled, QPalette::Text, dark ? QColor(110, 114, 120) : QColor(160, 164, 170));
+        palette.setColor(QPalette::Disabled, QPalette::WindowText, dark ? QColor(110, 114, 120) : QColor(160, 164, 170));
+        palette.setColor(QPalette::Disabled, QPalette::ButtonText, dark ? QColor(110, 114, 120) : QColor(160, 164, 170));
+        QApplication::setPalette(palette);
+    } else {
+        QApplication::setPalette(systemPalette);
+    }
+    KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ColorTheme", theme);
+}
+
 void DolphinMainWindow::newNote()
 {
     const QUrl folder = m_activeViewContainer->url();
@@ -3153,6 +3187,29 @@ void DolphinMainWindow::setupActions()
         }
         m_activeViewContainer->view()->reload();
     });
+
+    auto *themeMenu = actionCollection()->add<KActionMenu>(QStringLiteral("color_theme"));
+    themeMenu->setText(i18nc("@action:inmenu", "Color Theme"));
+    themeMenu->setIcon(QIcon::fromTheme(QStringLiteral("preferences-desktop-theme")));
+    auto *themeGroup = new QActionGroup(themeMenu);
+    const struct {
+        const char *id;
+        const char *label;
+    } themes[] = {{"system", "Follow the Desktop"}, {"light", "Light"}, {"dark", "Dark"}};
+    const QString savedTheme = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ColorTheme", QStringLiteral("system"));
+    for (const auto &entry : themes) {
+        auto *themeAction = new QAction(i18nc("@action:inmenu", entry.label), themeGroup);
+        themeAction->setCheckable(true);
+        const QString id = QString::fromLatin1(entry.id);
+        themeAction->setChecked(id == savedTheme);
+        themeMenu->addAction(themeAction);
+        connect(themeAction, &QAction::triggered, this, [this, id]() {
+            applyColorTheme(id);
+        });
+    }
+    if (savedTheme != QLatin1String("system")) {
+        applyColorTheme(savedTheme);
+    }
 
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));

@@ -86,6 +86,7 @@ private Q_SLOTS:
     void testFoldersCanAlwaysBeSortedByName();
     void testTheNotificationsPanelListsTheMessages();
     void testAToDoIsCheckedOffByClickingItsCheckbox();
+    void testTheColorThemesRecolorTheProgram();
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
@@ -359,6 +360,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "file_views",
                                "toggle_columns_view",
                                "folders_sorted_by_name",
+                               "color_theme",
                                "show_notifications_panel",
                                "queue_jobs",
                                "paste_clipboard_as_file",
@@ -1002,6 +1004,33 @@ void DolphinCommanderFeaturesTest::testAToDoIsCheckedOffByClickingItsCheckbox()
         return found.size();
     };
     QVERIFY2(colors(open) > 2 && colors(done) > 2, qPrintable(QStringLiteral("colors %1 and %2").arg(colors(open)).arg(colors(done))));
+}
+
+void DolphinCommanderFeaturesTest::testTheColorThemesRecolorTheProgram()
+{
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    auto *themes = qobject_cast<KActionMenu *>(window.actionCollection()->action(QStringLiteral("color_theme")));
+    QVERIFY(themes);
+    const QList<QAction *> choices = themes->menu()->actions();
+    QCOMPARE(choices.size(), 3);
+    const QColor before = QApplication::palette().color(QPalette::Base);
+
+    choices.at(2)->trigger(); // Dark
+    QVERIFY(QApplication::palette().color(QPalette::Base).lightnessF() < 0.3);
+    choices.at(1)->trigger(); // Light
+    QVERIFY(QApplication::palette().color(QPalette::Base).lightnessF() > 0.9);
+    choices.at(0)->trigger(); // Follow the desktop
+    QCOMPARE(QApplication::palette().color(QPalette::Base), before);
+    QCOMPARE(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ColorTheme"), QStringLiteral("system"));
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

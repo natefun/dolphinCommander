@@ -81,6 +81,7 @@
             <Action name="queue_jobs" />
             <Action name="toggle_columns_view" />
             <Action name="folders_sorted_by_name" />
+            <Action name="color_theme" />
             <Action name="new_note" />
             <Action name="new_todo" />
             <Action name="toggle_todo_done" />
