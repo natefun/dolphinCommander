@@ -665,6 +665,8 @@ private Q_SLOTS:
     void toggleToDoDone();
     /** Asks which program opens the selected items. */
     void openWithDialog();
+    /** Asks for arguments and runs the selected program or script with them. */
+    void runWithArguments();
     /** Saves the selected images in another format, next to the originals. */
     void convertImages();
     /** Shows the sizes of the selected folders, or of all the folders shown when none is selected. */

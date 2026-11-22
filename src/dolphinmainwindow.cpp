@@ -2147,6 +2147,21 @@ void DolphinMainWindow::convertImages()
     m_activeViewContainer->showMessage(i18ncp("@info:status", "%1 image converted.", "%1 images converted.", done), KMessageWidget::Information);
 }
 
+void DolphinMainWindow::runWithArguments()
+{
+    const KFileItemList items = m_activeViewContainer->view()->selectedItems();
+    if (items.size() != 1 || !items.first().isLocalFile()) {
+        m_activeViewContainer->showMessage(i18nc("@info", "Select one program or script on this computer to run."), KMessageWidget::Information);
+        return;
+    }
+    bool ok = false;
+    const QString text =
+        QInputDialog::getText(this, i18nc("@title:window", "Run with Arguments"), i18nc("@label:textbox", "Arguments:"), QLineEdit::Normal, QString(), &ok);
+    if (ok) {
+        QProcess::startDetached(items.first().localPath(), QProcess::splitCommand(text), m_activeViewContainer->url().toLocalFile());
+    }
+}
+
 void DolphinMainWindow::openWithDialog()
 {
     const KFileItemList items = m_activeViewContainer->view()->selectedItems();
@@ -2350,10 +2365,20 @@ void DolphinMainWindow::fillScriptsMenu(QMenu *menu)
 {
     menu->clear();
     const QString dirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QLatin1String("/scripts");
-    const QFileInfoList scripts = QDir(dirPath).entryInfoList(QDir::Files | QDir::Executable, QDir::Name);
+    const QFileInfoList scripts = QDir(dirPath).entryInfoList(QDir::Files, QDir::Name);
     for (const QFileInfo &script : scripts) {
         const QString scriptPath = script.absoluteFilePath();
-        menu->addAction(script.completeBaseName(), this, [this, scriptPath]() {
+        // A script that is not executable is run by its interpreter: Python, shell, Perl, Ruby, Node.
+        static const QHash<QString, QString> interpreters = {{QStringLiteral("py"), QStringLiteral("python3")},
+                                                             {QStringLiteral("sh"), QStringLiteral("sh")},
+                                                             {QStringLiteral("pl"), QStringLiteral("perl")},
+                                                             {QStringLiteral("rb"), QStringLiteral("ruby")},
+                                                             {QStringLiteral("js"), QStringLiteral("node")}};
+        const QString interpreter = interpreters.value(script.suffix().toLower());
+        if (!script.isExecutable() && interpreter.isEmpty()) {
+            continue;
+        }
+        menu->addAction(script.completeBaseName(), this, [this, scriptPath, interpreter, executable = script.isExecutable()]() {
             QStringList args;
             const KFileItemList selected = m_activeViewContainer->view()->selectedItems();
             for (const KFileItem &item : selected) {
@@ -2361,7 +2386,12 @@ void DolphinMainWindow::fillScriptsMenu(QMenu *menu)
                     args << item.localPath();
                 }
             }
-            QProcess::startDetached(scriptPath, args, m_activeViewContainer->url().toLocalFile());
+            if (!executable) {
+                args.prepend(scriptPath);
+                QProcess::startDetached(interpreter, args, m_activeViewContainer->url().toLocalFile());
+            } else {
+                QProcess::startDetached(scriptPath, args, m_activeViewContainer->url().toLocalFile());
+            }
         });
     }
     if (scripts.isEmpty()) {
@@ -3039,6 +3069,12 @@ void DolphinMainWindow::setupActions()
     tabFromClipboard->setIcon(QIcon::fromTheme(QStringLiteral("tab-new")));
     actionCollection()->setDefaultShortcut(tabFromClipboard, Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_T);
     connect(tabFromClipboard, &QAction::triggered, this, &DolphinMainWindow::newTabFromClipboard);
+
+    QAction *runWithArgs = actionCollection()->addAction(QStringLiteral("run_with_arguments"));
+    runWithArgs->setText(i18nc("@action:inmenu", "Run with Arguments…"));
+    runWithArgs->setIcon(QIcon::fromTheme(QStringLiteral("system-run")));
+    actionCollection()->setDefaultShortcut(runWithArgs, Qt::CTRL | Qt::SHIFT | Qt::Key_Return);
+    connect(runWithArgs, &QAction::triggered, this, &DolphinMainWindow::runWithArguments);
 
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));

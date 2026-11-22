@@ -70,6 +70,7 @@
             <Action name="folder_sizes" />
             <Action name="convert_images" />
             <Action name="open_with_dialog" />
+            <Action name="run_with_arguments" />
             <Action name="recent_notifications" />
             <Action name="age_stripes" />
             <Action name="commander_layouts" />

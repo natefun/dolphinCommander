@@ -31,7 +31,6 @@ a delete key for the trash and permanent delete.
 - Copy and move queue
 - Ctrl+click in a parent column to add to the selection
 - Settings: hide temporary files, sort folders by name always, pixel/item scrolling, column hover-expand tuning
-- PowerShell/Python script handling, Ctrl+Shift+Enter launch arguments
 - Notes and To-Dos shown in the name column, with a checkbox
 - Shift+` notifications pane, backtick toggle between breadcrumb and columns
 - Alt+middle-click to move a tab to the other side
