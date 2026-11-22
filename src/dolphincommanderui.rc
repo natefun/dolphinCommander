@@ -85,6 +85,7 @@
             <Action name="item_scrolling" />
             <Action name="hide_columns_when_narrow" />
             <Action name="keep_running_when_closed" />
+            <Action name="names_only" />
             <Action name="new_note" />
             <Action name="new_todo" />
             <Action name="toggle_todo_done" />

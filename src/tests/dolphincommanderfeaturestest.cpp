@@ -120,6 +120,7 @@ private Q_SLOTS:
     void testTheFirstStartAsksForALayoutAndATheme();
     void testTheFileViewDesignerEditsAndAppliesAView();
     void testColumnsCanBeHiddenWhenTheViewIsNarrow();
+    void testF7ShowsOnlyTheNames();
     void testEachColumnCanHaveItsOwnHideWidth();
     void testItemScrollingStepsByRows();
     void testASavedFileViewKeepsTheColumnWidths();
@@ -396,6 +397,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "file_views",
                                "toggle_columns_view",
                                "folders_sorted_by_name",
+                               "names_only",
                                "bring_window_back",
                                "keep_running_when_closed",
                                "hide_columns_when_narrow",
@@ -2146,6 +2148,51 @@ void DolphinCommanderFeaturesTest::testTakeScreenshots()
     QVERIFY(toolsThemes->menu()->grab().save(outDir + QStringLiteral("/theme-menu.png")));
     toolsThemes->menu()->hide();
     notificationsPanel->trigger(); // closed again, as it was
+}
+
+void DolphinCommanderFeaturesTest::testF7ShowsOnlyTheNames()
+{
+    TestDir dir;
+    dir.createFile("x");
+    GeneralSettings::setGlobalViewProps(false);
+    GeneralSettings::self()->save();
+    {
+        ViewProperties props(dir.url());
+        props.setViewMode(DolphinView::DetailsView);
+        props.setVisibleRoles({"text", "size", "modificationtime"});
+        props.save();
+    }
+    DolphinViewContainer container(dir.url(), nullptr);
+    container.resize(1000, 300);
+    container.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&container));
+    QTRY_COMPARE(container.view()->itemsCount(), 1);
+    auto *list = container.view()->findChild<KItemListContainer *>();
+    QVERIFY(list);
+    QTRY_COMPARE(list->controller()->view()->visibleRoles().count(), 3);
+
+    DolphinView::setNamesOnly(true);
+    container.view()->updateResponsiveColumns();
+    QTRY_COMPARE(list->controller()->view()->visibleRoles(), (QList<QByteArray>{"text"}));
+    QCOMPARE(ViewProperties(dir.url()).visibleRoles().count(), 3); // the folder keeps its columns
+    DolphinView::setNamesOnly(false);
+    container.view()->updateResponsiveColumns();
+    QTRY_COMPARE(list->controller()->view()->visibleRoles().count(), 3);
+
+    // The key of OneCommander is F7.
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    QAction *names = window.actionCollection()->action(QStringLiteral("names_only"));
+    QVERIFY(names);
+    QVERIFY(names->shortcuts().contains(QKeySequence(Qt::Key_F7)));
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

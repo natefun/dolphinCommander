@@ -3872,6 +3872,25 @@ void DolphinMainWindow::setupActions()
         KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("KeepRunningWhenClosed", on);
     });
 
+    QAction *namesOnly = actionCollection()->addAction(QStringLiteral("names_only"));
+    namesOnly->setText(i18nc("@action:inmenu", "Show Only the Names"));
+    namesOnly->setToolTip(i18nc("@info:tooltip", "Hide the other columns so that long names are shown in full."));
+    namesOnly->setIcon(QIcon::fromTheme(QStringLiteral("view-list-text")));
+    namesOnly->setCheckable(true);
+    actionCollection()->setDefaultShortcut(namesOnly, Qt::Key_F7);
+    connect(namesOnly, &QAction::toggled, this, [this](bool on) {
+        DolphinView::setNamesOnly(on);
+        for (DolphinTabWidget *tabs : {m_leftTabs, m_rightTabs}) {
+            for (int i = 0; i < tabs->count(); ++i) {
+                for (DolphinViewContainer *container : {tabs->tabPageAt(i)->primaryViewContainer(), tabs->tabPageAt(i)->secondaryViewContainer()}) {
+                    if (container) {
+                        container->view()->updateResponsiveColumns();
+                    }
+                }
+            }
+        }
+    });
+
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));
     note->setToolTip(i18nc("@info:tooltip", "Make a text file named by the date in this folder."));

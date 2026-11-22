@@ -20,7 +20,7 @@ Paste Clipboard as File (Ctrl+Alt+V), Open With on Ctrl+Enter, middle-button sel
 zoom and pan in the image preview, To-Do files (.2do/.2dx), Recent Notifications, Color Rows by
 Age, Queue Copy and Move Jobs, Always Sort Folders by Name, Scroll by Whole Items, Color Theme (Follow the Desktop, Light, Dark),
 Notifications panel (Ctrl+Shift+~), Toggle Miller Columns (Ctrl+`), Run with Arguments, New Tab from Clipboard Path,
-Alt+middle click to send a tab to the other side, Layout menu (Standard/Columns/Classic), File Views menu with saved views and the File View Designer, Up/Down in the quick view to step through the files.
+Alt+middle click to send a tab to the other side, Layout menu (Standard/Columns/Classic), F7 to show only the names, File Views menu with saved views and the File View Designer, Up/Down in the quick view to step through the files.
 
 ## Dolphin already does (found while checking the list)
 Tab aliases (Rename Tab), new tab after the last tab or the current one, remembering tabs and a start

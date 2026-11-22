@@ -2465,6 +2465,17 @@ void DolphinView::slotSortRoleChangedByHeader(const QByteArray &current, const Q
 }
 
 static bool s_hideColumnsWhenNarrow = false;
+static bool s_namesOnly = false;
+
+void DolphinView::setNamesOnly(bool enabled)
+{
+    s_namesOnly = enabled;
+}
+
+bool DolphinView::namesOnly()
+{
+    return s_namesOnly;
+}
 void DolphinView::setUsesApplicationPalette(bool enabled)
 {
     s_usesApplicationPalette = enabled;
@@ -2497,7 +2508,9 @@ void DolphinView::updateResponsiveColumns()
         return;
     }
     QList<QByteArray> shown = m_visibleRoles;
-    if (s_hideColumnsWhenNarrow) {
+    if (s_namesOnly) {
+        shown = m_visibleRoles.mid(0, 1);
+    } else if (s_hideColumnsWhenNarrow) {
         // The name needs room first; every other column needs about as much as a date.
         const int width = m_container->width();
         const int extra = qMax(0, (width - 320) / 150);
