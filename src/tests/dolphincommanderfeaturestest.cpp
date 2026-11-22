@@ -329,7 +329,12 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "recent_notifications",
                                "age_stripes",
                                "commander_layouts",
-                               "file_views"};
+                               "file_views",
+                               "toggle_columns_view",
+                               "queue_jobs",
+                               "paste_clipboard_as_file",
+                               "new_tab_from_clipboard",
+                               "run_with_arguments"};
     for (const QString &name : names) {
         QVERIFY2(actions->action(name), qPrintable(name));
     }

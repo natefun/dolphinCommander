@@ -3101,6 +3101,18 @@ void DolphinMainWindow::setupActions()
         KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("QueueJobs", on);
     });
 
+    QAction *toggleColumns = actionCollection()->addAction(QStringLiteral("toggle_columns_view"));
+    toggleColumns->setText(i18nc("@action:inmenu", "Toggle Miller Columns"));
+    toggleColumns->setToolTip(i18nc("@info:tooltip", "Switch between the Miller columns and the details view."));
+    toggleColumns->setIcon(QIcon::fromTheme(QStringLiteral("view-file-columns")));
+    actionCollection()->setDefaultShortcut(toggleColumns, Qt::CTRL | Qt::Key_QuoteLeft);
+    connect(toggleColumns, &QAction::triggered, this, [this]() {
+        const bool inColumns = m_activeViewContainer->view()->viewMode() == DolphinView::ColumnsView;
+        if (QAction *target = actionCollection()->action(inColumns ? QStringLiteral("details") : QStringLiteral("columns"))) {
+            target->trigger();
+        }
+    });
+
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));
     note->setToolTip(i18nc("@info:tooltip", "Make a text file named by the date in this folder."));
