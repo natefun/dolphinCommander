@@ -2981,6 +2981,31 @@ void DolphinMainWindow::setupActions()
         });
     }
 
+    // More of OneCommander's keys, added next to those the actions already have (a key that is taken is left alone).
+    const struct {
+        const char *action;
+        QKeySequence key;
+    } extraKeys[] = {{"duplicate", QKeySequence(Qt::CTRL | Qt::Key_D)},
+                     {"create_dir", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N)},
+                     {"properties", QKeySequence(Qt::CTRL | Qt::Key_I)},
+                     {"focus_inactive_split_view", QKeySequence(Qt::ALT | Qt::Key_F)},
+                     {"copy_location", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C)},
+                     {"editable_location", QKeySequence(Qt::ALT | Qt::Key_D)},
+                     {"color_label", QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_T)}};
+    for (const auto &extra : extraKeys) {
+        QAction *target = actionCollection()->action(QString::fromLatin1(extra.action));
+        if (!target) {
+            continue;
+        }
+        bool taken = false;
+        for (QAction *other : actionCollection()->actions()) {
+            taken = taken || other->shortcuts().contains(extra.key);
+        }
+        if (!taken) {
+            actionCollection()->setDefaultShortcuts(target, target->shortcuts() + QList<QKeySequence>{extra.key});
+        }
+    }
+
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));
     note->setToolTip(i18nc("@info:tooltip", "Make a text file named by the date in this folder."));

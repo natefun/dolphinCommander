@@ -2,7 +2,7 @@
 
 Compiled from OneCommander's own help (onecommander.com/help2: Folder Columns and Navigation Pane,
 Folder Pane, File Views, Browsers and Layouts, Sidebar, Details Pane, Main Window, Settings, Search,
-Favorites, File Automator). Its Shortcut keys page (Shortcutkeys.html) has not been read.
+Favorites, File Automator). Its Shortcut keys page (Shortcutkeys.html) has been read.
 Nothing here has been checked by hand in the running app; the tests are in
 `src/tests/dolphincommanderfeaturestest.cpp`.
 
