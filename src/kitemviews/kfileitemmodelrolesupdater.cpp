@@ -306,8 +306,13 @@ void KFileItemModelRolesUpdater::resetFolderPreviews()
     updateAllPreviews();
 }
 
-void KFileItemModelRolesUpdater::setRoles(const QSet<QByteArray> &roles)
+void KFileItemModelRolesUpdater::setRoles(const QSet<QByteArray> &requestedRoles)
 {
+    QSet<QByteArray> roles = requestedRoles;
+#if HAVE_BALOO
+    // The tags are always read, because the color labels tint the rows.
+    roles.insert(QByteArrayLiteral("tags"));
+#endif
     if (m_roles != roles) {
         const QSet<QByteArray> addedRoles = roles - m_roles;
         for (const QByteArray &role : addedRoles) {

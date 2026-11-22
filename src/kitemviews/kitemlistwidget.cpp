@@ -122,6 +122,21 @@ void KItemListWidget::paint(QPainter *painter, const QStyleOptionGraphicsItem *o
         painter->fillRect(backgroundRect, backgroundColor);
     }
 
+    // A color label is a tag named like the color: tint the row with it.
+    static const QStringList labelColors =
+        {QStringLiteral("red"), QStringLiteral("orange"), QStringLiteral("yellow"), QStringLiteral("green"), QStringLiteral("blue"), QStringLiteral("purple")};
+    const QString tags = m_data.value("tags").toString();
+    if (!tags.isEmpty()) {
+        for (const QString &color : labelColors) {
+            if (tags.split(QLatin1String(", ")).contains(color, Qt::CaseInsensitive)) {
+                QColor tint(color);
+                tint.setAlphaF(0.25);
+                painter->fillRect(QRectF(0, 0, size().width(), size().height()), tint);
+                break;
+            }
+        }
+    }
+
     const QStyle::State selectedState(m_selected ? QStyle::State_Selected : QStyle::State(0));
     if ((m_selected || m_current) && m_editedRole.isEmpty()) {
         const QStyle::State activeState(isActiveWindow() && widget->hasFocus() ? QStyle::State_Active : 0);
