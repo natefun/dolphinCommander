@@ -39,9 +39,20 @@ QString hashFile(const QString &path, QCryptographicHash::Algorithm algorithm);
 /** True when two hex digests are the same, ignoring case and the whitespace a pasted one brings. */
 bool checksumsMatch(const QString &a, const QString &b);
 
+/** The total size in bytes of the files below @p folder, without following symlinks. */
+qint64 folderSize(const QString &folder);
+
 /** Groups of files below @p folder (recursively, without symlinks) that have the same content. Empty files are ignored. */
 QList<QStringList> findDuplicates(const QString &folder);
 }
+
+/** Shows the size of each of the given folders, biggest first, as they are worked out. */
+class FolderSizesDialog : public QDialog
+{
+    Q_OBJECT
+public:
+    FolderSizesDialog(const QStringList &folders, QWidget *parent);
+};
 
 /** Lists the duplicates below a folder and moves the ticked ones to the trash. */
 class DuplicateFinderDialog : public QDialog

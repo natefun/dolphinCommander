@@ -50,6 +50,7 @@ private Q_SLOTS:
     void testRenamePatterns();
     void testChecksums();
     void testFindDuplicates();
+    void testFolderSize();
 
 private:
     void waitForViewReady(DolphinViewContainer *container);
@@ -268,6 +269,15 @@ void DolphinCommanderFeaturesTest::testChecksums()
     QVERIFY(CommanderTools::checksumsMatch(QStringLiteral("  900150983CD24FB0D6963F7D28E17F72\n"), QStringLiteral("900150983cd24fb0d6963f7d28e17f72")));
     QVERIFY(!CommanderTools::checksumsMatch(QString(), QString()));
     QVERIFY(!CommanderTools::checksumsMatch(QStringLiteral("aa"), QStringLiteral("ab")));
+}
+
+void DolphinCommanderFeaturesTest::testFolderSize()
+{
+    TestDir dir;
+    dir.createFile("a", "12345");
+    dir.createFile("sub/deep/b", "123");
+    QCOMPARE(CommanderTools::folderSize(dir.path()), qint64(8));
+    QCOMPARE(CommanderTools::folderSize(dir.path() + QStringLiteral("/sub")), qint64(3));
 }
 
 void DolphinCommanderFeaturesTest::testFindDuplicates()

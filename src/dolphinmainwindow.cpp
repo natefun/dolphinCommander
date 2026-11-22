@@ -2097,6 +2097,27 @@ void DolphinMainWindow::syncToOtherSide()
                                        KMessageWidget::Information);
 }
 
+void DolphinMainWindow::showFolderSizes()
+{
+    KFileItemList items = m_activeViewContainer->view()->selectedItems();
+    if (items.isEmpty()) {
+        items = m_activeViewContainer->view()->items();
+    }
+    QStringList folders;
+    for (const KFileItem &item : std::as_const(items)) {
+        if (item.isDir() && item.isLocalFile()) {
+            folders << item.localPath();
+        }
+    }
+    if (folders.isEmpty()) {
+        m_activeViewContainer->showMessage(i18nc("@info", "There are no folders on this computer to measure."), KMessageWidget::Information);
+        return;
+    }
+    auto *dialog = new FolderSizesDialog(folders, this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->show();
+}
+
 void DolphinMainWindow::newNote()
 {
     const QUrl folder = m_activeViewContainer->url();
@@ -2672,6 +2693,12 @@ void DolphinMainWindow::setupActions()
     syncFolders->setIcon(QIcon::fromTheme(QStringLiteral("folder-sync")));
     actionCollection()->setDefaultShortcut(syncFolders, Qt::CTRL | Qt::ALT | Qt::Key_U);
     connect(syncFolders, &QAction::triggered, this, &DolphinMainWindow::syncToOtherSide);
+
+    QAction *folderSizes = actionCollection()->addAction(QStringLiteral("folder_sizes"));
+    folderSizes->setText(i18nc("@action:inmenu", "Folder Sizes…"));
+    folderSizes->setToolTip(i18nc("@info:tooltip", "Work out how big the selected folders are, or all folders shown."));
+    folderSizes->setIcon(QIcon::fromTheme(QStringLiteral("drive-harddisk")));
+    connect(folderSizes, &QAction::triggered, this, &DolphinMainWindow::showFolderSizes);
 
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));

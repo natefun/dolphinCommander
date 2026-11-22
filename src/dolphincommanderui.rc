@@ -67,6 +67,7 @@
             <Action name="show_checksum" />
             <Action name="batch_rename" />
             <Action name="find_duplicates" />
+            <Action name="folder_sizes" />
             <Action name="new_note" />
             <Action name="scripts_menu" />
             <Action name="color_label" />

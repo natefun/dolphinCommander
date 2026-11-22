@@ -641,6 +641,8 @@ private Q_SLOTS:
     void showDuplicateFinder();
     /** Makes a text file named by the date in the folder and starts renaming it. */
     void newNote();
+    /** Shows the sizes of the selected folders, or of all the folders shown when none is selected. */
+    void showFolderSizes();
     /** Fills the Scripts menu with the executables of the scripts folder; they are run with the selection as arguments. */
     void fillScriptsMenu(QMenu *menu);
     /** Copies what is missing or older on the other side from the active side (one way, no deletions). */

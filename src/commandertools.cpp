@@ -12,6 +12,7 @@
 #include <KLocalizedString>
 
 #include <KIO/FileUndoManager>
+#include <KIO/Global>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QDirIterator>
@@ -88,6 +89,47 @@ bool CommanderTools::checksumsMatch(const QString &a, const QString &b)
         return s.simplified().remove(QLatin1Char(' ')).toLower();
     };
     return !clean(a).isEmpty() && clean(a) == clean(b);
+}
+
+qint64 CommanderTools::folderSize(const QString &folder)
+{
+    qint64 total = 0;
+    QDirIterator it(folder, QDir::Files | QDir::NoSymLinks | QDir::Hidden, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        it.next();
+        total += it.fileInfo().size();
+    }
+    return total;
+}
+
+FolderSizesDialog::FolderSizesDialog(const QStringList &folders, QWidget *parent)
+    : QDialog(parent)
+{
+    setWindowTitle(i18nc("@title:window", "Folder Sizes"));
+    resize(500, 400);
+    auto *layout = new QVBoxLayout(this);
+    auto *table = new QTableWidget(folders.size(), 2, this);
+    table->setHorizontalHeaderLabels({i18nc("@title:column", "Folder"), i18nc("@title:column", "Size")});
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    layout->addWidget(table);
+    for (int row = 0; row < folders.size(); ++row) {
+        table->setItem(row, 0, new QTableWidgetItem(QFileInfo(folders.at(row)).fileName()));
+        table->setItem(row, 1, new QTableWidgetItem(i18nc("@info:status", "Calculating…")));
+        auto *watcher = new QFutureWatcher<qint64>(this);
+        const QString folder = folders.at(row);
+        connect(watcher, &QFutureWatcherBase::finished, this, [=]() {
+            // Rows move when the table is sorted, so find the row by its folder name.
+            const auto found = table->findItems(QFileInfo(folder).fileName(), Qt::MatchExactly);
+            if (!found.isEmpty()) {
+                auto *cell = new QTableWidgetItem(KIO::convertSize(watcher->result()));
+                cell->setData(Qt::UserRole, watcher->result());
+                table->setItem(found.first()->row(), 1, cell);
+            }
+            watcher->deleteLater();
+        });
+        watcher->setFuture(QtConcurrent::run(&CommanderTools::folderSize, folder));
+    }
 }
 
 QList<QStringList> CommanderTools::findDuplicates(const QString &folder)
