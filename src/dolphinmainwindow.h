@@ -641,6 +641,9 @@ private Q_SLOTS:
     void showDuplicateFinder();
     /** Makes a text file named by the date in the folder and starts renaming it. */
     void newNote();
+    /** Makes a to-do (a .2do file) in the folder, or marks the selected to-dos done or open again. */
+    void newToDo();
+    void toggleToDoDone();
     /** Asks which program opens the selected items. */
     void openWithDialog();
     /** Saves the selected images in another format, next to the originals. */

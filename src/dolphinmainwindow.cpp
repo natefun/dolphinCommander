@@ -2158,6 +2158,42 @@ void DolphinMainWindow::openWithDialog()
     job->start();
 }
 
+void DolphinMainWindow::newToDo()
+{
+    const QUrl folder = m_activeViewContainer->url();
+    if (!folder.isLocalFile()) {
+        m_activeViewContainer->showMessage(i18nc("@info", "To-dos can only be made in folders on this computer."), KMessageWidget::Information);
+        return;
+    }
+    bool ok = false;
+    const QString text =
+        QInputDialog::getText(this, i18nc("@title:window", "New To-Do"), i18nc("@label:textbox", "What is to be done?"), QLineEdit::Normal, QString(), &ok);
+    if (!ok || text.trimmed().isEmpty()) {
+        return;
+    }
+    QString name = text.trimmed();
+    name.replace(QRegularExpression(QStringLiteral("[/\\\\:*?\"<>|]")), QStringLiteral("_"));
+    QString path = folder.toLocalFile() + QLatin1Char('/') + name + QLatin1String(".2do");
+    for (int i = 2; QFile::exists(path); ++i) {
+        path = folder.toLocalFile() + QLatin1Char('/') + name + QLatin1Char(' ') + QString::number(i) + QLatin1String(".2do");
+    }
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(text.trimmed().toUtf8());
+        file.write("\n");
+    }
+}
+
+void DolphinMainWindow::toggleToDoDone()
+{
+    for (const KFileItem &item : m_activeViewContainer->view()->selectedItems()) {
+        const QString toggled = CommanderTools::toggledToDoName(item.name());
+        if (item.isLocalFile() && toggled != item.name()) {
+            QFile::rename(item.localPath(), item.url().adjusted(QUrl::RemoveFilename).toLocalFile() + toggled);
+        }
+    }
+}
+
 void DolphinMainWindow::newNote()
 {
     const QUrl folder = m_activeViewContainer->url();
@@ -2750,6 +2786,15 @@ void DolphinMainWindow::setupActions()
     openWith->setIcon(QIcon::fromTheme(QStringLiteral("document-open")));
     actionCollection()->setDefaultShortcut(openWith, Qt::CTRL | Qt::Key_Return);
     connect(openWith, &QAction::triggered, this, &DolphinMainWindow::openWithDialog);
+
+    QAction *newToDoAction = actionCollection()->addAction(QStringLiteral("new_todo"));
+    newToDoAction->setText(i18nc("@action:inmenu", "New To-Do…"));
+    newToDoAction->setIcon(QIcon::fromTheme(QStringLiteral("view-task")));
+    connect(newToDoAction, &QAction::triggered, this, &DolphinMainWindow::newToDo);
+    QAction *toggleToDo = actionCollection()->addAction(QStringLiteral("toggle_todo_done"));
+    toggleToDo->setText(i18nc("@action:inmenu", "Mark To-Do Done or Open"));
+    toggleToDo->setIcon(QIcon::fromTheme(QStringLiteral("checkbox")));
+    connect(toggleToDo, &QAction::triggered, this, &DolphinMainWindow::toggleToDoDone);
 
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));

@@ -53,6 +53,7 @@ private Q_SLOTS:
     void testChecksums();
     void testFindDuplicates();
     void testFolderSize();
+    void testToDoNames();
     void testConvertImage();
 
 private:
@@ -287,6 +288,13 @@ void DolphinCommanderFeaturesTest::testConvertImage()
     QVERIFY(CommanderTools::convertImage(dir.path() + QStringLiteral("/pic.png"), QStringLiteral("jpg")).isEmpty());
     dir.createFile("text", "hello");
     QVERIFY(CommanderTools::convertImage(dir.path() + QStringLiteral("/text"), QStringLiteral("png")).isEmpty());
+}
+
+void DolphinCommanderFeaturesTest::testToDoNames()
+{
+    QCOMPARE(CommanderTools::toggledToDoName(QStringLiteral("buy milk.2do")), QStringLiteral("buy milk.2dx"));
+    QCOMPARE(CommanderTools::toggledToDoName(QStringLiteral("buy milk.2dx")), QStringLiteral("buy milk.2do"));
+    QCOMPARE(CommanderTools::toggledToDoName(QStringLiteral("notes.txt")), QStringLiteral("notes.txt"));
 }
 
 void DolphinCommanderFeaturesTest::testFolderSize()

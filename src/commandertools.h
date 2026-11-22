@@ -43,6 +43,9 @@ bool checksumsMatch(const QString &a, const QString &b);
  * file is not overwritten. */
 QString convertImage(const QString &source, const QString &format);
 
+/** The name of a to-do file with its state flipped: .2do (open) becomes .2dx (done) and back. Other names stay as they are. */
+QString toggledToDoName(const QString &fileName);
+
 /** The total size in bytes of the files below @p folder, without following symlinks. */
 qint64 folderSize(const QString &folder);
 

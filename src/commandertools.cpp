@@ -106,6 +106,17 @@ QString CommanderTools::convertImage(const QString &source, const QString &forma
     return target;
 }
 
+QString CommanderTools::toggledToDoName(const QString &fileName)
+{
+    if (fileName.endsWith(QLatin1String(".2do"), Qt::CaseInsensitive)) {
+        return fileName.chopped(1) + QLatin1Char('x');
+    }
+    if (fileName.endsWith(QLatin1String(".2dx"), Qt::CaseInsensitive)) {
+        return fileName.chopped(1) + QLatin1Char('o');
+    }
+    return fileName;
+}
+
 qint64 CommanderTools::folderSize(const QString &folder)
 {
     qint64 total = 0;
