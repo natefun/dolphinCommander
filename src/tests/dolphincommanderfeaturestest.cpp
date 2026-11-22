@@ -63,6 +63,7 @@ private Q_SLOTS:
     void testFolderSize();
     void testToDoNames();
     void testConvertImage();
+    void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
     void testClipboardAsFile();
@@ -460,6 +461,33 @@ void DolphinCommanderFeaturesTest::testColorLabelsAndAgeStripesArePainted()
              qPrintable(QStringLiteral("blue pixels %1 before, %2 after").arg(count(plain, true)).arg(count(painted, true))));
     QVERIFY2(count(painted, false) > count(plain, false) + 10,
              qPrintable(QStringLiteral("red pixels %1 before, %2 after").arg(count(plain, false)).arg(count(painted, false))));
+}
+
+void DolphinCommanderFeaturesTest::testAFolderImageIsPaintedBehindTheItems()
+{
+    const auto green = [](const QImage &image) {
+        int found = 0;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                const QColor c = image.pixelColor(x, y);
+                found += (c.green() > c.red() + 15 && c.green() > c.blue() + 15) ? 1 : 0;
+            }
+        }
+        return found;
+    };
+    m_container->resize(700, 500);
+    m_container->show();
+    QVERIFY(QTest::qWaitForWindowExposed(m_container));
+    QTest::qWait(800);
+    const int before = green(m_container->grab().toImage());
+
+    QImage cover(200, 200, QImage::Format_RGB32);
+    cover.fill(QColor(0, 200, 0));
+    QVERIFY(cover.save(m_testDir->path() + QStringLiteral("/cover.png")));
+    m_container->view()->reload();
+    QTest::qWait(1500);
+    const int after = green(m_container->grab().toImage());
+    QVERIFY2(after > before + 2000, qPrintable(QStringLiteral("green pixels %1 before, %2 after").arg(before).arg(after)));
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()
