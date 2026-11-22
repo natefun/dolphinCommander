@@ -454,11 +454,13 @@ if(HAVE_BALOO)
         panels/information/dolphin_informationpanelsettings.kcfgc
     )
 
-    target_link_libraries(dolphinstatic
-        Qt::Multimedia
-        Qt::MultimediaWidgets
-    )
 endif()
+
+# The quick view plays video and sound.
+target_link_libraries(dolphinstatic
+    Qt::Multimedia
+    Qt::MultimediaWidgets
+)
 
 if(KF6KIO_VERSION VERSION_GREATER_EQUAL "6.24.0")
     target_sources(dolphinstatic PRIVATE

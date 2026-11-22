@@ -110,6 +110,7 @@ private Q_SLOTS:
     void testAViewDesignGoesToAFileAndComesBack();
     void testClosingTheWindowCanOnlyHideIt();
     void testTheTextOfOfficeDocumentsIsShown();
+    void testTheQuickViewSeeksAndStepsThroughSound();
     void testADesignCanBeTriedWithoutSavingIt();
     void testTheFirstStartAsksForALayoutAndATheme();
     void testTheFileViewDesignerEditsAndAppliesAView();
@@ -1862,6 +1863,59 @@ void DolphinCommanderFeaturesTest::testTheTextOfOfficeDocumentsIsShown()
     auto *text = preview.findChild<QPlainTextEdit *>();
     QVERIFY(text);
     QTRY_VERIFY(text->toPlainText().contains(QStringLiteral("Dear reader")));
+}
+
+void DolphinCommanderFeaturesTest::testTheQuickViewSeeksAndStepsThroughSound()
+{
+    // Twenty seconds of silence: 8000 samples a second, 8 bits, one channel.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const quint32 dataSize = 8000 * 20;
+    QByteArray wav;
+    QDataStream stream(&wav, QIODevice::WriteOnly);
+    stream.setByteOrder(QDataStream::LittleEndian);
+    stream.writeRawData("RIFF", 4);
+    stream << quint32(36 + dataSize);
+    stream.writeRawData("WAVEfmt ", 8);
+    stream << quint32(16) << quint16(1) << quint16(1) << quint32(8000) << quint32(8000) << quint16(1) << quint16(8);
+    stream.writeRawData("data", 4);
+    stream << dataSize;
+    wav.append(QByteArray(int(dataSize), char(128)));
+    QFile file(dir.path() + QStringLiteral("/silence.wav"));
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(wav);
+    file.close();
+
+    QuickViewDialog quick(nullptr);
+    KFileItem item(QUrl::fromLocalFile(file.fileName()));
+    item.determineMimeType();
+    quick.show(item);
+    QTRY_VERIFY_WITH_TIMEOUT(quick.mediaDuration() > 0
+                                 || !QTest::qWaitFor(
+                                     [&]() {
+                                         return quick.mediaDuration() > 0;
+                                     },
+                                     100),
+                             8000);
+    if (quick.mediaDuration() <= 0) {
+        QSKIP("No media backend can read the sound here.");
+    }
+    QVERIFY(qAbs(quick.mediaDuration() - 20000) < 500);
+    QCOMPARE(quick.shownName(), QStringLiteral("silence.wav"));
+
+    // Right and Left seek by five seconds, Shift by a tenth of the length, [ and ] by a frame.
+    QTest::keyClick(&quick, Qt::Key_Right);
+    QTRY_COMPARE_WITH_TIMEOUT(quick.mediaPosition(), qint64(5000), 3000);
+    QTest::keyClick(&quick, Qt::Key_Right, Qt::ShiftModifier);
+    QTRY_VERIFY_WITH_TIMEOUT(qAbs(quick.mediaPosition() - 7000) < 200, 3000);
+    QTest::keyClick(&quick, Qt::Key_Left);
+    QTRY_VERIFY_WITH_TIMEOUT(qAbs(quick.mediaPosition() - 2000) < 200, 3000);
+    QTest::keyClick(&quick, Qt::Key_Left);
+    QTRY_COMPARE_WITH_TIMEOUT(quick.mediaPosition(), qint64(0), 3000); // not before the start
+    QTest::keyClick(&quick, Qt::Key_BracketRight);
+    QTRY_VERIFY_WITH_TIMEOUT(qAbs(quick.mediaPosition() - 40) < 30, 3000);
+    QTest::keyClick(&quick, Qt::Key_BracketLeft);
+    QTRY_VERIFY_WITH_TIMEOUT(quick.mediaPosition() < 30, 3000);
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

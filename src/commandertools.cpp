@@ -15,6 +15,7 @@
 #include <KIO/FileUndoManager>
 #include <KIO/Global>
 #include <KJob>
+#include <QAudioOutput>
 #include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -30,6 +31,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMediaPlayer>
 #include <QMimeData>
 #include <QMimeDatabase>
 #include <QPlainTextEdit>
@@ -43,6 +45,7 @@
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
 #include <QVBoxLayout>
+#include <QVideoWidget>
 #include <QtConcurrent>
 
 QString CommanderTools::expandRenamePattern(const QString &pattern, const QString &fileName, int counter, const QDateTime &modified)
@@ -635,16 +638,85 @@ QuickViewDialog::QuickViewDialog(QWidget *parent)
     auto *layout = new QVBoxLayout(this);
     m_preview = new FilePreviewWidget(this);
     layout->addWidget(m_preview);
+    m_video = new QVideoWidget(this);
+    m_video->hide();
+    layout->addWidget(m_video, 1);
+    m_player = new QMediaPlayer(this);
+    m_player->setVideoOutput(m_video);
+    auto *audio = new QAudioOutput(this);
+    m_player->setAudioOutput(audio);
     resize(640, 480);
+}
+
+void QuickViewDialog::seekBy(qint64 milliseconds)
+{
+    if (m_player->duration() <= 0) {
+        return;
+    }
+    m_player->setPosition(qBound<qint64>(0, m_player->position() + milliseconds, m_player->duration()));
+}
+
+void QuickViewDialog::stepFrame(int direction)
+{
+    if (m_player->duration() <= 0) {
+        return;
+    }
+    m_player->pause();
+    m_player->setPosition(qBound<qint64>(0, m_player->position() + direction * 40, m_player->duration()));
+}
+
+void QuickViewDialog::togglePlayback()
+{
+    if (m_player->duration() <= 0) {
+        return;
+    }
+    if (m_player->playbackState() == QMediaPlayer::PlayingState) {
+        m_player->pause();
+    } else {
+        m_player->play();
+    }
+}
+
+qint64 QuickViewDialog::mediaPosition() const
+{
+    return m_player->position();
+}
+
+qint64 QuickViewDialog::mediaDuration() const
+{
+    return qMax<qint64>(0, m_player->duration());
 }
 
 QString QuickViewDialog::shownName() const
 {
-    return m_preview->shownName();
+    return m_shownName;
 }
 
 void QuickViewDialog::keyPressEvent(QKeyEvent *event)
 {
+    // Video and sound: Space plays and pauses, Left and Right seek (Shift: a tenth of the length), [ and ] step by frames.
+    if (m_player->duration() > 0) {
+        const qint64 jump = (event->modifiers() & Qt::ShiftModifier) ? qMax<qint64>(1000, m_player->duration() / 10) : 5000;
+        switch (event->key()) {
+        case Qt::Key_Space:
+            togglePlayback();
+            return;
+        case Qt::Key_Left:
+            seekBy(-jump);
+            return;
+        case Qt::Key_Right:
+            seekBy(jump);
+            return;
+        case Qt::Key_BracketLeft:
+            stepFrame(-1);
+            return;
+        case Qt::Key_BracketRight:
+            stepFrame(1);
+            return;
+        default:
+            break;
+        }
+    }
     if (event->key() == Qt::Key_Up || event->key() == Qt::Key_Down) {
         Q_EMIT stepRequested(event->key() == Qt::Key_Up ? -1 : 1);
         return;
@@ -655,7 +727,20 @@ void QuickViewDialog::keyPressEvent(QKeyEvent *event)
 void QuickViewDialog::show(const KFileItem &item)
 {
     setWindowTitle(i18nc("@title:window", "Quick View: %1", item.name()));
-    m_preview->setItem(item);
+    m_shownName = item.name();
+    m_player->stop();
+    const QMimeType mime = item.determineMimeType();
+    const bool isMedia = item.isLocalFile() && (mime.name().startsWith(QLatin1String("video/")) || mime.name().startsWith(QLatin1String("audio/")));
+    if (isMedia) {
+        // A video or a sound is played, not shown as a picture.
+        m_preview->setItem(KFileItem());
+        m_video->setVisible(mime.name().startsWith(QLatin1String("video/")));
+        m_player->setSource(QUrl::fromLocalFile(item.localPath()));
+    } else {
+        m_video->hide();
+        m_player->setSource(QUrl());
+        m_preview->setItem(item);
+    }
     QDialog::show();
     raise();
 }

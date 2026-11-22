@@ -20,6 +20,8 @@ class QMimeData;
 class FilePreviewWidget;
 class QLabel;
 class QKeyEvent;
+class QMediaPlayer;
+class QVideoWidget;
 class QLineEdit;
 class QPlainTextEdit;
 class QTableWidget;
@@ -156,6 +158,16 @@ public:
     /** The name of the file that is shown. */
     QString shownName() const;
 
+    /** Moves the playing video or sound by @p milliseconds, within its length. Does nothing when no media is shown. */
+    void seekBy(qint64 milliseconds);
+    /** Steps one frame (about 40 ms) back or forth; the media is paused first. */
+    void stepFrame(int direction);
+    /** Plays or pauses. */
+    void togglePlayback();
+    /** Where the media is, in milliseconds, and how long it is; both 0 when no media is shown. */
+    qint64 mediaPosition() const;
+    qint64 mediaDuration() const;
+
 Q_SIGNALS:
     /** The Up (-1) or Down (+1) key asks for the previous or the next file. */
     void stepRequested(int delta);
@@ -165,6 +177,9 @@ protected:
 
 private:
     FilePreviewWidget *m_preview;
+    QString m_shownName;
+    QMediaPlayer *m_player;
+    QVideoWidget *m_video;
 };
 
 #endif
