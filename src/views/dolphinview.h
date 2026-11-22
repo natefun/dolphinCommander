@@ -280,6 +280,9 @@ public:
     /** When on, the details view hides the columns that do not fit, last first, as OneCommander's file views do. */
     static void setHideColumnsWhenNarrow(bool enabled);
     static bool hideColumnsWhenNarrow();
+    /** The width of the view under which a column is hidden, by role; a role that is not in it follows the automatic rule. */
+    static void setColumnHideThresholds(const QHash<QByteArray, int> &thresholds);
+    static QHash<QByteArray, int> columnHideThresholds();
     /** Shows only the columns that fit when "hide columns when narrow" is on, and all of them otherwise. The properties of the folder are left as they are. */
     void updateResponsiveColumns();
 

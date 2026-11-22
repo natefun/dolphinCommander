@@ -2461,6 +2461,17 @@ void DolphinView::slotSortRoleChangedByHeader(const QByteArray &current, const Q
 }
 
 static bool s_hideColumnsWhenNarrow = false;
+static QHash<QByteArray, int> s_columnHideThresholds;
+
+void DolphinView::setColumnHideThresholds(const QHash<QByteArray, int> &thresholds)
+{
+    s_columnHideThresholds = thresholds;
+}
+
+QHash<QByteArray, int> DolphinView::columnHideThresholds()
+{
+    return s_columnHideThresholds;
+}
 
 void DolphinView::setHideColumnsWhenNarrow(bool enabled)
 {
@@ -2480,9 +2491,16 @@ void DolphinView::updateResponsiveColumns()
     QList<QByteArray> shown = m_visibleRoles;
     if (s_hideColumnsWhenNarrow) {
         // The name needs room first; every other column needs about as much as a date.
-        const int room = m_container->width() - 320;
-        const int extra = qMax(0, room / 150);
-        shown = m_visibleRoles.mid(0, 1 + extra);
+        const int width = m_container->width();
+        const int extra = qMax(0, (width - 320) / 150);
+        shown = m_visibleRoles.mid(0, 1);
+        for (int i = 1; i < m_visibleRoles.count(); ++i) {
+            const int threshold = s_columnHideThresholds.value(m_visibleRoles.at(i), 0);
+            // A column with a threshold of its own is shown from that width; the others follow their place in the row.
+            if (threshold > 0 ? width >= threshold : i <= extra) {
+                shown << m_visibleRoles.at(i);
+            }
+        }
     }
     if (shown == m_view->visibleRoles()) {
         return;

@@ -2351,6 +2351,7 @@ void DolphinMainWindow::designFileView()
     }
     auto *dialog = new FileViewDesignerDialog(view->visibleRoles(), ViewProperties(view->url()).headerColumnWidths(), this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setHideBelow(DolphinView::columnHideThresholds());
     connect(dialog, &QDialog::accepted, this, [this, dialog]() {
         DolphinView *target = m_activeViewContainer->view();
         const QList<QByteArray> roles = dialog->roles();
@@ -2358,6 +2359,21 @@ void DolphinMainWindow::designFileView()
         if (roles.isEmpty()) {
             return;
         }
+        // The widths of the view under which the columns are hidden (when that is on) are kept for the whole program.
+        QHash<QByteArray, int> thresholds = DolphinView::columnHideThresholds();
+        const QList<int> hideBelow = dialog->hideBelow();
+        QStringList stored;
+        for (int i = 0; i < roles.count() && i < hideBelow.count(); ++i) {
+            thresholds.insert(roles.at(i), hideBelow.at(i));
+        }
+        for (auto it = thresholds.cbegin(); it != thresholds.cend(); ++it) {
+            if (it.value() > 0) {
+                stored << QString::fromLatin1(it.key()) + QLatin1Char('=') + QString::number(it.value());
+            }
+        }
+        DolphinView::setColumnHideThresholds(thresholds);
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ColumnHideThresholds", stored);
+        target->updateResponsiveColumns();
         target->setVisibleRoles(roles);
         {
             ViewProperties props(target->url());
@@ -3349,6 +3365,16 @@ void DolphinMainWindow::setupActions()
     hideNarrow->setToolTip(i18nc("@info:tooltip", "Show only the columns that fit in the details view, the last ones go first."));
     hideNarrow->setIcon(QIcon::fromTheme(QStringLiteral("view-list-details")));
     hideNarrow->setCheckable(true);
+    {
+        QHash<QByteArray, int> thresholds;
+        for (const QString &entry : KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ColumnHideThresholds", QStringList())) {
+            const int equals = entry.lastIndexOf(QLatin1Char('='));
+            if (equals > 0) {
+                thresholds.insert(entry.left(equals).toLatin1(), entry.mid(equals + 1).toInt());
+            }
+        }
+        DolphinView::setColumnHideThresholds(thresholds);
+    }
     const bool hideNarrowOn = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("HideColumnsWhenNarrow", false);
     hideNarrow->setChecked(hideNarrowOn);
     DolphinView::setHideColumnsWhenNarrow(hideNarrowOn);

@@ -96,6 +96,7 @@ private Q_SLOTS:
     void testACustomThemeUsesTheColorsThatWereChosen();
     void testTheFileViewDesignerEditsAndAppliesAView();
     void testColumnsCanBeHiddenWhenTheViewIsNarrow();
+    void testEachColumnCanHaveItsOwnHideWidth();
     void testItemScrollingStepsByRows();
     void testASavedFileViewKeepsTheColumnWidths();
     void testAFolderImageIsPaintedBehindTheItems();
@@ -1321,6 +1322,48 @@ void DolphinCommanderFeaturesTest::testColumnsCanBeHiddenWhenTheViewIsNarrow()
     DolphinView::setHideColumnsWhenNarrow(false);
     container.resize(300, 300);
     QTRY_COMPARE(shown(), 4); // and with the setting off, nothing is hidden
+}
+
+void DolphinCommanderFeaturesTest::testEachColumnCanHaveItsOwnHideWidth()
+{
+    TestDir dir;
+    dir.createFile("x");
+    GeneralSettings::setGlobalViewProps(false);
+    GeneralSettings::self()->save();
+    {
+        ViewProperties props(dir.url());
+        props.setViewMode(DolphinView::DetailsView);
+        props.setVisibleRoles({"text", "size", "modificationtime", "type"});
+        props.save();
+    }
+    DolphinViewContainer container(dir.url(), nullptr);
+    container.resize(1000, 300);
+    container.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&container));
+    QTRY_COMPARE(container.view()->itemsCount(), 1);
+    auto *list = container.view()->findChild<KItemListContainer *>();
+    QVERIFY(list);
+    const auto shown = [&]() {
+        return list->controller()->view()->visibleRoles();
+    };
+    QTRY_COMPARE(shown().count(), 4);
+
+    // The dialog asks for the thresholds and answers with them by column.
+    FileViewDesignerDialog designer({"text", "size", "modificationtime", "type"}, {}, nullptr);
+    designer.setHideBelow({{"size", 900}, {"type", 400}});
+    QCOMPARE(designer.hideBelow(), (QList<int>{0, 900, 0, 400}));
+
+    // The type is to stay down to 400 pixels, the size is dropped under 900, the date follows the automatic rule.
+    DolphinView::setColumnHideThresholds({{"size", 900}, {"type", 400}});
+    DolphinView::setHideColumnsWhenNarrow(true);
+    container.view()->updateResponsiveColumns();
+    QTRY_COMPARE(shown(), (QList<QByteArray>{"text", "size", "modificationtime", "type"}));
+    container.resize(700, 300);
+    QTRY_COMPARE(shown(), (QList<QByteArray>{"text", "modificationtime", "type"}));
+    container.resize(380, 300);
+    QTRY_COMPARE(shown(), (QList<QByteArray>{"text"}));
+    DolphinView::setColumnHideThresholds({});
+    DolphinView::setHideColumnsWhenNarrow(false);
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

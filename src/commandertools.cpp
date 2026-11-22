@@ -295,8 +295,9 @@ FileViewDesignerDialog::FileViewDesignerDialog(const QList<QByteArray> &roles, c
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(new QLabel(i18nc("@info", "Tick the columns to show and drag them into order with the buttons; the width is in pixels."), this));
 
-    m_table = new QTableWidget(0, 3, this);
-    m_table->setHorizontalHeaderLabels({i18nc("@title:column", "Show"), i18nc("@title:column", "Column"), i18nc("@title:column", "Width")});
+    m_table = new QTableWidget(0, 4, this);
+    m_table->setHorizontalHeaderLabels(
+        {i18nc("@title:column", "Show"), i18nc("@title:column", "Column"), i18nc("@title:column", "Width"), i18nc("@title:column", "Hide below")});
     m_table->horizontalHeader()->setStretchLastSection(false);
     m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -338,6 +339,12 @@ FileViewDesignerDialog::FileViewDesignerDialog(const QList<QByteArray> &roles, c
         const int index = roles.indexOf(role);
         width->setValue(index >= 0 && index < widths.size() ? widths.at(index) : 150);
         m_table->setCellWidget(row, 2, width);
+        // The width of the view under which the column is hidden when columns are hidden for lack of room; 0 is the automatic rule.
+        auto *hideBelow = new QSpinBox(m_table);
+        hideBelow->setRange(0, 5000);
+        hideBelow->setSpecialValueText(i18nc("@item", "Automatic"));
+        hideBelow->setSuffix(i18nc("@item:valuesuffix pixels", " px"));
+        m_table->setCellWidget(row, 3, hideBelow);
     }
     layout->addWidget(m_table);
 
@@ -402,6 +409,11 @@ void FileViewDesignerDialog::moveCurrentRow(int by)
         const int valueA = widthA->value();
         widthA->setValue(widthB->value());
         widthB->setValue(valueA);
+        auto *hideA = static_cast<QSpinBox *>(m_table->cellWidget(a, 3));
+        auto *hideB = static_cast<QSpinBox *>(m_table->cellWidget(b, 3));
+        const int hiddenA = hideA->value();
+        hideA->setValue(hideB->value());
+        hideB->setValue(hiddenA);
     };
     swapCells(row, target);
     m_table->setCurrentCell(target, 1);
@@ -430,6 +442,25 @@ QList<int> FileViewDesignerDialog::widths() const
         }
     }
     return result;
+}
+
+QList<int> FileViewDesignerDialog::hideBelow() const
+{
+    QList<int> result;
+    for (int row = 0; row < m_table->rowCount(); ++row) {
+        if (m_table->item(row, 0)->checkState() == Qt::Checked) {
+            result << static_cast<QSpinBox *>(m_table->cellWidget(row, 3))->value();
+        }
+    }
+    return result;
+}
+
+void FileViewDesignerDialog::setHideBelow(const QHash<QByteArray, int> &thresholds)
+{
+    for (int row = 0; row < m_table->rowCount(); ++row) {
+        const QByteArray role = m_table->item(row, 1)->data(Qt::UserRole).toByteArray();
+        static_cast<QSpinBox *>(m_table->cellWidget(row, 3))->setValue(thresholds.value(role, 0));
+    }
 }
 
 QString FileViewDesignerDialog::name() const

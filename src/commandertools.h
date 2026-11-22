@@ -10,6 +10,7 @@
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDialog>
+#include <QHash>
 #include <QList>
 #include <QStringList>
 #include <QUrl>
@@ -93,6 +94,10 @@ public:
     QList<int> widths() const;
     /** The name to keep the design under; empty if it is not to be saved. */
     QString name() const;
+    /** For each of roles(), the width of the view under which the column is hidden; 0 for the automatic rule. */
+    QList<int> hideBelow() const;
+    /** Sets the thresholds that the rows start with, by role. */
+    void setHideBelow(const QHash<QByteArray, int> &thresholds);
 
 private:
     void moveCurrentRow(int by);
