@@ -15,7 +15,7 @@ if [[ "${1:-}" == "--install-deps" ]]; then
     pacman -Syu --noconfirm --needed \
         base-devel git cmake ninja python dbus xorg-server-xvfb appstream \
         extra-cmake-modules qt6-base qt6-multimedia qt6-tools \
-        kcmutils kcoreaddons ki18n kdbusaddons kbookmarks kconfig kio kparts solid \
+        karchive kcmutils kcoreaddons ki18n kdbusaddons kbookmarks kconfig kio kparts solid \
         kiconthemes kcompletion ktextwidgets knotifications kcrash kwindowsystem \
         kwidgetsaddons kcodecs kguiaddons kcolorscheme kdoctools \
         packagekit-qt6 baloo baloo-widgets kfilemetadata breeze-icons \

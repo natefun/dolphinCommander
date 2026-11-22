@@ -75,6 +75,7 @@ find_package(KF6 ${KF6_MIN_VERSION} REQUIRED COMPONENTS
     CoreAddons
     I18n
     DBusAddons
+    Archive
     Bookmarks
     Config
     KIO

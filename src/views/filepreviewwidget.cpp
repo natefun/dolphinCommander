@@ -6,8 +6,10 @@
 
 #include <KIO/PreviewJob>
 #include <KLocalizedString>
+#include <KZip>
 
 #include <QFile>
+#include <QFileInfo>
 #include <QFontDatabase>
 #include <QLabel>
 #include <QMimeType>
@@ -18,6 +20,55 @@
 #include <QScrollBar>
 #include <QVBoxLayout>
 #include <QWheelEvent>
+#include <QXmlStreamReader>
+
+QString FilePreviewWidget::officeDocumentText(const QString &path)
+{
+    const QString suffix = QFileInfo(path).suffix().toLower();
+    // The XML parts that hold the text, the element that ends a paragraph or a cell, and the element that holds text.
+    struct Format {
+        QString part;
+        QString paragraph;
+        QString text;
+    };
+    QList<Format> formats;
+    if (suffix == QLatin1String("docx")) {
+        formats = {{QStringLiteral("word/document.xml"), QStringLiteral("p"), QStringLiteral("t")}};
+    } else if (suffix == QLatin1String("xlsx")) {
+        formats = {{QStringLiteral("xl/sharedStrings.xml"), QStringLiteral("si"), QStringLiteral("t")}};
+    } else if (suffix == QLatin1String("odt") || suffix == QLatin1String("ods") || suffix == QLatin1String("odp")) {
+        formats = {{QStringLiteral("content.xml"), QStringLiteral("p"), QString()}};
+    } else {
+        return QString();
+    }
+    KZip zip(path);
+    if (!zip.open(QIODevice::ReadOnly)) {
+        return QString();
+    }
+    QString result;
+    for (const Format &format : std::as_const(formats)) {
+        const KArchiveEntry *entry = zip.directory()->entry(format.part);
+        if (!entry || !entry->isFile()) {
+            continue;
+        }
+        const QByteArray xml = static_cast<const KArchiveFile *>(entry)->data();
+        QXmlStreamReader reader(xml);
+        bool inText = format.text.isEmpty();
+        while (!reader.atEnd() && result.size() < 64 * 1024) {
+            reader.readNext();
+            if (reader.isStartElement() && !format.text.isEmpty() && reader.name() == format.text) {
+                inText = true;
+            } else if (reader.isEndElement() && !format.text.isEmpty() && reader.name() == format.text) {
+                inText = false;
+            } else if (reader.isCharacters() && inText) {
+                result += reader.text();
+            } else if (reader.isEndElement() && (reader.name() == format.paragraph || reader.name() == QLatin1String("h"))) {
+                result += QLatin1Char('\n');
+            }
+        }
+    }
+    return result.trimmed();
+}
 
 FilePreviewWidget::FilePreviewWidget(QWidget *parent)
     : QWidget(parent)
@@ -74,7 +125,12 @@ void FilePreviewWidget::setItem(const KFileItem &item)
     const QString path = item.localPath();
     const QMimeType mime = item.determineMimeType();
     const QString noPreview = i18nc("@info", "%1 — no preview for this kind of file.", item.name());
-    if (!path.isEmpty() && mime.inherits(QStringLiteral("text/plain"))) {
+    const QString officeText = path.isEmpty() ? QString() : officeDocumentText(path);
+    if (!officeText.isEmpty()) {
+        // A Word, Excel or OpenDocument file shows its text.
+        m_text->setPlainText(officeText);
+        m_text->show();
+    } else if (!path.isEmpty() && mime.inherits(QStringLiteral("text/plain"))) {
         QFile file(path);
         if (file.open(QIODevice::ReadOnly)) {
             m_text->setPlainText(QString::fromUtf8(file.read(64 * 1024)));

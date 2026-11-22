@@ -26,6 +26,12 @@ public:
     /** Shows the file. A folder or a null item shows nothing. */
     void setItem(const KFileItem &item);
 
+    /**
+     * The text of an office document: a .docx (Word), .xlsx (Excel), or an OpenDocument .odt, .ods or .odp file.
+     * Empty if the file is none of these or cannot be read. At most about 64 kilobytes are returned.
+     */
+    static QString officeDocumentText(const QString &path);
+
     /** The name of the item that is shown, empty if there is none. */
     QString shownName() const;
 

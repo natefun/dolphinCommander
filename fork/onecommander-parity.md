@@ -44,7 +44,8 @@ covered by `testSeveralSelectedItemsShowNoFolder` in `dolphincolumnsviewtest`), 
 - Designs as .json files: File Views > Save View Design to File… and Apply View Design from File… (mode, previews, columns, widths).
 - "Apply to the current folder and close, without saving": the designer has an "Apply Without Saving" button; the folder's own settings stay as they were.
 - Preview Window: Space opens it in OneCommander, here it is Alt+F3 (Space selects); Up/Down step through the files and Esc closes it, as there.
-  Not done: three viewing modes, a map button for photos with GPS, video seeking and frame stepping, Word/Excel previews.
+  Word (.docx), Excel (.xlsx) and OpenDocument (.odt, .ods, .odp) files show their text in the preview (it needs KArchive, which is now a dependency).
+  Not done: three viewing modes, a map button for photos with GPS, video seeking and frame stepping.
 - Collapsing a side by dragging its divider: the fork's two sides do it (Ctrl+F3 and the splitter), the same as OneCommander's single-browser layout.
 - Network drives and phones: OneCommander scans the Windows network and points to Phone Link; on Linux this is KIO (smb, sftp, ftp, mtp) in
   the Places panel and the location bar, which the fork inherits from Dolphin.

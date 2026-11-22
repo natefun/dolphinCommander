@@ -25,6 +25,7 @@
 #include "views/columnsstrip.h"
 #include "views/dolphincolumnsview.h"
 #include "views/dolphinview.h"
+#include "views/filepreviewwidget.h"
 #include "views/viewheader.h"
 #include "views/viewproperties.h"
 
@@ -32,6 +33,7 @@
 #include <KActionMenu>
 #include <KCoreDirLister>
 #include <KFileMetaData/UserMetaData>
+#include <KZip>
 
 #include <KIO/CopyJob>
 #include <QApplication>
@@ -107,6 +109,7 @@ private Q_SLOTS:
     void testTheQuickViewStepsWithTheUpAndDownKeys();
     void testAViewDesignGoesToAFileAndComesBack();
     void testClosingTheWindowCanOnlyHideIt();
+    void testTheTextOfOfficeDocumentsIsShown();
     void testADesignCanBeTriedWithoutSavingIt();
     void testTheFirstStartAsksForALayoutAndATheme();
     void testTheFileViewDesignerEditsAndAppliesAView();
@@ -1809,6 +1812,56 @@ void DolphinCommanderFeaturesTest::testClosingTheWindowCanOnlyHideIt()
 
     keep->setChecked(false);
     DolphinMainWindow::pretendThereIsATray(false);
+}
+
+void DolphinCommanderFeaturesTest::testTheTextOfOfficeDocumentsIsShown()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const auto makeZip = [&](const QString &name, const QString &part, const QByteArray &xml) -> QString {
+        KZip zip(dir.path() + QLatin1Char('/') + name);
+        if (!zip.open(QIODevice::WriteOnly)) {
+            return QString();
+        }
+        zip.writeFile(part, xml);
+        zip.close();
+        return dir.path() + QLatin1Char('/') + name;
+    };
+
+    const QString docx = makeZip(QStringLiteral("letter.docx"),
+                                 QStringLiteral("word/document.xml"),
+                                 "<w:document xmlns:w='w'><w:body><w:p><w:r><w:t>Dear</w:t></w:r><w:r><w:t> reader</w:t></w:r></w:p><w:p><w:r><w:t>Second "
+                                 "line</w:t></w:r></w:p></w:body></w:document>");
+    QCOMPARE(FilePreviewWidget::officeDocumentText(docx), QStringLiteral("Dear reader\nSecond line"));
+
+    const QString xlsx =
+        makeZip(QStringLiteral("sheet.xlsx"), QStringLiteral("xl/sharedStrings.xml"), "<sst xmlns='x'><si><t>Name</t></si><si><t>Total</t></si></sst>");
+    QCOMPARE(FilePreviewWidget::officeDocumentText(xlsx), QStringLiteral("Name\nTotal"));
+
+    const QString odt = makeZip(QStringLiteral("note.odt"),
+                                QStringLiteral("content.xml"),
+                                "<o:doc xmlns:o='o' xmlns:text='t'><text:h>Title</text:h><text:p>Body <text:span>text</text:span></text:p></o:doc>");
+    QCOMPARE(FilePreviewWidget::officeDocumentText(odt), QStringLiteral("Title\nBody text"));
+
+    // Not a document, not a zip, and missing files give nothing.
+    QFile plain(dir.path() + QStringLiteral("/plain.docx"));
+    QVERIFY(plain.open(QIODevice::WriteOnly));
+    plain.write("not a zip");
+    plain.close();
+    QVERIFY(FilePreviewWidget::officeDocumentText(plain.fileName()).isEmpty());
+    QVERIFY(FilePreviewWidget::officeDocumentText(dir.path() + QStringLiteral("/missing.docx")).isEmpty());
+    QVERIFY(FilePreviewWidget::officeDocumentText(dir.path() + QStringLiteral("/notes.txt")).isEmpty());
+
+    // The preview shows the text.
+    FilePreviewWidget preview;
+    preview.resize(400, 300);
+    preview.show();
+    KFileItem item(QUrl::fromLocalFile(docx));
+    item.determineMimeType();
+    preview.setItem(item);
+    auto *text = preview.findChild<QPlainTextEdit *>();
+    QVERIFY(text);
+    QTRY_VERIFY(text->toPlainText().contains(QStringLiteral("Dear reader")));
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

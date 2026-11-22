@@ -232,6 +232,7 @@ target_link_libraries(
     KF6::I18n
     KF6::GuiAddons
     KF6::IconThemes
+    KF6::Archive
     KF6::KIOCore
     KF6::KIOWidgets
     KF6::KIOFileWidgets
