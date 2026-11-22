@@ -667,6 +667,11 @@ private Q_SLOTS:
     void pasteClipboardAsFile();
     /** Keeps the view mode, the previews and the columns of the active view under a name, as one more file view. */
     void saveFileView();
+    /** Writes the design of the active view (mode, previews, columns and their widths) to a .json file, and reads such a file. */
+    bool exportViewDesign(const QString &path);
+    bool importViewDesign(const QString &path);
+    /** Asks for a layout and a theme, once, the first time the program is started. */
+    void askFirstStartChoices();
     /** Opens the File View Designer for the active view. */
     void designFileView();
     /** Applies a named file view (view mode, previews and the columns shown) to the active view. */

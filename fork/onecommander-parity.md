@@ -41,11 +41,11 @@ covered by `testSeveralSelectedItemsShowNoFolder` in `dolphincolumnsviewtest`), 
 
 ## From the later help pages (File View Designer, Resizing panes, Network drives, Phone storage, Preview, first start)
 - Removal Order and Minwidth of a column: the designer's "Hide below" width per column does the same job, in pixels of the view instead of an order.
-- Designs as .json files to load and save: the fork keeps named designs in its settings; they are not files.
+- Designs as .json files: File Views > Save View Design to File… and Apply View Design from File… (mode, previews, columns, widths).
 - "Apply to the current folder and close, without saving": the designer applies to the folder and saves it; there is no temporary apply.
 - Preview Window: Space opens it in OneCommander, here it is Alt+F3 (Space selects); Up/Down step through the files and Esc closes it, as there.
   Not done: three viewing modes, a map button for photos with GPS, video seeking and frame stepping, Word/Excel previews.
 - Collapsing a side by dragging its divider: the fork's two sides do it (Ctrl+F3 and the splitter), the same as OneCommander's single-browser layout.
 - Network drives and phones: OneCommander scans the Windows network and points to Phone Link; on Linux this is KIO (smb, sftp, ftp, mtp) in
   the Places panel and the location bar, which the fork inherits from Dolphin.
-- First start asks for a layout and a theme, and a closed window only hides: not done.
+- First start asks for a layout and a theme (once; not in test mode). A closed window only hiding, and a key to bring it back: not done.

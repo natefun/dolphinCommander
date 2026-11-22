@@ -38,12 +38,16 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QColorDialog>
+#include <QComboBox>
 #include <QDir>
 #include <QFile>
 #include <QGraphicsView>
 #include <QHBoxLayout>
 #include <QImage>
 #include <QInputDialog>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -100,6 +104,8 @@ private Q_SLOTS:
     void testAThemeCanBeSavedToAFileAndLoadedAgain();
     void testAStyleSheetRestylesTheProgramAndTravelsWithTheTheme();
     void testTheQuickViewStepsWithTheUpAndDownKeys();
+    void testAViewDesignGoesToAFileAndComesBack();
+    void testTheFirstStartAsksForALayoutAndATheme();
     void testTheFileViewDesignerEditsAndAppliesAView();
     void testColumnsCanBeHiddenWhenTheViewIsNarrow();
     void testEachColumnCanHaveItsOwnHideWidth();
@@ -1583,6 +1589,117 @@ void DolphinCommanderFeaturesTest::testTheQuickViewStepsWithTheUpAndDownKeys()
     QTRY_COMPARE(quick->shownName(), QStringLiteral("a.txt"));
     QTest::keyClick(quick, Qt::Key_Escape);
     QVERIFY(!quick->isVisible());
+}
+
+void DolphinCommanderFeaturesTest::testAViewDesignGoesToAFileAndComesBack()
+{
+    TestDir dir;
+    dir.createFile("x");
+    GeneralSettings::setGlobalViewProps(false);
+    GeneralSettings::self()->save();
+    {
+        ViewProperties props(dir.url());
+        props.setViewMode(DolphinView::DetailsView);
+        props.setVisibleRoles({"text", "size", "modificationtime"});
+        props.setHeaderColumnWidths({310, 90, 170});
+        props.save();
+    }
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.openDirectories({dir.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    QTRY_COMPARE(window.activeViewContainer()->view()->itemsCount(), 1);
+    GeneralSettings::setGlobalViewProps(false);
+    GeneralSettings::self()->save();
+
+    QTemporaryDir files;
+    QVERIFY(files.isValid());
+    const QString path = files.path() + QStringLiteral("/mine.json");
+    bool saved = false;
+    QMetaObject::invokeMethod(&window, "exportViewDesign", Qt::DirectConnection, Q_RETURN_ARG(bool, saved), Q_ARG(QString, path));
+    QVERIFY(saved);
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QJsonObject design = QJsonDocument::fromJson(file.readAll()).object();
+    QCOMPARE(design.value(QStringLiteral("mode")).toString(), QStringLiteral("details"));
+    QCOMPARE(design.value(QStringLiteral("roles")).toArray().size(), 3);
+    QCOMPARE(design.value(QStringLiteral("widths")).toArray().at(0).toInt(), 310);
+
+    // Another folder takes the design from the file.
+    TestDir other;
+    other.createFile("y");
+    {
+        ViewProperties props(other.url());
+        props.setViewMode(DolphinView::DetailsView);
+        props.setVisibleRoles({"text", "type"});
+        props.save();
+    }
+    window.openDirectories({other.url().toString()}, false);
+    QTRY_COMPARE(window.activeViewContainer()->url().adjusted(QUrl::StripTrailingSlash).path(), other.url().adjusted(QUrl::StripTrailingSlash).path());
+    QTRY_COMPARE(window.activeViewContainer()->view()->itemsCount(), 1);
+    GeneralSettings::setGlobalViewProps(false);
+    GeneralSettings::self()->save();
+    bool loaded = false;
+    QMetaObject::invokeMethod(&window, "importViewDesign", Qt::DirectConnection, Q_RETURN_ARG(bool, loaded), Q_ARG(QString, path));
+    QVERIFY(loaded);
+    QTRY_COMPARE(window.activeViewContainer()->view()->visibleRoles(), (QList<QByteArray>{"text", "size", "modificationtime"}));
+    GeneralSettings::setGlobalViewProps(false);
+    QCOMPARE(ViewProperties(other.url()).headerColumnWidths(), (QList<int>{310, 90, 170}));
+
+    // A file that is no design is refused.
+    QFile nonsense(files.path() + QStringLiteral("/nonsense.json"));
+    QVERIFY(nonsense.open(QIODevice::WriteOnly));
+    nonsense.write("{\"a\": 1}");
+    nonsense.close();
+    bool refused = true;
+    QMetaObject::invokeMethod(&window, "importViewDesign", Qt::DirectConnection, Q_RETURN_ARG(bool, refused), Q_ARG(QString, nonsense.fileName()));
+    QVERIFY(!refused);
+}
+
+void DolphinCommanderFeaturesTest::testTheFirstStartAsksForALayoutAndATheme()
+{
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    // The dialog is answered with the Dark theme and the Columns layout.
+    QTimer answerer;
+    answerer.setInterval(100);
+    connect(&answerer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            if (auto *theme = modal->findChild<QComboBox *>(QStringLiteral("firstTheme"))) {
+                theme->setCurrentIndex(theme->findData(QStringLiteral("dark")));
+                modal->findChild<QComboBox *>(QStringLiteral("firstLayout"))->setCurrentIndex(1);
+                static_cast<QDialog *>(modal)->accept();
+            }
+        }
+    });
+    answerer.start();
+    const QColor before = QApplication::palette().color(QPalette::Base);
+    KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("FirstStartDone", false);
+    QMetaObject::invokeMethod(&window, "askFirstStartChoices", Qt::DirectConnection);
+    answerer.stop();
+    QVERIFY(QApplication::palette().color(QPalette::Base).lightnessF() < 0.3);
+    QVERIFY(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("FirstStartDone", false));
+    QCOMPARE(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ColorTheme"), QStringLiteral("dark"));
+    QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("system")));
+    QCOMPARE(QApplication::palette().color(QPalette::Base), before);
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

@@ -111,6 +111,9 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QInputDialog>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
@@ -288,6 +291,11 @@ DolphinMainWindow::DolphinMainWindow()
     });
 
     setupDockWidgets();
+
+    // The first time the program is started, a layout and a theme are asked for (not while tests run).
+    if (!QStandardPaths::isTestModeEnabled() && !KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("FirstStartDone", false)) {
+        QTimer::singleShot(0, this, &DolphinMainWindow::askFirstStartChoices);
+    }
 
 #if KIO_VERSION >= QT_VERSION_CHECK(6, 24, 0)
     m_serviceMenuShortcutManager = new ServiceMenuShortcutManager(actionCollection(), this);
@@ -2414,6 +2422,92 @@ void DolphinMainWindow::designFileView()
     dialog->open();
 }
 
+bool DolphinMainWindow::exportViewDesign(const QString &path)
+{
+    DolphinView *view = m_activeViewContainer->view();
+    QString mode = QStringLiteral("details");
+    if (view->viewMode() == DolphinView::IconsView) {
+        mode = QStringLiteral("icons");
+    } else if (view->viewMode() == DolphinView::CompactView) {
+        mode = QStringLiteral("compact");
+    }
+    QJsonArray roles;
+    for (const QByteArray &role : view->visibleRoles()) {
+        roles.append(QString::fromLatin1(role));
+    }
+    QJsonArray widths;
+    for (const int width : ViewProperties(view->url()).headerColumnWidths()) {
+        widths.append(width);
+    }
+    QJsonObject design{{QStringLiteral("mode"), mode},
+                       {QStringLiteral("previews"), view->previewsShown()},
+                       {QStringLiteral("roles"), roles},
+                       {QStringLiteral("widths"), widths}};
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+    file.write(QJsonDocument(design).toJson());
+    return true;
+}
+
+bool DolphinMainWindow::importViewDesign(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return false;
+    }
+    const QJsonObject design = QJsonDocument::fromJson(file.readAll()).object();
+    if (!design.contains(QLatin1String("roles")) || !design.contains(QLatin1String("mode"))) {
+        return false;
+    }
+    // The design is applied as a named view that is not kept: the same way saved views are applied.
+    QStringList entry{design.value(QLatin1String("mode")).toString(),
+                      design.value(QLatin1String("previews")).toBool() ? QStringLiteral("1") : QStringLiteral("0")};
+    QStringList widths;
+    for (const QJsonValue &width : design.value(QLatin1String("widths")).toArray()) {
+        widths << QString::number(width.toInt());
+    }
+    entry << QLatin1String("W=") + widths.join(QLatin1Char(','));
+    for (const QJsonValue &role : design.value(QLatin1String("roles")).toArray()) {
+        entry << role.toString();
+    }
+    KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("Commander FileViews"));
+    const QString temporary = QStringLiteral("\x01imported design");
+    group.writeEntry(temporary, entry);
+    applyFileView(QStringLiteral("saved:") + temporary);
+    group.deleteEntry(temporary);
+    return true;
+}
+
+void DolphinMainWindow::askFirstStartChoices()
+{
+    KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("Commander"));
+    QDialog dialog(this);
+    dialog.setWindowTitle(i18nc("@title:window", "Welcome"));
+    auto *layout = new QFormLayout(&dialog);
+    layout->addRow(new QLabel(i18nc("@info", "Choose how the program starts. Everything can be changed later in the View and Tools menus."), &dialog));
+    auto *layoutChoice = new QComboBox(&dialog);
+    layoutChoice->setObjectName(QStringLiteral("firstLayout"));
+    layoutChoice->addItem(i18nc("@item:inlistbox", "Standard: two sides"), 0);
+    layoutChoice->addItem(i18nc("@item:inlistbox", "Columns: Miller columns"), 1);
+    layoutChoice->addItem(i18nc("@item:inlistbox", "Classic: one side with information"), 2);
+    layout->addRow(i18nc("@label:listbox", "Layout:"), layoutChoice);
+    auto *themeChoice = new QComboBox(&dialog);
+    themeChoice->setObjectName(QStringLiteral("firstTheme"));
+    themeChoice->addItem(i18nc("@item:inlistbox", "Follow the desktop"), QStringLiteral("system"));
+    themeChoice->addItem(i18nc("@item:inlistbox", "Light"), QStringLiteral("light"));
+    themeChoice->addItem(i18nc("@item:inlistbox", "Dark"), QStringLiteral("dark"));
+    layout->addRow(i18nc("@label:listbox", "Colors:"), themeChoice);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    layout->addRow(buttons);
+    dialog.exec();
+    setCommanderLayout(static_cast<CommanderLayout>(layoutChoice->currentData().toInt()));
+    applyColorTheme(themeChoice->currentData().toString());
+    group.writeEntry("FirstStartDone", true);
+}
+
 void DolphinMainWindow::saveFileView()
 {
     bool ok = false;
@@ -3338,6 +3432,27 @@ void DolphinMainWindow::setupActions()
         });
     }
 
+    auto *designFileSave = actionCollection()->addAction(QStringLiteral("export_view_design"));
+    designFileSave->setText(i18nc("@action:inmenu", "Save View Design to File…"));
+    connect(designFileSave, &QAction::triggered, this, [this]() {
+        const QString path =
+            QFileDialog::getSaveFileName(this, i18nc("@title:window", "Save View Design"), QString(), i18nc("@info file type filter", "View designs (*.json)"));
+        if (!path.isEmpty() && !exportViewDesign(path)) {
+            m_activeViewContainer->showMessage(i18nc("@info", "The design could not be saved."), KMessageWidget::Error);
+        }
+    });
+    auto *designFileLoad = actionCollection()->addAction(QStringLiteral("import_view_design"));
+    designFileLoad->setText(i18nc("@action:inmenu", "Apply View Design from File…"));
+    connect(designFileLoad, &QAction::triggered, this, [this]() {
+        const QString path = QFileDialog::getOpenFileName(this,
+                                                          i18nc("@title:window", "Apply View Design"),
+                                                          QString(),
+                                                          i18nc("@info file type filter", "View designs (*.json)"));
+        if (!path.isEmpty() && !importViewDesign(path)) {
+            m_activeViewContainer->showMessage(i18nc("@info", "That file is not a view design."), KMessageWidget::Error);
+        }
+    });
+
     auto *fileViewsMenu = actionCollection()->add<KActionMenu>(QStringLiteral("file_views"));
     fileViewsMenu->setText(i18nc("@action:inmenu", "File Views"));
     fileViewsMenu->setIcon(QIcon::fromTheme(QStringLiteral("view-list-details")));
@@ -3364,6 +3479,8 @@ void DolphinMainWindow::setupActions()
         connect(designViewAction, &QAction::triggered, this, &DolphinMainWindow::designFileView);
         fileViewsMenu->addSeparator();
         fileViewsMenu->addAction(designViewAction);
+        fileViewsMenu->addAction(actionCollection()->action(QStringLiteral("export_view_design")));
+        fileViewsMenu->addAction(actionCollection()->action(QStringLiteral("import_view_design")));
         fileViewsMenu->addAction(saveViewAction);
         // The saved views are listed each time the menu opens.
         auto *savedSeparator = fileViewsMenu->addSeparator();
