@@ -100,10 +100,13 @@
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QColorDialog>
+#include <QComboBox>
 #include <QDesktopServices>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QDomDocument>
 #include <QFileInfo>
+#include <QFormLayout>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLineEdit>
@@ -115,6 +118,7 @@
 #include <QScopeGuard>
 #include <QSharedPointer>
 #include <QShowEvent>
+#include <QSpinBox>
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QTimer>
@@ -2502,6 +2506,60 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
     KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ColorTheme", theme);
 }
 
+void DolphinMainWindow::applyTextAndIcons(int fontPointSize, const QString &iconTheme)
+{
+    static const QFont systemFont = QApplication::font();
+    static const QString systemIconTheme = QIcon::themeName();
+    QFont font = systemFont;
+    if (fontPointSize > 0) {
+        font.setPointSize(fontPointSize);
+    }
+    QApplication::setFont(font);
+    QIcon::setThemeName(iconTheme.isEmpty() ? systemIconTheme : iconTheme);
+    KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("Commander"));
+    group.writeEntry("FontPointSize", fontPointSize);
+    group.writeEntry("IconTheme", iconTheme);
+}
+
+void DolphinMainWindow::editTextAndIcons()
+{
+    const KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("Commander"));
+    QDialog dialog(this);
+    dialog.setWindowTitle(i18nc("@title:window", "Text and Icons"));
+    auto *layout = new QFormLayout(&dialog);
+    auto *size = new QSpinBox(&dialog);
+    size->setObjectName(QStringLiteral("fontPointSize"));
+    size->setRange(0, 32);
+    size->setSpecialValueText(i18nc("@item", "The desktop's size"));
+    size->setSuffix(i18nc("@item:valuesuffix points", " pt"));
+    size->setValue(group.readEntry("FontPointSize", 0));
+    layout->addRow(i18nc("@label:spinbox", "Text size:"), size);
+    auto *icons = new QComboBox(&dialog);
+    icons->setObjectName(QStringLiteral("iconTheme"));
+    icons->addItem(i18nc("@item:inlistbox", "The desktop's icons"), QString());
+    QStringList themes;
+    for (const QString &path : QIcon::themeSearchPaths()) {
+        for (const QString &entry : QDir(path).entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+            if (QFile::exists(path + QLatin1Char('/') + entry + QLatin1String("/index.theme")) && !themes.contains(entry)) {
+                themes << entry;
+            }
+        }
+    }
+    themes.sort();
+    for (const QString &theme : std::as_const(themes)) {
+        icons->addItem(theme, theme);
+    }
+    icons->setCurrentIndex(qMax(0, icons->findData(group.readEntry("IconTheme", QString()))));
+    layout->addRow(i18nc("@label:listbox", "Icons:"), icons);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addRow(buttons);
+    if (dialog.exec() == QDialog::Accepted) {
+        applyTextAndIcons(size->value(), icons->currentData().toString());
+    }
+}
+
 void DolphinMainWindow::editCustomTheme()
 {
     KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("Commander"));
@@ -3336,6 +3394,15 @@ void DolphinMainWindow::setupActions()
         });
     }
     themeMenu->addSeparator();
+    auto *textAndIcons = new QAction(i18nc("@action:inmenu", "Text and Icons…"), themeMenu);
+    themeMenu->addAction(textAndIcons);
+    connect(textAndIcons, &QAction::triggered, this, &DolphinMainWindow::editTextAndIcons);
+    {
+        const KConfigGroup saved(KSharedConfig::openConfig(), QStringLiteral("Commander"));
+        if (saved.readEntry("FontPointSize", 0) > 0 || !saved.readEntry("IconTheme", QString()).isEmpty()) {
+            applyTextAndIcons(saved.readEntry("FontPointSize", 0), saved.readEntry("IconTheme", QString()));
+        }
+    }
     auto *customTheme = new QAction(i18nc("@action:inmenu", "Custom Colors…"), themeMenu);
     themeMenu->addAction(customTheme);
     connect(customTheme, &QAction::triggered, this, &DolphinMainWindow::editCustomTheme);

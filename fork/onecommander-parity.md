@@ -31,7 +31,7 @@ custom folder icons (the folder's Properties, which writes its .directory file),
 
 ## Not done
 - File View Designer: a window (File Views > Design This View) picks the columns, their order and widths and can keep the design under a name; "Hide Columns When Narrow" hides the columns that do not fit; each column can have its own width of the view under which it is hidden, set in the designer
-- XAML themes: there are three color themes (Follow the Desktop, Light, Dark) and one with four colors you choose; no styles, icons or sizes
+- XAML themes: three color themes (Follow the Desktop, Light, Dark), one with four colors you choose, a text size and an icon theme to pick; no editable styles or theme files
 - Copy and move queue: copy, move and paste from a view, and Update the Other Side, are queued; a drop (drag and drop) is not
 - Ctrl+click in a parent column to add to the selection
 - Settings: column hover-expand tuning

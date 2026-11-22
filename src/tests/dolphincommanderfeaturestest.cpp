@@ -94,6 +94,7 @@ private Q_SLOTS:
     void testAToDoIsCheckedOffByClickingItsCheckbox();
     void testTheColorThemesRecolorTheProgram();
     void testACustomThemeUsesTheColorsThatWereChosen();
+    void testTheTextSizeAndIconThemeCanBeChosen();
     void testTheFileViewDesignerEditsAndAppliesAView();
     void testColumnsCanBeHiddenWhenTheViewIsNarrow();
     void testEachColumnCanHaveItsOwnHideWidth();
@@ -1364,6 +1365,55 @@ void DolphinCommanderFeaturesTest::testEachColumnCanHaveItsOwnHideWidth()
     QTRY_COMPARE(shown(), (QList<QByteArray>{"text"}));
     DolphinView::setColumnHideThresholds({});
     DolphinView::setHideColumnsWhenNarrow(false);
+}
+
+void DolphinCommanderFeaturesTest::testTheTextSizeAndIconThemeCanBeChosen()
+{
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    const QFont before = QApplication::font();
+    const QString iconThemeBefore = QIcon::themeName();
+
+    // The text size of the whole program follows the dialog.
+    QTimer answerer;
+    answerer.setInterval(100);
+    connect(&answerer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            if (auto *size = modal->findChild<QSpinBox *>(QStringLiteral("fontPointSize"))) {
+                size->setValue(17);
+                static_cast<QDialog *>(modal)->accept();
+            }
+        }
+    });
+    answerer.start();
+    auto *themes = qobject_cast<KActionMenu *>(window.actionCollection()->action(QStringLiteral("color_theme")));
+    QVERIFY(themes);
+    QAction *textAndIcons = nullptr;
+    for (QAction *action : themes->menu()->actions()) {
+        if (action->text() == QStringLiteral("Text and Icons…")) {
+            textAndIcons = action;
+        }
+    }
+    QVERIFY(textAndIcons);
+    textAndIcons->trigger();
+    answerer.stop();
+    QCOMPARE(QApplication::font().pointSize(), 17);
+    QCOMPARE(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("FontPointSize", 0), 17);
+
+    // A named icon theme is set, and "the desktop's" puts the first one back.
+    QMetaObject::invokeMethod(&window, "applyTextAndIcons", Qt::DirectConnection, Q_ARG(int, 0), Q_ARG(QString, QStringLiteral("hicolor")));
+    QCOMPARE(QIcon::themeName(), QStringLiteral("hicolor"));
+    QCOMPARE(QApplication::font().pointSize(), before.pointSize());
+    QMetaObject::invokeMethod(&window, "applyTextAndIcons", Qt::DirectConnection, Q_ARG(int, 0), Q_ARG(QString, QString()));
+    QCOMPARE(QIcon::themeName(), iconThemeBefore);
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()
