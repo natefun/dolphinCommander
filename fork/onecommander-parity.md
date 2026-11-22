@@ -62,3 +62,14 @@ Breeze icons are single-color and take their color from the desktop's color sche
 now activate the desktop's BreezeLight and BreezeDark color schemes when they are installed (the way View > Color Scheme does), and use the fork's own
 palette only when they are not, or for Custom Colors. In the offscreen window used for the screenshots the icons stay dark even then, so whether the
 schemes recolor them in a real desktop session is not verified.
+
+## Keys of OneCommander's list that were left out
+- `` ` `` alone, `~`, `\` alone, and the letters: type-to-filter needs them, so the fork uses Ctrl+` (columns), Ctrl+Shift+~ (notifications) and Alt+D / Ctrl+L (path).
+- Shift+F1 (center the window): taken by What's This, so it is Ctrl+Shift+F1.
+- Ctrl+I (properties): taken by the filter bar; Alt+Enter is the properties key.
+- Ctrl+Shift+Enter (run with arguments) and Ctrl+Enter (open with) are there; Ctrl+Shift+F12 (restart as administrator) and Ctrl+F10 (terminal as administrator) are not.
+- F8 (toggle column resizing in the Columns layout) is not there.
+
+## How this was tested
+`build/bin/dolphincommanderfeaturestest` (59 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
+`fork/check-tests.py` shows one test of Dolphin's columns view (`testTheContentWidthFollowsInsertedAndRemovedNames`) that fails under load and passes alone.
