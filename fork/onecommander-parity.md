@@ -35,4 +35,4 @@ custom folder icons (the folder's Properties, which writes its .directory file),
 - Ctrl+click in a parent column to add to the selection
 - Settings: pixel/item scrolling, column hover-expand tuning
 - Notes and To-Dos shown in the name column, with a checkbox
-- Shift+` notifications pane (Recent Notifications is a menu on Ctrl+Alt+N); Ctrl+` toggles the Miller columns
+- OneCommander's plain ~ for the notifications (Ctrl+Shift+~ opens the panel, Ctrl+Alt+N the menu); Ctrl+` toggles the Miller columns

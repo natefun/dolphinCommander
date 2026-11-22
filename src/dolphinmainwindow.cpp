@@ -85,6 +85,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QListWidget>
 #include <QPixmap>
 #ifdef Q_OS_LINUX
 #include <sys/xattr.h>
@@ -2991,8 +2992,7 @@ void DolphinMainWindow::setupActions()
     notifications->setText(i18nc("@action:inmenu", "Recent Notifications"));
     notifications->setIcon(QIcon::fromTheme(QStringLiteral("notifications")));
     // OneCommander shows its notifications with ~, a key that type-to-filter needs, so Ctrl is added.
-    actionCollection()->setDefaultShortcuts(notifications,
-                                            {QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_N), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_AsciiTilde)});
+    actionCollection()->setDefaultShortcuts(notifications, {QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_N)});
     connect(notifications, &QAction::triggered, this, &DolphinMainWindow::showRecentNotifications);
 
     QAction *ageStripes = actionCollection()->addAction(QStringLiteral("age_stripes"));
@@ -3818,6 +3818,28 @@ void DolphinMainWindow::setupDockWidgets()
     // OneCommander toggles its sidebar with Alt+S.
     actionCollection()->setDefaultShortcuts(actionCollection()->action(QStringLiteral("show_places_panel")),
                                             {QKeySequence(Qt::Key_F9), QKeySequence(Qt::ALT | Qt::Key_S)});
+
+    // Setup the notifications: the messages the views showed lately, newest first.
+    auto *notificationsDock = new DolphinDockWidget(i18nc("@title:window", "Notifications"));
+    notificationsDock->setLocked(lock);
+    notificationsDock->setObjectName(QStringLiteral("notificationsDock"));
+    notificationsDock->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
+    auto *notificationsList = new QListWidget(notificationsDock);
+    notificationsList->setObjectName(QStringLiteral("notificationsList"));
+    notificationsList->addItems(DolphinViewContainer::recentMessages());
+    connect(DolphinViewContainer::messageNotifier(), &MessageNotifier::messageShown, notificationsList, [notificationsList](const QString &message) {
+        notificationsList->insertItem(0, message);
+        while (notificationsList->count() > 50) {
+            delete notificationsList->takeItem(notificationsList->count() - 1);
+        }
+    });
+    notificationsDock->setWidget(notificationsList);
+    createPanelAction(QIcon::fromTheme(QStringLiteral("notifications")),
+                      Qt::CTRL | Qt::SHIFT | Qt::Key_AsciiTilde,
+                      notificationsDock,
+                      QStringLiteral("show_notifications_panel"));
+    addDockWidget(Qt::BottomDockWidgetArea, notificationsDock);
+    notificationsDock->hide();
 
     addDockWidget(Qt::LeftDockWidgetArea, placesDock);
     connect(m_placesPanel, &PlacesPanel::placeActivated, this, &DolphinMainWindow::slotPlaceActivated);

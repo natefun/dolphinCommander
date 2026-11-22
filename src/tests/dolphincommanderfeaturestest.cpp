@@ -37,6 +37,7 @@
 #include <QHBoxLayout>
 #include <QImage>
 #include <QInputDialog>
+#include <QListWidget>
 #include <QMimeData>
 #include <QSignalSpy>
 #include <QStandardPaths>
@@ -79,6 +80,7 @@ private Q_SLOTS:
     void testSelectingByPatternAndTheColumnsToggle();
     void testTheDialogsOfTheToolsShowTheirResults();
     void testFoldersCanAlwaysBeSortedByName();
+    void testTheNotificationsPanelListsTheMessages();
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
@@ -352,6 +354,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "file_views",
                                "toggle_columns_view",
                                "folders_sorted_by_name",
+                               "show_notifications_panel",
                                "queue_jobs",
                                "paste_clipboard_as_file",
                                "new_tab_from_clipboard",
@@ -920,6 +923,38 @@ void DolphinCommanderFeaturesTest::testFoldersCanAlwaysBeSortedByName()
     container.view()->setSortOrder(Qt::DescendingOrder);
     QTRY_COMPARE(names(), (QStringList{QStringLiteral("alpha"), QStringLiteral("mike"), QStringLiteral("zulu")}));
     KFileItemModel::setFoldersAlwaysSortedByName(false);
+}
+
+void DolphinCommanderFeaturesTest::testTheNotificationsPanelListsTheMessages()
+{
+    TestDir dir;
+    dir.createFile("x");
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.openDirectories({dir.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    auto *list = window.findChild<QListWidget *>(QStringLiteral("notificationsList"));
+    QVERIFY(list);
+    QAction *panel = window.actionCollection()->action(QStringLiteral("show_notifications_panel"));
+    QVERIFY(panel);
+    QVERIFY(!list->isVisible());
+    panel->trigger();
+    QTRY_VERIFY(list->isVisible());
+
+    const int before = list->count();
+    window.activeViewContainer()->showMessage(QStringLiteral("a message for the panel"), KMessageWidget::Information);
+    QCOMPARE(list->count(), before + 1);
+    QVERIFY(list->item(0)->text().endsWith(QStringLiteral("a message for the panel")));
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

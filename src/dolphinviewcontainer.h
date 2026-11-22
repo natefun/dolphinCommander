@@ -64,6 +64,14 @@ bool isSearchUrl(const QUrl &url);
  * @see KUrlNavigator
  * @see DolphinStatusBar
  */
+/** Tells that a view has shown a message. */
+class MessageNotifier : public QObject
+{
+    Q_OBJECT
+Q_SIGNALS:
+    void messageShown(const QString &message);
+};
+
 class DolphinViewContainer : public QWidget
 {
     Q_OBJECT
@@ -198,6 +206,8 @@ public:
 
     /** The messages shown by any view, newest first, at most 50. */
     static QStringList recentMessages();
+    /** Emits messageShown() for each message shown by any view, for the notifications panel. */
+    static class MessageNotifier *messageNotifier();
 
     /**
      * Forwards to DolphinStatusBar::showProgress(). Only exception: The button to cancel the task is hidden.

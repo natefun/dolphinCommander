@@ -655,6 +655,12 @@ static QStringList &messageHistory()
     return history;
 }
 
+MessageNotifier *DolphinViewContainer::messageNotifier()
+{
+    static MessageNotifier notifier;
+    return &notifier;
+}
+
 QStringList DolphinViewContainer::recentMessages()
 {
     return messageHistory();
@@ -665,7 +671,9 @@ void DolphinViewContainer::showMessage(const QString &message, KMessageWidget::M
     if (message.isEmpty()) {
         return;
     }
-    messageHistory().prepend(QTime::currentTime().toString(Qt::TextDate) + QLatin1String("  ") + message);
+    const QString stamped = QTime::currentTime().toString(Qt::TextDate) + QLatin1String("  ") + message;
+    messageHistory().prepend(stamped);
+    Q_EMIT messageNotifier()->messageShown(stamped);
     while (messageHistory().size() > 50) {
         messageHistory().removeLast();
     }

@@ -72,6 +72,7 @@
             <Action name="open_with_dialog" />
             <Action name="run_with_arguments" />
             <Action name="recent_notifications" />
+            <Action name="show_notifications_panel" />
             <Action name="age_stripes" />
             <Action name="commander_layouts" />
             <Action name="file_views" />
