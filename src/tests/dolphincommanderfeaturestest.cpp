@@ -1036,7 +1036,7 @@ void DolphinCommanderFeaturesTest::testTheColorThemesRecolorTheProgram()
     auto *themes = qobject_cast<KActionMenu *>(window.actionCollection()->action(QStringLiteral("color_theme")));
     QVERIFY(themes);
     const QList<QAction *> choices = themes->menu()->actions();
-    QCOMPARE(choices.size(), 5); // the three themes, a separator and "Custom Colors…"
+    QCOMPARE(choices.size(), 6); // the three themes, a separator, "Text and Icons…" and "Custom Colors…"
     const QColor before = QApplication::palette().color(QPalette::Base);
 
     choices.at(2)->trigger(); // Dark
