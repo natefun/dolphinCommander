@@ -20,15 +20,18 @@ Paste Clipboard as File (Ctrl+Alt+V), Open With on Ctrl+Enter, middle-button sel
 zoom and pan in the image preview, To-Do files (.2do/.2dx), Recent Notifications, Color Rows by
 Age, Layout menu (Standard/Columns/Classic), File Views menu with saved views.
 
+## Dolphin already does (found while checking the list)
+Tab aliases (Rename Tab), new tab after the last tab or the current one, remembering tabs and a start
+folder, search from here or everywhere (Baloo), tags in the Places panel, hidden files, folders first,
+a delete key for the trash and permanent delete.
+
 ## Not done
 - File View Designer (column order, widths, which columns hide when narrow)
 - XAML themes, custom folder icons
 - Copy and move queue
 - Ctrl+click in a parent column to add to the selection
-- Search: from the drive root, a tag tab, locate-in-folder button
-- Favorites: per-favorite aliases for tabs, [1]/[2] target buttons
-- Settings: new-tab placement, startup tabs by path, hide temporary files, sort folders by name always,
-  pixel/item scrolling, column hover-expand tuning
+- Settings: hide temporary files, sort folders by name always, pixel/item scrolling, column hover-expand tuning
 - PowerShell/Python script handling, Ctrl+Shift+Enter launch arguments
 - Notes and To-Dos shown in the name column, with a checkbox
 - Shift+` notifications pane, backtick toggle between breadcrumb and columns
+- Alt+middle-click to move a tab to the other side, Ctrl+Shift+T new tab from the clipboard path
