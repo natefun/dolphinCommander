@@ -127,6 +127,7 @@
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QScopeGuard>
+#include <QScreen>
 #include <QSharedPointer>
 #include <QShowEvent>
 #include <QSpinBox>
@@ -1176,6 +1177,32 @@ void DolphinMainWindow::bringBack()
     showNormal();
     raise();
     QWidget::activateWindow();
+}
+
+void DolphinMainWindow::centerOnMainScreen()
+{
+    QScreen *screen = QGuiApplication::primaryScreen();
+    if (!screen) {
+        return;
+    }
+    if (isMaximized() || isFullScreen()) {
+        showNormal();
+    }
+    const QRect area = screen->availableGeometry();
+    QRect frame = frameGeometry();
+    // A window larger than the screen is made to fit it.
+    const QSize size = QSize(qMin(width(), area.width() - (frame.width() - width())), qMin(height(), area.height() - (frame.height() - height())));
+    resize(size);
+    frame = frameGeometry();
+    move(area.center() - QPoint(frame.width() / 2, frame.height() / 2));
+}
+
+void DolphinMainWindow::reloadTheme()
+{
+    const KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("Commander"));
+    applyTextAndIcons(group.readEntry("FontPointSize", 0), group.readEntry("IconTheme", QString()));
+    applyColorTheme(group.readEntry("ColorTheme", QStringLiteral("system")));
+    applyStyleSheet(group.readEntry("StyleSheet", QString()));
 }
 
 void DolphinMainWindow::quit()
@@ -3890,6 +3917,17 @@ void DolphinMainWindow::setupActions()
             }
         }
     });
+
+    QAction *centerWindow = actionCollection()->addAction(QStringLiteral("center_window"));
+    centerWindow->setText(i18nc("@action:inmenu", "Center the Window on the Main Screen"));
+    centerWindow->setIcon(QIcon::fromTheme(QStringLiteral("zoom-fit-best")));
+    actionCollection()->setDefaultShortcut(centerWindow, Qt::CTRL | Qt::SHIFT | Qt::Key_F1);
+    connect(centerWindow, &QAction::triggered, this, &DolphinMainWindow::centerOnMainScreen);
+    QAction *reloadThemeAction = actionCollection()->addAction(QStringLiteral("reload_theme"));
+    reloadThemeAction->setText(i18nc("@action:inmenu", "Reload the Theme"));
+    reloadThemeAction->setIcon(QIcon::fromTheme(QStringLiteral("view-refresh")));
+    actionCollection()->setDefaultShortcut(reloadThemeAction, Qt::CTRL | Qt::SHIFT | Qt::Key_F5);
+    connect(reloadThemeAction, &QAction::triggered, this, &DolphinMainWindow::reloadTheme);
 
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));

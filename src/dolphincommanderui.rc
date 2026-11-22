@@ -86,6 +86,8 @@
             <Action name="hide_columns_when_narrow" />
             <Action name="keep_running_when_closed" />
             <Action name="names_only" />
+            <Action name="center_window" />
+            <Action name="reload_theme" />
             <Action name="new_note" />
             <Action name="new_todo" />
             <Action name="toggle_todo_done" />

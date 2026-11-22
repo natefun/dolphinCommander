@@ -716,6 +716,10 @@ private Q_SLOTS:
     void hideToTray();
     /** Shows the window from wherever it is: hidden in the tray, minimized or behind others. */
     void bringBack();
+    /** Puts the window in the middle of the main screen (for a window that was lost when a monitor was detached). */
+    void centerOnMainScreen();
+    /** Reads the theme, the text size, the icons and the style sheet from the settings again. */
+    void reloadTheme();
     /** Moves the quick view to the previous (-1) or next (+1) file of the view it looks into, and selects it there. */
     void stepQuickView(int delta);
     /** Starts Ark to pack the selection, or to unpack it into the folder on the other side. */

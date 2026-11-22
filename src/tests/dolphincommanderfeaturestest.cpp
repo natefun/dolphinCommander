@@ -121,6 +121,7 @@ private Q_SLOTS:
     void testTheFileViewDesignerEditsAndAppliesAView();
     void testColumnsCanBeHiddenWhenTheViewIsNarrow();
     void testF7ShowsOnlyTheNames();
+    void testALostWindowCanBeCenteredAndTheThemeReloaded();
     void testEachColumnCanHaveItsOwnHideWidth();
     void testItemScrollingStepsByRows();
     void testASavedFileViewKeepsTheColumnWidths();
@@ -141,6 +142,9 @@ private:
 void DolphinCommanderFeaturesTest::initTestCase()
 {
     QStandardPaths::setTestModeEnabled(true);
+    // What an earlier run left behind (a window state, the sessions, the settings of the fork) is not part of this run.
+    QFile::remove(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/dolphincommanderfeaturestestrc"));
+    QDir(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/dolphincommanderfeaturestest")).removeRecursively();
     GeneralSettings::setGlobalViewProps(false);
 }
 
@@ -397,6 +401,8 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "file_views",
                                "toggle_columns_view",
                                "folders_sorted_by_name",
+                               "center_window",
+                               "reload_theme",
                                "names_only",
                                "bring_window_back",
                                "keep_running_when_closed",
@@ -2193,6 +2199,50 @@ void DolphinCommanderFeaturesTest::testF7ShowsOnlyTheNames()
     QAction *names = window.actionCollection()->action(QStringLiteral("names_only"));
     QVERIFY(names);
     QVERIFY(names->shortcuts().contains(QKeySequence(Qt::Key_F7)));
+}
+
+void DolphinCommanderFeaturesTest::testALostWindowCanBeCenteredAndTheThemeReloaded()
+{
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.resize(600, 400);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QScreen *screen = QGuiApplication::primaryScreen();
+    QVERIFY(screen);
+
+    // A window that was moved far off is brought back into the middle of the screen.
+    window.move(screen->availableGeometry().bottomRight() + QPoint(2000, 2000));
+    window.actionCollection()->action(QStringLiteral("center_window"))->trigger();
+    const QPoint center = window.frameGeometry().center();
+    const QPoint screenCenter = screen->availableGeometry().center();
+    QVERIFY2((center - screenCenter).manhattanLength() <= 4,
+             qPrintable(QStringLiteral("window at %1,%2, screen center at %3,%4").arg(center.x()).arg(center.y()).arg(screenCenter.x()).arg(screenCenter.y())));
+    QVERIFY(window.actionCollection()->action(QStringLiteral("center_window"))->shortcuts().contains(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F1)));
+
+    // Reload Theme reads the settings again: a theme and a style sheet that were written to them are applied.
+    const QColor before = QApplication::palette().color(QPalette::Base);
+    KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("Commander"));
+    group.writeEntry("ColorTheme", QStringLiteral("dark"));
+    group.writeEntry("StyleSheet", QStringLiteral("QLabel#reloaded { color: #00ff00; }"));
+    window.actionCollection()->action(QStringLiteral("reload_theme"))->trigger();
+    QVERIFY(QApplication::palette().color(QPalette::Base).lightnessF() < 0.3);
+    QCOMPARE(qApp->styleSheet(), QStringLiteral("QLabel#reloaded { color: #00ff00; }"));
+    QVERIFY(window.actionCollection()->action(QStringLiteral("reload_theme"))->shortcuts().contains(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F5)));
+
+    group.writeEntry("ColorTheme", QStringLiteral("system"));
+    group.writeEntry("StyleSheet", QString());
+    window.actionCollection()->action(QStringLiteral("reload_theme"))->trigger();
+    QCOMPARE(QApplication::palette().color(QPalette::Base), before);
+    QVERIFY(qApp->styleSheet().isEmpty());
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()
