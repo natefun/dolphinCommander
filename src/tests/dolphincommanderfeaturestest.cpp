@@ -2096,6 +2096,17 @@ void DolphinCommanderFeaturesTest::testTakeScreenshots()
     QVERIFY(window.grab().save(outDir + QStringLiteral("/dark.png")));
     QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("system")));
 
+    // The other layouts.
+    auto *layoutMenu = qobject_cast<KActionMenu *>(window.actionCollection()->action(QStringLiteral("commander_layouts")));
+    layoutMenu->menu()->actions().at(1)->trigger(); // Columns
+    QTest::qWait(1200);
+    QVERIFY(window.grab().save(outDir + QStringLiteral("/layout-columns.png")));
+    layoutMenu->menu()->actions().at(2)->trigger(); // Classic
+    QTest::qWait(1200);
+    QVERIFY(window.grab().save(outDir + QStringLiteral("/layout-classic.png")));
+    layoutMenu->menu()->actions().at(0)->trigger(); // Standard
+    QTest::qWait(500);
+
     // The windows of the tools.
     FileViewDesignerDialog designer({"text", "size", "modificationtime"}, {300, 90, 160}, nullptr);
     designer.show();
