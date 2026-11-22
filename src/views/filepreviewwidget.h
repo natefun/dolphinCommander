@@ -14,6 +14,7 @@
 
 class QLabel;
 class QPlainTextEdit;
+class QResizeEvent;
 class QScrollArea;
 
 /** Shows what is in a file: a preview of an image or a document, or the start of a text. Used by Quick View and the preview of the columns view. */
@@ -37,11 +38,25 @@ public:
 
     QSize sizeHint() const override;
 
+    /** How an image is laid out: fitted whole into the window, as wide as the window (and scrolled down), or at its own size. */
+    enum class ImageMode {
+        Fit,
+        FillWidth,
+        ActualSize
+    };
+    void setImageMode(ImageMode mode);
+    ImageMode imageMode() const;
+    /** True while a picture is shown. */
+    bool showsImage() const;
+    /** The size of the picture as it is drawn now, empty when there is none. */
+    QSize shownImageSize() const;
+
     /** The zoom of the shown image: 1 fits it to the width, the mouse wheel zooms it and a drag moves it. */
     qreal zoom() const;
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     QLabel *m_title;
@@ -51,6 +66,7 @@ private:
     QLabel *m_image;
     QPixmap m_pixmap;
     qreal m_zoom = 1;
+    ImageMode m_imageMode = ImageMode::Fit;
     QPoint m_dragFrom;
     QPlainTextEdit *m_text;
     QString m_shownName;

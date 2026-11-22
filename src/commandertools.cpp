@@ -19,6 +19,7 @@
 #include <KIO/Global>
 #include <KJob>
 #include <QAudioOutput>
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QDesktopServices>
 #include <QDialogButtonBox>
@@ -669,6 +670,32 @@ QuickViewDialog::QuickViewDialog(QWidget *parent)
     auto *layout = new QVBoxLayout(this);
     m_preview = new FilePreviewWidget(this);
     layout->addWidget(m_preview);
+    // How a picture is laid out: all of it in the window, as wide as the window, or at its own size.
+    auto *modes = new QWidget(this);
+    modes->setObjectName(QStringLiteral("imageModes"));
+    auto *modesLayout = new QHBoxLayout(modes);
+    modesLayout->setContentsMargins(0, 0, 0, 0);
+    auto *group = new QButtonGroup(modes);
+    const struct {
+        const char *label;
+        FilePreviewWidget::ImageMode mode;
+    } imageModes[] = {{"Fit", FilePreviewWidget::ImageMode::Fit},
+                      {"Fill Width", FilePreviewWidget::ImageMode::FillWidth},
+                      {"Actual Size", FilePreviewWidget::ImageMode::ActualSize}};
+    for (const auto &entry : imageModes) {
+        auto *button = new QPushButton(i18nc("@action:button how a picture is shown", entry.label), modes);
+        button->setCheckable(true);
+        button->setChecked(entry.mode == FilePreviewWidget::ImageMode::Fit);
+        group->addButton(button);
+        const auto mode = entry.mode;
+        connect(button, &QPushButton::clicked, this, [this, mode]() {
+            m_preview->setImageMode(mode);
+        });
+        modesLayout->addWidget(button);
+    }
+    modesLayout->addStretch();
+    modes->hide();
+    layout->addWidget(modes);
     m_mapButton = new QPushButton(QIcon::fromTheme(QStringLiteral("globe")), i18nc("@action:button", "Show on Map"), this);
     m_mapButton->hide();
     connect(m_mapButton, &QPushButton::clicked, this, [this]() {
@@ -791,6 +818,7 @@ void QuickViewDialog::show(const KFileItem &item)
         }
     }
     m_mapButton->setVisible(m_mapLink.isValid());
+    findChild<QWidget *>(QStringLiteral("imageModes"))->setVisible(m_preview->showsImage());
     QDialog::show();
     raise();
 }

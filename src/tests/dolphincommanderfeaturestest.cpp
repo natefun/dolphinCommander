@@ -57,6 +57,7 @@
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSignalSpy>
 #include <QSpinBox>
 #include <QStandardPaths>
@@ -111,6 +112,7 @@ private Q_SLOTS:
     void testAViewDesignGoesToAFileAndComesBack();
     void testClosingTheWindowCanOnlyHideIt();
     void testTheTextOfOfficeDocumentsIsShown();
+    void testAPictureCanBeShownFittedFilledOrAtItsOwnSize();
     void testTheQuickViewOffersAMapForAPhotoWithAPosition();
     void testTheQuickViewSeeksAndStepsThroughSound();
     void testADesignCanBeTriedWithoutSavingIt();
@@ -1984,6 +1986,57 @@ void DolphinCommanderFeaturesTest::testTheQuickViewOffersAMapForAPhotoWithAPosit
     plainPhoto.determineMimeType();
     quick.show(plainPhoto);
     QVERIFY(!quick.mapLink().isValid());
+}
+
+void DolphinCommanderFeaturesTest::testAPictureCanBeShownFittedFilledOrAtItsOwnSize()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QImage wide(800, 200, QImage::Format_RGB32);
+    wide.fill(Qt::darkBlue);
+    const QString path = dir.path() + QStringLiteral("/wide.png");
+    QVERIFY(wide.save(path));
+
+    FilePreviewWidget preview;
+    preview.resize(400, 500);
+    preview.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&preview));
+    KFileItem item(QUrl::fromLocalFile(path));
+    item.determineMimeType();
+    preview.setItem(item);
+    QTRY_VERIFY(preview.showsImage());
+    const QSize room = preview.findChild<QScrollArea *>()->viewport()->size();
+
+    // Fit: all of the picture is in the window, with its proportions (4 to 1), as large as the window allows.
+    QCOMPARE(preview.imageMode(), FilePreviewWidget::ImageMode::Fit);
+    QTRY_VERIFY(preview.shownImageSize().width() >= room.width() - 2);
+    const QSize fitted = preview.shownImageSize();
+    QVERIFY(fitted.width() <= room.width() && fitted.height() <= room.height());
+    QVERIFY(qAbs(fitted.width() / double(fitted.height()) - 4.0) < 0.1);
+
+    // Fill width: as wide as the window.
+    preview.setImageMode(FilePreviewWidget::ImageMode::FillWidth);
+    QCOMPARE(preview.shownImageSize().width(), room.width());
+
+    // Actual size: the pixels of the file.
+    preview.setImageMode(FilePreviewWidget::ImageMode::ActualSize);
+    QCOMPARE(preview.shownImageSize(), QSize(800, 200));
+
+    // The quick view offers the three ways for a picture, and not for a text.
+    QuickViewDialog quick(nullptr);
+    quick.show(item);
+    QWidget *modes = quick.findChild<QWidget *>(QStringLiteral("imageModes"));
+    QVERIFY(modes);
+    QVERIFY(modes->isVisibleTo(&quick));
+    QCOMPARE(modes->findChildren<QPushButton *>().size(), 3);
+    QFile text(dir.path() + QStringLiteral("/note.txt"));
+    QVERIFY(text.open(QIODevice::WriteOnly));
+    text.write("hello");
+    text.close();
+    KFileItem textItem(QUrl::fromLocalFile(text.fileName()));
+    textItem.determineMimeType();
+    quick.show(textItem);
+    QVERIFY(!modes->isVisibleTo(&quick));
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

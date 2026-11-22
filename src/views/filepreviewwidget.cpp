@@ -11,6 +11,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QImageReader>
 #include <QLabel>
 #include <QMimeType>
 #include <QMouseEvent>
@@ -136,6 +137,22 @@ void FilePreviewWidget::setItem(const KFileItem &item)
             m_text->setPlainText(QString::fromUtf8(file.read(64 * 1024)));
             m_text->show();
         }
+    } else if (!path.isEmpty() && mime.name().startsWith(QLatin1String("image/")) && QImageReader(path).canRead()) {
+        // A picture on this computer is shown itself, so that it can be shown at its own size.
+        QImageReader reader(path);
+        reader.setAutoTransform(true);
+        const QSize size = reader.size();
+        if (size.isValid() && (size.width() > 8000 || size.height() > 8000)) {
+            reader.setScaledSize(size.scaled(8000, 8000, Qt::KeepAspectRatio));
+        }
+        const QImage image = reader.read();
+        if (!image.isNull()) {
+            m_pixmap = QPixmap::fromImage(image);
+            showImage();
+            m_scroll->show();
+        } else {
+            m_title->setText(noPreview);
+        }
     } else if (!path.isEmpty() || mime.name().startsWith(QLatin1String("image/"))) {
         auto *job = new KIO::PreviewJob(KFileItemList{item}, QSize(600, 400));
         QPointer<FilePreviewWidget> self(this);
@@ -159,6 +176,28 @@ void FilePreviewWidget::setItem(const KFileItem &item)
     }
 }
 
+void FilePreviewWidget::setImageMode(ImageMode mode)
+{
+    m_imageMode = mode;
+    m_zoom = 1;
+    showImage();
+}
+
+FilePreviewWidget::ImageMode FilePreviewWidget::imageMode() const
+{
+    return m_imageMode;
+}
+
+bool FilePreviewWidget::showsImage() const
+{
+    return !m_pixmap.isNull();
+}
+
+QSize FilePreviewWidget::shownImageSize() const
+{
+    return m_image->pixmap().isNull() ? QSize() : m_image->pixmap().size();
+}
+
 qreal FilePreviewWidget::zoom() const
 {
     return m_zoom;
@@ -169,13 +208,40 @@ void FilePreviewWidget::showImage()
     if (m_pixmap.isNull()) {
         return;
     }
-    const int fitted = qMin(m_pixmap.width(), qMax(width() - 12, 64));
-    m_image->setPixmap(m_pixmap.scaledToWidth(qMax(int(fitted * m_zoom), 8), Qt::SmoothTransformation));
+    const QSize room = m_scroll->viewport()->size().expandedTo(QSize(64, 64));
+    QPixmap shown;
+    switch (m_imageMode) {
+    case ImageMode::Fit: {
+        const QSize fitted = m_pixmap.size().scaled(room * m_zoom, Qt::KeepAspectRatio);
+        shown = m_pixmap.scaled(fitted.expandedTo(QSize(8, 8)), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        break;
+    }
+    case ImageMode::FillWidth:
+        shown = m_pixmap.scaledToWidth(qMax(int(room.width() * m_zoom), 8), Qt::SmoothTransformation);
+        break;
+    case ImageMode::ActualSize:
+        shown = qFuzzyCompare(m_zoom, 1.0) ? m_pixmap : m_pixmap.scaledToWidth(qMax(int(m_pixmap.width() * m_zoom), 8), Qt::SmoothTransformation);
+        break;
+    }
+    m_image->setPixmap(shown);
     m_image->adjustSize();
+}
+
+void FilePreviewWidget::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    // A picture that fits the window or fills its width follows the size of the window.
+    if (!m_pixmap.isNull() && m_imageMode != ImageMode::ActualSize) {
+        showImage();
+    }
 }
 
 bool FilePreviewWidget::eventFilter(QObject *watched, QEvent *event)
 {
+    if (watched == m_scroll->viewport() && event->type() == QEvent::Resize && !m_pixmap.isNull() && m_imageMode != ImageMode::ActualSize) {
+        // The room for the picture changed: a picture that fits or fills it follows.
+        QMetaObject::invokeMethod(this, &FilePreviewWidget::showImage, Qt::QueuedConnection);
+    }
     if (watched == m_scroll->viewport() && !m_pixmap.isNull()) {
         switch (event->type()) {
         case QEvent::Wheel: {
