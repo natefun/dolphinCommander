@@ -2990,7 +2990,9 @@ void DolphinMainWindow::setupActions()
     QAction *notifications = actionCollection()->addAction(QStringLiteral("recent_notifications"));
     notifications->setText(i18nc("@action:inmenu", "Recent Notifications"));
     notifications->setIcon(QIcon::fromTheme(QStringLiteral("notifications")));
-    actionCollection()->setDefaultShortcut(notifications, Qt::CTRL | Qt::ALT | Qt::Key_N);
+    // OneCommander shows its notifications with ~, a key that type-to-filter needs, so Ctrl is added.
+    actionCollection()->setDefaultShortcuts(notifications,
+                                            {QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_N), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_AsciiTilde)});
     connect(notifications, &QAction::triggered, this, &DolphinMainWindow::showRecentNotifications);
 
     QAction *ageStripes = actionCollection()->addAction(QStringLiteral("age_stripes"));
