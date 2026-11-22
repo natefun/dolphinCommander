@@ -2077,6 +2077,7 @@ void DolphinMainWindow::setColorLabel(const QString &color)
         }
         data.setTags(tags);
     }
+    m_activeViewContainer->view()->reload();
 }
 
 void DolphinMainWindow::syncToOtherSide()

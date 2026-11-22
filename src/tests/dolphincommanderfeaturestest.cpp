@@ -16,6 +16,7 @@
 #include "dolphintabwidget.h"
 #include "dolphinviewcontainer.h"
 #include "jobqueue.h"
+#include "kitemviews/kitemlistwidget.h"
 #include "testdir.h"
 #include "views/columnsstrip.h"
 #include "views/dolphincolumnsview.h"
@@ -24,6 +25,7 @@
 
 #include <KActionCollection>
 #include <KCoreDirLister>
+#include <KFileMetaData/UserMetaData>
 
 #include <KIO/CopyJob>
 #include <QApplication>
@@ -61,6 +63,7 @@ private Q_SLOTS:
     void testFolderSize();
     void testToDoNames();
     void testConvertImage();
+    void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
     void testClipboardAsFile();
     void testTheMainWindowHasTheOneCommanderActions();
@@ -407,6 +410,56 @@ void DolphinCommanderFeaturesTest::testJobsRunOneAfterAnother()
     QVERIFY(QFile::exists(dir.path() + QStringLiteral("/out1/a")));
     QVERIFY(QFile::exists(dir.path() + QStringLiteral("/out2/b")));
     QCOMPARE(JobQueue::count(), 0);
+}
+
+void DolphinCommanderFeaturesTest::testColorLabelsAndAgeStripesArePainted()
+{
+    const KFileItemList items = m_container->view()->items();
+    QVERIFY(!items.isEmpty());
+    const QString path = items.first().localPath();
+    {
+        KFileMetaData::UserMetaData probe(path);
+        probe.setTags({QStringLiteral("blue")});
+        if (probe.tags().isEmpty()) {
+            QSKIP("The file system keeps no extended attributes here.");
+        }
+        probe.setTags({});
+    }
+    const auto count = [](const QImage &image, bool blue) {
+        int found = 0;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                const QColor c = image.pixelColor(x, y);
+                if (blue) {
+                    found += (c.blue() > c.red() + 25 && c.blue() > c.green() + 5) ? 1 : 0;
+                } else {
+                    // The stripe of something changed today is red and saturated.
+                    found += (c.red() > 200 && c.green() < 90 && c.blue() < 90) ? 1 : 0;
+                }
+            }
+        }
+        return found;
+    };
+    m_container->resize(700, 500);
+    m_container->show();
+    QVERIFY(QTest::qWaitForWindowExposed(m_container));
+
+    KItemListWidget::setAgeStripesShown(false);
+    m_container->view()->reload();
+    QTest::qWait(1000);
+    const QImage plain = m_container->grab().toImage();
+
+    KItemListWidget::setAgeStripesShown(true);
+    KFileMetaData::UserMetaData(path).setTags({QStringLiteral("blue")});
+    m_container->view()->reload();
+    QTest::qWait(1500);
+    const QImage painted = m_container->grab().toImage();
+    KItemListWidget::setAgeStripesShown(false);
+
+    QVERIFY2(count(painted, true) > count(plain, true) + 200,
+             qPrintable(QStringLiteral("blue pixels %1 before, %2 after").arg(count(plain, true)).arg(count(painted, true))));
+    QVERIFY2(count(painted, false) > count(plain, false) + 10,
+             qPrintable(QStringLiteral("red pixels %1 before, %2 after").arg(count(plain, false)).arg(count(painted, false))));
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()
