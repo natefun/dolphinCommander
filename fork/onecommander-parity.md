@@ -18,7 +18,9 @@ duplicate finder, recent folders in the hotlist, color labels (menu + row tint, 
 New Note (Alt+N), To-Do files with a checkbox in the row, Scripts menu, Folder Sizes dialog, Convert Images, Alt+C / Alt+M / Alt+S,
 Paste Clipboard as File (Ctrl+Alt+V), Open With on Ctrl+Enter, middle-button selection rectangle, folder background image,
 zoom and pan in the image preview, To-Do files (.2do/.2dx), Recent Notifications, Color Rows by
-Age, Queue Copy and Move Jobs, Always Sort Folders by Name, Layout menu (Standard/Columns/Classic), File Views menu with saved views.
+Age, Queue Copy and Move Jobs, Always Sort Folders by Name, Scroll by Whole Items, Color Theme (Follow the Desktop, Light, Dark),
+Notifications panel (Ctrl+Shift+~), Toggle Miller Columns (Ctrl+`), Run with Arguments, New Tab from Clipboard Path,
+Alt+middle click to send a tab to the other side, Layout menu (Standard/Columns/Classic), File Views menu with saved views.
 
 ## Dolphin already does (found while checking the list)
 Tab aliases (Rename Tab), new tab after the last tab or the current one, remembering tabs and a start
