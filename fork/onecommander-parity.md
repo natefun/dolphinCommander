@@ -23,13 +23,15 @@ Age, Layout menu (Standard/Columns/Classic), File Views menu with saved views.
 ## Dolphin already does (found while checking the list)
 Tab aliases (Rename Tab), new tab after the last tab or the current one, remembering tabs and a start
 folder, search from here or everywhere (Baloo), tags in the Places panel, hidden files, folders first,
-a delete key for the trash and permanent delete.
+a delete key for the trash and permanent delete, Ctrl+Space to toggle the selection, "Open in Split View" on a place
+(OneCommander's [1]/[2] buttons of a favorite), and backup files (~, .bak) hidden unless hidden files are shown
+(OneCommander's "hide temporary files").
 
 ## Not done
 - File View Designer (column order, widths, which columns hide when narrow)
 - XAML themes, custom folder icons
 - Copy and move queue
 - Ctrl+click in a parent column to add to the selection
-- Settings: hide temporary files, sort folders by name always, pixel/item scrolling, column hover-expand tuning
+- Settings: sort folders by name always, pixel/item scrolling, column hover-expand tuning
 - Notes and To-Dos shown in the name column, with a checkbox
 - Shift+` notifications pane, backtick toggle between breadcrumb and columns
