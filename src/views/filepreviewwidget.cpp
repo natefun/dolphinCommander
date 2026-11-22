@@ -11,9 +11,13 @@
 #include <QFontDatabase>
 #include <QLabel>
 #include <QMimeType>
+#include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPointer>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QVBoxLayout>
+#include <QWheelEvent>
 
 FilePreviewWidget::FilePreviewWidget(QWidget *parent)
     : QWidget(parent)
@@ -23,15 +27,20 @@ FilePreviewWidget::FilePreviewWidget(QWidget *parent)
     m_title = new QLabel(this);
     m_title->setWordWrap(true);
     layout->addWidget(m_title);
-    m_image = new QLabel(this);
+    m_scroll = new QScrollArea(this);
+    m_scroll->setFrameShape(QFrame::NoFrame);
+    m_scroll->setAlignment(Qt::AlignCenter);
+    m_image = new QLabel(m_scroll);
     m_image->setAlignment(Qt::AlignCenter);
-    layout->addWidget(m_image);
+    m_scroll->setWidget(m_image);
+    m_scroll->viewport()->installEventFilter(this);
+    layout->addWidget(m_scroll);
     m_text = new QPlainTextEdit(this);
     m_text->setReadOnly(true);
     m_text->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
     layout->addWidget(m_text);
     layout->addStretch();
-    m_image->hide();
+    m_scroll->hide();
     m_text->hide();
 }
 
@@ -49,8 +58,10 @@ void FilePreviewWidget::setItem(const KFileItem &item)
 {
     ++m_generation;
     m_image->clear();
+    m_pixmap = QPixmap();
+    m_zoom = 1;
     m_text->clear();
-    m_image->hide();
+    m_scroll->hide();
     m_text->hide();
     if (item.isNull() || item.isDir()) {
         m_shownName.clear();
@@ -76,8 +87,9 @@ void FilePreviewWidget::setItem(const KFileItem &item)
         connect(job, &KIO::PreviewJob::gotPreview, this, [self, generation](const KFileItem &, const QPixmap &pixmap) {
             // An answer for a file that is no longer the one shown is dropped.
             if (self && self->m_generation == generation) {
-                self->m_image->setPixmap(pixmap.scaledToWidth(qMin(pixmap.width(), qMax(self->width() - 12, 64)), Qt::SmoothTransformation));
-                self->m_image->show();
+                self->m_pixmap = pixmap;
+                self->showImage();
+                self->m_scroll->show();
             }
         });
         connect(job, &KIO::PreviewJob::failed, this, [self, generation, noPreview]() {
@@ -89,4 +101,49 @@ void FilePreviewWidget::setItem(const KFileItem &item)
     } else {
         m_title->setText(noPreview);
     }
+}
+
+qreal FilePreviewWidget::zoom() const
+{
+    return m_zoom;
+}
+
+void FilePreviewWidget::showImage()
+{
+    if (m_pixmap.isNull()) {
+        return;
+    }
+    const int fitted = qMin(m_pixmap.width(), qMax(width() - 12, 64));
+    m_image->setPixmap(m_pixmap.scaledToWidth(qMax(int(fitted * m_zoom), 8), Qt::SmoothTransformation));
+    m_image->adjustSize();
+}
+
+bool FilePreviewWidget::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_scroll->viewport() && !m_pixmap.isNull()) {
+        switch (event->type()) {
+        case QEvent::Wheel: {
+            const int delta = static_cast<QWheelEvent *>(event)->angleDelta().y();
+            if (delta != 0) {
+                m_zoom = qBound(1.0, m_zoom * (delta > 0 ? 1.25 : 0.8), 16.0);
+                showImage();
+            }
+            return true;
+        }
+        case QEvent::MouseButtonPress:
+            m_dragFrom = static_cast<QMouseEvent *>(event)->globalPosition().toPoint();
+            return true;
+        case QEvent::MouseMove: {
+            const QPoint now = static_cast<QMouseEvent *>(event)->globalPosition().toPoint();
+            const QPoint moved = now - m_dragFrom;
+            m_dragFrom = now;
+            m_scroll->horizontalScrollBar()->setValue(m_scroll->horizontalScrollBar()->value() - moved.x());
+            m_scroll->verticalScrollBar()->setValue(m_scroll->verticalScrollBar()->value() - moved.y());
+            return true;
+        }
+        default:
+            break;
+        }
+    }
+    return QWidget::eventFilter(watched, event);
 }
