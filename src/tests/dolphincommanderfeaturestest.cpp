@@ -15,6 +15,7 @@
 #include "dolphintabpage.h"
 #include "dolphintabwidget.h"
 #include "dolphinviewcontainer.h"
+#include "jobqueue.h"
 #include "testdir.h"
 #include "views/columnsstrip.h"
 #include "views/dolphincolumnsview.h"
@@ -24,6 +25,7 @@
 #include <KActionCollection>
 #include <KCoreDirLister>
 
+#include <KIO/CopyJob>
 #include <QApplication>
 #include <QDir>
 #include <QFile>
@@ -59,6 +61,7 @@ private Q_SLOTS:
     void testFolderSize();
     void testToDoNames();
     void testConvertImage();
+    void testJobsRunOneAfterAnother();
     void testClipboardAsFile();
     void testTheMainWindowHasTheOneCommanderActions();
 
@@ -363,6 +366,42 @@ void DolphinCommanderFeaturesTest::testClipboardAsFile()
 
     QMimeData nothing;
     QVERIFY(CommanderTools::saveClipboardAsFile(&nothing, dir.path()).isEmpty());
+}
+
+void DolphinCommanderFeaturesTest::testJobsRunOneAfterAnother()
+{
+    TestDir dir;
+    const QByteArray big(8 * 1024 * 1024, 'x');
+    dir.createFile("a", big);
+    dir.createFile("b", big);
+    QDir().mkpath(dir.path() + QStringLiteral("/out1"));
+    QDir().mkpath(dir.path() + QStringLiteral("/out2"));
+    JobQueue::setEnabled(true);
+
+    auto *first =
+        KIO::copy(QUrl::fromLocalFile(dir.path() + QStringLiteral("/a")), QUrl::fromLocalFile(dir.path() + QStringLiteral("/out1")), KIO::HideProgressInfo);
+    JobQueue::add(first);
+    auto *second =
+        KIO::copy(QUrl::fromLocalFile(dir.path() + QStringLiteral("/b")), QUrl::fromLocalFile(dir.path() + QStringLiteral("/out2")), KIO::HideProgressInfo);
+    JobQueue::add(second);
+    QCOMPARE(JobQueue::count(), 2);
+
+    bool secondStartedBeforeFirstEnded = false;
+    bool firstEnded = false;
+    connect(first, &KJob::finished, this, [&]() {
+        firstEnded = true;
+    });
+    connect(second, &KIO::CopyJob::copying, this, [&]() {
+        secondStartedBeforeFirstEnded = secondStartedBeforeFirstEnded || !firstEnded;
+    });
+    QSignalSpy firstDone(first, &KJob::finished);
+    QSignalSpy secondDone(second, &KJob::finished);
+    QTRY_COMPARE_WITH_TIMEOUT(secondDone.count(), 1, 20000);
+    QCOMPARE(firstDone.count(), 1);
+    QVERIFY(!secondStartedBeforeFirstEnded);
+    QVERIFY(QFile::exists(dir.path() + QStringLiteral("/out1/a")));
+    QVERIFY(QFile::exists(dir.path() + QStringLiteral("/out2/b")));
+    QCOMPARE(JobQueue::count(), 0);
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

@@ -26,6 +26,7 @@
 #include "dolphinurlnavigatorscontroller.h"
 #include "dolphinviewcontainer.h"
 #include "global.h"
+#include "jobqueue.h"
 #include "middleclickactioneventfilter.h"
 #include "panels/places/placespanel.h"
 #include "panels/terminal/terminalpanel.h"
@@ -2103,6 +2104,7 @@ void DolphinMainWindow::syncToOtherSide()
         return;
     }
     auto *job = KIO::copy(toCopy, other->url());
+    JobQueue::add(job);
     job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, this));
     KIO::FileUndoManager::self()->recordCopyJob(job);
     m_activeViewContainer->showMessage(i18ncp("@info:status", "Copying %1 item to the other side.", "Copying %1 items to the other side.", toCopy.size()),
@@ -3085,6 +3087,19 @@ void DolphinMainWindow::setupActions()
     runWithArgs->setIcon(QIcon::fromTheme(QStringLiteral("system-run")));
     actionCollection()->setDefaultShortcut(runWithArgs, Qt::CTRL | Qt::SHIFT | Qt::Key_Return);
     connect(runWithArgs, &QAction::triggered, this, &DolphinMainWindow::runWithArguments);
+
+    QAction *queueJobs = actionCollection()->addAction(QStringLiteral("queue_jobs"));
+    queueJobs->setText(i18nc("@action:inmenu", "Queue Copy and Move Jobs"));
+    queueJobs->setToolTip(i18nc("@info:tooltip", "Run copies, moves and pastes one after another instead of all at once."));
+    queueJobs->setIcon(QIcon::fromTheme(QStringLiteral("view-process-all")));
+    queueJobs->setCheckable(true);
+    const bool queueOn = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("QueueJobs", true);
+    queueJobs->setChecked(queueOn);
+    JobQueue::setEnabled(queueOn);
+    connect(queueJobs, &QAction::toggled, this, [](bool on) {
+        JobQueue::setEnabled(on);
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("QueueJobs", on);
+    });
 
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));

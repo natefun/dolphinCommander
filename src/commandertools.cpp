@@ -13,6 +13,7 @@
 
 #include <KIO/FileUndoManager>
 #include <KIO/Global>
+#include <KJob>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QDirIterator>
