@@ -2608,7 +2608,7 @@ void DolphinMainWindow::setupActions()
                                                "(Only available while in Split View mode.)"));
     copyToOtherViewAction->setIcon(QIcon::fromTheme(QStringLiteral("edit-copy")));
     copyToOtherViewAction->setIconText(i18nc("@action:inmenu Edit", "Copy to Other View"));
-    actionCollection()->setDefaultShortcut(copyToOtherViewAction, Qt::Key_F5);
+    actionCollection()->setDefaultShortcuts(copyToOtherViewAction, {QKeySequence(Qt::Key_F5), QKeySequence(Qt::ALT | Qt::Key_C)});
     connect(copyToOtherViewAction, &QAction::triggered, this, &DolphinMainWindow::copyToInactiveSplitView);
 
     QAction *moveToOtherViewAction = actionCollection()->addAction(QStringLiteral("move_to_inactive_split_view"));
@@ -2620,7 +2620,7 @@ void DolphinMainWindow::setupActions()
                                                "(Only available while in Split View mode.)"));
     moveToOtherViewAction->setIcon(QIcon::fromTheme(QStringLiteral("edit-cut")));
     moveToOtherViewAction->setIconText(i18nc("@action:inmenu Edit", "Move to Other View"));
-    actionCollection()->setDefaultShortcut(moveToOtherViewAction, Qt::Key_F6);
+    actionCollection()->setDefaultShortcuts(moveToOtherViewAction, {QKeySequence(Qt::Key_F6), QKeySequence(Qt::ALT | Qt::Key_M)});
     connect(moveToOtherViewAction, &QAction::triggered, this, &DolphinMainWindow::moveToInactiveSplitView);
 
     QAction *focusOtherViewAction = actionCollection()->addAction(QStringLiteral("focus_inactive_split_view"));
@@ -3393,6 +3393,9 @@ void DolphinMainWindow::setupDockWidgets()
     placesDock->setWidget(placesContainer);
 
     createPanelAction(QIcon::fromTheme(QStringLiteral("compass")), Qt::Key_F9, placesDock, QStringLiteral("show_places_panel"));
+    // OneCommander toggles its sidebar with Alt+S.
+    actionCollection()->setDefaultShortcuts(actionCollection()->action(QStringLiteral("show_places_panel")),
+                                            {QKeySequence(Qt::Key_F9), QKeySequence(Qt::ALT | Qt::Key_S)});
 
     addDockWidget(Qt::LeftDockWidgetArea, placesDock);
     connect(m_placesPanel, &PlacesPanel::placeActivated, this, &DolphinMainWindow::slotPlaceActivated);
