@@ -393,6 +393,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "file_views",
                                "toggle_columns_view",
                                "folders_sorted_by_name",
+                               "bring_window_back",
                                "keep_running_when_closed",
                                "hide_columns_when_narrow",
                                "item_scrolling",
@@ -1808,6 +1809,18 @@ void DolphinCommanderFeaturesTest::testClosingTheWindowCanOnlyHideIt()
     trayActions.first()->trigger(); // Show
     QVERIFY(!window.isHiddenToTray());
     QVERIFY(window.isVisible());
+    // The key that works from any program brings it back from the tray, or from being minimized.
+    window.close();
+    QVERIFY(window.isHiddenToTray());
+    QAction *bringBack = window.actionCollection()->action(QStringLiteral("bring_window_back"));
+    QVERIFY(bringBack);
+    bringBack->trigger();
+    QVERIFY(!window.isHiddenToTray());
+    QVERIFY(window.isVisible());
+    window.showMinimized();
+    bringBack->trigger();
+    QVERIFY(!window.isMinimized());
+
     window.close();
     QVERIFY(window.isHiddenToTray());
     trayActions.last()->trigger(); // Quit

@@ -57,6 +57,7 @@
 #include <KDualAction>
 #include <KFileItemListProperties>
 #include <KFileMetaData/UserMetaData>
+#include <KGlobalAccel>
 #include <KIO/ApplicationLauncherJob>
 #include <KIO/CommandLauncherJob>
 #include <KIO/CopyJob>
@@ -1146,12 +1147,7 @@ void DolphinMainWindow::hideToTray()
         m_trayIcon = new QSystemTrayIcon(windowIcon(), this);
         m_trayIcon->setToolTip(QGuiApplication::applicationDisplayName());
         auto *menu = new QMenu(this);
-        menu->addAction(QIcon::fromTheme(QStringLiteral("window-restore")), i18nc("@action:inmenu", "Show"), this, [this]() {
-            m_hiddenToTray = false;
-            showNormal();
-            raise();
-            QWidget::activateWindow();
-        });
+        menu->addAction(QIcon::fromTheme(QStringLiteral("window-restore")), i18nc("@action:inmenu", "Show"), this, &DolphinMainWindow::bringBack);
         menu->addAction(QIcon::fromTheme(QStringLiteral("application-exit")), i18nc("@action:inmenu", "Quit"), this, [this]() {
             m_quitting = true;
             close();
@@ -1169,6 +1165,14 @@ void DolphinMainWindow::hideToTray()
     m_trayIcon->show();
     m_hiddenToTray = true;
     hide();
+}
+
+void DolphinMainWindow::bringBack()
+{
+    m_hiddenToTray = false;
+    showNormal();
+    raise();
+    QWidget::activateWindow();
 }
 
 void DolphinMainWindow::quit()
@@ -3770,6 +3774,14 @@ void DolphinMainWindow::setupActions()
             }
         }
     });
+
+    // A key that works from any program, to bring the window back (Meta+Alt+E, as OneCommander's Win+Alt+E).
+    QAction *bringBackAction = actionCollection()->addAction(QStringLiteral("bring_window_back"));
+    bringBackAction->setText(i18nc("@action:inmenu", "Bring the Window Back"));
+    bringBackAction->setIcon(QIcon::fromTheme(QStringLiteral("window-restore")));
+    KGlobalAccel::self()->setDefaultShortcut(bringBackAction, {QKeySequence(Qt::META | Qt::ALT | Qt::Key_E)});
+    KGlobalAccel::self()->setShortcut(bringBackAction, {QKeySequence(Qt::META | Qt::ALT | Qt::Key_E)});
+    connect(bringBackAction, &QAction::triggered, this, &DolphinMainWindow::bringBack);
 
     QAction *keepRunning = actionCollection()->addAction(QStringLiteral("keep_running_when_closed"));
     keepRunning->setText(i18nc("@action:inmenu", "Keep Running When the Window Is Closed"));

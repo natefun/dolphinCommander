@@ -714,6 +714,8 @@ private Q_SLOTS:
     void showQuickView();
     /** Hides the window and puts an icon in the tray that brings it back. */
     void hideToTray();
+    /** Shows the window from wherever it is: hidden in the tray, minimized or behind others. */
+    void bringBack();
     /** Moves the quick view to the previous (-1) or next (+1) file of the view it looks into, and selects it there. */
     void stepQuickView(int delta);
     /** Starts Ark to pack the selection, or to unpack it into the folder on the other side. */
