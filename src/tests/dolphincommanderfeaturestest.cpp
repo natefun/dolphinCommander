@@ -36,6 +36,7 @@
 #include <KIO/CopyJob>
 #include <QApplication>
 #include <QClipboard>
+#include <QColorDialog>
 #include <QDir>
 #include <QFile>
 #include <QGraphicsView>
@@ -88,6 +89,7 @@ private Q_SLOTS:
     void testTheNotificationsPanelListsTheMessages();
     void testAToDoIsCheckedOffByClickingItsCheckbox();
     void testTheColorThemesRecolorTheProgram();
+    void testACustomThemeUsesTheColorsThatWereChosen();
     void testItemScrollingStepsByRows();
     void testASavedFileViewKeepsTheColumnWidths();
     void testAFolderImageIsPaintedBehindTheItems();
@@ -1025,7 +1027,7 @@ void DolphinCommanderFeaturesTest::testTheColorThemesRecolorTheProgram()
     auto *themes = qobject_cast<KActionMenu *>(window.actionCollection()->action(QStringLiteral("color_theme")));
     QVERIFY(themes);
     const QList<QAction *> choices = themes->menu()->actions();
-    QCOMPARE(choices.size(), 3);
+    QCOMPARE(choices.size(), 5); // the three themes, a separator and "Custom Colors…"
     const QColor before = QApplication::palette().color(QPalette::Base);
 
     choices.at(2)->trigger(); // Dark
@@ -1118,6 +1120,42 @@ void DolphinCommanderFeaturesTest::testASavedFileViewKeepsTheColumnWidths()
     saved->trigger();
     GeneralSettings::setGlobalViewProps(false);
     QCOMPARE(ViewProperties(dir.url()).headerColumnWidths(), wide);
+    answerer.stop();
+}
+
+void DolphinCommanderFeaturesTest::testACustomThemeUsesTheColorsThatWereChosen()
+{
+    // Four colors are asked for in turn: the dialogs are answered with these.
+    const QList<QColor> answers{QColor(10, 20, 30), QColor(200, 210, 220), QColor(1, 2, 3), QColor(250, 0, 0)};
+    int answered = 0;
+    QTimer answerer;
+    answerer.setInterval(100);
+    connect(&answerer, &QTimer::timeout, this, [&]() {
+        if (auto *dialog = qobject_cast<QColorDialog *>(QApplication::activeModalWidget())) {
+            dialog->setCurrentColor(answers.at(qMin(answered, 3)));
+            ++answered;
+            dialog->accept();
+        } else if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    answerer.start();
+    DolphinMainWindow window;
+    auto *themes = qobject_cast<KActionMenu *>(window.actionCollection()->action(QStringLiteral("color_theme")));
+    QVERIFY(themes);
+    const QColor before = QApplication::palette().color(QPalette::Base);
+    QAction *custom = themes->menu()->actions().last();
+    QCOMPARE(custom->text(), QStringLiteral("Custom Colors…"));
+    custom->trigger();
+    QCOMPARE(answered, 4);
+    QCOMPARE(QApplication::palette().color(QPalette::Window), answers.at(0));
+    QCOMPARE(QApplication::palette().color(QPalette::Base), answers.at(1));
+    QCOMPARE(QApplication::palette().color(QPalette::Text), answers.at(2));
+    QCOMPARE(QApplication::palette().color(QPalette::Highlight), answers.at(3));
+    QCOMPARE(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ColorTheme"), QStringLiteral("custom"));
+    // Back to the desktop's colors for the tests that follow.
+    themes->menu()->actions().first()->trigger();
+    QCOMPARE(QApplication::palette().color(QPalette::Base), before);
     answerer.stop();
 }
 

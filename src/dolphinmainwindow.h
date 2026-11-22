@@ -650,6 +650,8 @@ private Q_SLOTS:
     void newNote();
     /** Sets the colors of the whole program: "system" follows the desktop, "light" and "dark" are the fork's own. */
     void applyColorTheme(const QString &theme);
+    /** Asks for the colors of the "custom" theme (window, base, text and highlight) and applies it. */
+    void editCustomTheme();
     /** Opens a tab at the folder whose path is on the clipboard. */
     void newTabFromClipboard();
     /** Makes a file of what is on the clipboard: a dated .png for an image, a dated .txt for text. */

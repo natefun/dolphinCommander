@@ -99,6 +99,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QColorDialog>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDomDocument>
@@ -2396,13 +2397,23 @@ void DolphinMainWindow::newTabFromClipboard()
 void DolphinMainWindow::applyColorTheme(const QString &theme)
 {
     static const QPalette systemPalette = QApplication::palette();
-    if (theme == QLatin1String("dark") || theme == QLatin1String("light")) {
+    if (theme == QLatin1String("dark") || theme == QLatin1String("light") || theme == QLatin1String("custom")) {
         const bool dark = theme == QLatin1String("dark");
         QPalette palette;
-        const QColor window = dark ? QColor(37, 39, 43) : QColor(244, 244, 246);
-        const QColor base = dark ? QColor(27, 29, 33) : QColor(255, 255, 255);
-        const QColor text = dark ? QColor(230, 232, 236) : QColor(30, 32, 36);
-        const QColor highlight = dark ? QColor(61, 132, 220) : QColor(42, 110, 200);
+        QColor window = dark ? QColor(37, 39, 43) : QColor(244, 244, 246);
+        QColor base = dark ? QColor(27, 29, 33) : QColor(255, 255, 255);
+        QColor text = dark ? QColor(230, 232, 236) : QColor(30, 32, 36);
+        QColor highlight = dark ? QColor(61, 132, 220) : QColor(42, 110, 200);
+        if (theme == QLatin1String("custom")) {
+            // window, base, text, highlight: the colors the user chose
+            const QStringList chosen = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("CustomTheme", QStringList());
+            if (chosen.size() == 4) {
+                window = QColor(chosen.at(0));
+                base = QColor(chosen.at(1));
+                text = QColor(chosen.at(2));
+                highlight = QColor(chosen.at(3));
+            }
+        }
         palette.setColor(QPalette::Window, window);
         palette.setColor(QPalette::WindowText, text);
         palette.setColor(QPalette::Base, base);
@@ -2424,6 +2435,31 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
         QApplication::setPalette(systemPalette);
     }
     KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ColorTheme", theme);
+}
+
+void DolphinMainWindow::editCustomTheme()
+{
+    KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("Commander"));
+    QStringList colors = group.readEntry("CustomTheme", QStringList());
+    if (colors.size() != 4) {
+        colors = {QApplication::palette().color(QPalette::Window).name(),
+                  QApplication::palette().color(QPalette::Base).name(),
+                  QApplication::palette().color(QPalette::Text).name(),
+                  QApplication::palette().color(QPalette::Highlight).name()};
+    }
+    const QStringList titles = {i18nc("@title:window", "Color of the Windows"),
+                                i18nc("@title:window", "Color of the File List"),
+                                i18nc("@title:window", "Color of the Text"),
+                                i18nc("@title:window", "Color of the Selection")};
+    for (int i = 0; i < 4; ++i) {
+        const QColor chosen = QColorDialog::getColor(QColor(colors.at(i)), this, titles.at(i));
+        if (!chosen.isValid()) {
+            return; // cancelled: nothing changes
+        }
+        colors[i] = chosen.name();
+    }
+    group.writeEntry("CustomTheme", colors);
+    applyColorTheme(QStringLiteral("custom"));
 }
 
 void DolphinMainWindow::newNote()
@@ -3229,6 +3265,10 @@ void DolphinMainWindow::setupActions()
             applyColorTheme(id);
         });
     }
+    themeMenu->addSeparator();
+    auto *customTheme = new QAction(i18nc("@action:inmenu", "Custom Colors…"), themeMenu);
+    themeMenu->addAction(customTheme);
+    connect(customTheme, &QAction::triggered, this, &DolphinMainWindow::editCustomTheme);
     if (savedTheme != QLatin1String("system")) {
         applyColorTheme(savedTheme);
     }

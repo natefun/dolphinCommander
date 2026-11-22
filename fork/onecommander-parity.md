@@ -32,7 +32,7 @@ custom folder icons (the folder's Properties, which writes its .directory file),
 ## Not done
 - File View Designer: only partly. Dolphin's Details header already picks and orders the columns and File Views > Save Current
   View As keeps them under a name; saved views now keep the column widths too; what is missing is "hide when narrow" and a window to edit a view
-- XAML themes, custom folder icons per theme: there are three color themes (Follow the Desktop, Light, Dark) and no editable ones
+- XAML themes: there are three color themes (Follow the Desktop, Light, Dark) and one with four colors you choose; no styles, icons or sizes
 - Copy and move queue: copy, move and paste from a view, and Update the Other Side, are queued; a drop (drag and drop) is not
 - Ctrl+click in a parent column to add to the selection
 - Settings: column hover-expand tuning
