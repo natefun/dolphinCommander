@@ -54,7 +54,10 @@ covered by `testSeveralSelectedItemsShowNoFolder` in `dolphincolumnsviewtest`), 
 - First start asks for a layout and a theme (once; not in test mode). Keep Running When the Window Is Closed hides the window into the system tray (Show and Quit in its menu); a global key (Meta+Alt+E, set through KGlobalAccel, so the desktop can change it) brings the window back from the tray or from being minimized.
 
 ## Looked at, not only tested
-`COMMANDER_SHOTS=<folder> build/bin/dolphincommanderfeaturestest testTakeScreenshots` saves screenshots of the main window (light and dark) into the folder.
-Looking at them found that the Dark theme left the file lists light (they read the desktop's color scheme, not the program's palette); that is fixed, and
-the Dark theme now also picks the breeze-dark icons. Still wrong in the Dark theme: the icons of the Places panel and the view buttons stay dark on dark
-until the program is restarted.
+`COMMANDER_SHOTS=<folder> build/bin/dolphincommanderfeaturestest testTakeScreenshots` saves screenshots of the main window (light and dark, the
+Columns and Classic layouts) and of the tool windows into the folder.
+Looking at them found: the Dark theme left the file lists light (they read the desktop's color scheme; fixed, they now follow the program's palette
+while one of the fork's themes is on) and the quick view's picture used half the window (fixed).
+Still wrong, and not fixable by the program's palette: Breeze icons are single-color and take their color from the desktop's color scheme, so in the
+Dark theme the icons of the Places panel and most folder icons are dark on dark. Switching to the breeze-dark icon theme made them vanish, so that
+was left out. For a dark look with icons, use the desktop's own dark color scheme (View > Color Scheme), which Dolphin already has.

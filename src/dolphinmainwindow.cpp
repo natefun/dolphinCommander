@@ -121,6 +121,7 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPixmapCache>
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QPushButton>
@@ -2645,9 +2646,11 @@ static void iconThemeChanged()
 {
     KIconTheme::reconfigure();
     KIconLoader::global()->newIconLoader();
+    QPixmapCache::clear();
     for (QWidget *widget : QApplication::allWidgets()) {
         QEvent event(QEvent::StyleChange);
         QApplication::sendEvent(widget, &event);
+        widget->update();
     }
 }
 
@@ -2721,11 +2724,9 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
     } else {
         QApplication::setPalette(systemPalette);
     }
-    // The icons that match the colors, unless an icon theme was chosen.
-    if (KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("IconTheme", QString()).isEmpty()) {
-        QIcon::setThemeName(iconThemeForColors(QApplication::palette().color(QPalette::Base).lightnessF() < 0.5));
-        iconThemeChanged();
-    }
+    // Icons drawn before are drawn again with the new colors.
+    QPixmapCache::clear();
+
     KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ColorTheme", theme);
 }
 
