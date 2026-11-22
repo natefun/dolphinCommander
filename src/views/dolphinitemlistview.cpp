@@ -5,6 +5,8 @@
  */
 
 #include "dolphinitemlistview.h"
+#include <QFile>
+#include <QPainter>
 
 #include "dolphin_columnsmodesettings.h"
 #include "dolphin_compactmodesettings.h"
@@ -291,3 +293,41 @@ void DolphinItemListView::updateGridSize()
 }
 
 #include "moc_dolphinitemlistview.cpp"
+
+void DolphinItemListView::setBackgroundImage(const QString &path)
+{
+    m_backgroundImage = path.isEmpty() ? QPixmap() : QPixmap(path);
+    update();
+}
+
+QString DolphinItemListView::backgroundImageIn(const QString &folder)
+{
+    static const QStringList names = {QStringLiteral("cover"),
+                                      QStringLiteral("folder"),
+                                      QStringLiteral("front"),
+                                      QStringLiteral("background"),
+                                      QStringLiteral("poster")};
+    for (const QString &name : names) {
+        for (const QString &extension : {QStringLiteral("jpg"), QStringLiteral("png")}) {
+            const QString path = folder + QLatin1Char('/') + name + QLatin1Char('.') + extension;
+            if (QFile::exists(path)) {
+                return path;
+            }
+        }
+    }
+    return QString();
+}
+
+void DolphinItemListView::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
+{
+    if (!m_backgroundImage.isNull()) {
+        const QRectF area(QPointF(0, 0), size());
+        const QSizeF scaled = QSizeF(m_backgroundImage.size()).scaled(area.size() * 0.8, Qt::KeepAspectRatio);
+        const QRectF target(QPointF(area.right() - scaled.width() - 8, area.bottom() - scaled.height() - 8), scaled);
+        painter->save();
+        painter->setOpacity(0.25);
+        painter->drawPixmap(target, m_backgroundImage, QRectF(m_backgroundImage.rect()));
+        painter->restore();
+    }
+    KFileItemListView::paint(painter, option, widget);
+}
