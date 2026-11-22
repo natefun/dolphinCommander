@@ -25,7 +25,8 @@ Alt+middle click to send a tab to the other side, Layout menu (Standard/Columns/
 ## Dolphin already does (found while checking the list)
 Tab aliases (Rename Tab), new tab after the last tab or the current one, remembering tabs and a start
 folder, search from here or everywhere (Baloo), tags in the Places panel, hidden files, folders first,
-custom folder icons (the folder's Properties, which writes its .directory file), a delete key for the trash and permanent delete, Ctrl+Space to toggle the selection, "Open in Split View" on a place
+Ctrl+click in a parent column of the Miller columns (it adds the item to that column's selection and closes the columns after it;
+covered by `testSeveralSelectedItemsShowNoFolder` in `dolphincolumnsviewtest`), custom folder icons (the folder's Properties, which writes its .directory file), a delete key for the trash and permanent delete, Ctrl+Space to toggle the selection, "Open in Split View" on a place
 (OneCommander's [1]/[2] buttons of a favorite), and backup files (~, .bak) hidden unless hidden files are shown
 (OneCommander's "hide temporary files").
 
@@ -33,8 +34,6 @@ custom folder icons (the folder's Properties, which writes its .directory file),
 - File View Designer: a window (File Views > Design This View) picks the columns, their order and widths and can keep the design under a name; "Hide Columns When Narrow" hides the columns that do not fit; each column can have its own width of the view under which it is hidden, set in the designer
 - XAML themes: three color themes (Follow the Desktop, Light, Dark), one with four colors you choose, a text size and an icon theme to pick; themes can be saved to a .theme file and loaded again; no editable styles
 - Copy and move queue: copy, move and paste from a view, and Update the Other Side, are queued; a drop (drag and drop) is not
-- Ctrl+click in a parent column to add to the selection: not done. In the Miller columns the selection belongs to one column,
-  so a selection across columns needs its own design (what is selected, how it is drawn, what Copy and Delete act on)
 - Column hover-expand tuning: does not apply here. The Miller columns of the fork scroll sideways instead of shrinking
   the columns farther back in the path, so there is no compressed column to expand
 - OneCommander's plain ~ for the notifications (Ctrl+Shift+~ opens the panel, Ctrl+Alt+N the menu); Ctrl+` toggles the Miller columns
