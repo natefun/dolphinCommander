@@ -20,7 +20,7 @@ Paste Clipboard as File (Ctrl+Alt+V), Open With on Ctrl+Enter, middle-button sel
 zoom and pan in the image preview, To-Do files (.2do/.2dx), Recent Notifications, Color Rows by
 Age, Queue Copy and Move Jobs, Always Sort Folders by Name, Scroll by Whole Items, Color Theme (Follow the Desktop, Light, Dark),
 Notifications panel (Ctrl+Shift+~), Toggle Miller Columns (Ctrl+`), Run with Arguments, New Tab from Clipboard Path,
-Alt+middle click to send a tab to the other side, Layout menu (Standard/Columns/Classic), File Views menu with saved views and the File View Designer.
+Alt+middle click to send a tab to the other side, Layout menu (Standard/Columns/Classic), File Views menu with saved views and the File View Designer, Up/Down in the quick view to step through the files.
 
 ## Dolphin already does (found while checking the list)
 Tab aliases (Rename Tab), new tab after the last tab or the current one, remembering tabs and a start
@@ -38,3 +38,14 @@ covered by `testSeveralSelectedItemsShowNoFolder` in `dolphincolumnsviewtest`), 
 - Column hover-expand tuning: does not apply here. The Miller columns of the fork scroll sideways instead of shrinking
   the columns farther back in the path, so there is no compressed column to expand
 - OneCommander's plain ~ for the notifications (Ctrl+Shift+~ opens the panel, Ctrl+Alt+N the menu); Ctrl+` toggles the Miller columns
+
+## From the later help pages (File View Designer, Resizing panes, Network drives, Phone storage, Preview, first start)
+- Removal Order and Minwidth of a column: the designer's "Hide below" width per column does the same job, in pixels of the view instead of an order.
+- Designs as .json files to load and save: the fork keeps named designs in its settings; they are not files.
+- "Apply to the current folder and close, without saving": the designer applies to the folder and saves it; there is no temporary apply.
+- Preview Window: Space opens it in OneCommander, here it is Alt+F3 (Space selects); Up/Down step through the files and Esc closes it, as there.
+  Not done: three viewing modes, a map button for photos with GPS, video seeking and frame stepping, Word/Excel previews.
+- Collapsing a side by dragging its divider: the fork's two sides do it (Ctrl+F3 and the splitter), the same as OneCommander's single-browser layout.
+- Network drives and phones: OneCommander scans the Windows network and points to Phone Link; on Linux this is KIO (smb, sftp, ftp, mtp) in
+  the Places panel and the location bar, which the fork inherits from Dolphin.
+- First start asks for a layout and a theme, and a closed window only hides: not done.

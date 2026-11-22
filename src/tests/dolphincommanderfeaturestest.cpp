@@ -99,6 +99,7 @@ private Q_SLOTS:
     void testTheTextSizeAndIconThemeCanBeChosen();
     void testAThemeCanBeSavedToAFileAndLoadedAgain();
     void testAStyleSheetRestylesTheProgramAndTravelsWithTheTheme();
+    void testTheQuickViewStepsWithTheUpAndDownKeys();
     void testTheFileViewDesignerEditsAndAppliesAView();
     void testColumnsCanBeHiddenWhenTheViewIsNarrow();
     void testEachColumnCanHaveItsOwnHideWidth();
@@ -1539,6 +1540,49 @@ void DolphinCommanderFeaturesTest::testAStyleSheetRestylesTheProgramAndTravelsWi
 
     QMetaObject::invokeMethod(&window, "applyStyleSheet", Qt::DirectConnection, Q_ARG(QString, QString()));
     QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("system")));
+}
+
+void DolphinCommanderFeaturesTest::testTheQuickViewStepsWithTheUpAndDownKeys()
+{
+    TestDir dir;
+    dir.createFiles({QStringLiteral("a.txt"), QStringLiteral("b.txt"), QStringLiteral("c.txt")});
+    dir.createDir(QStringLiteral("d-folder"));
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.openDirectories({dir.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    DolphinView *view = window.activeViewContainer()->view();
+    QTRY_COMPARE(view->itemsCount(), 4);
+
+    view->selectOnlyItemsNamed({QStringLiteral("b.txt")});
+    QTRY_COMPARE(view->selectedItemsCount(), 1);
+    window.actionCollection()->action(QStringLiteral("quick_view"))->trigger();
+    QuickViewDialog *quick = window.findChild<QuickViewDialog *>();
+    QVERIFY(quick);
+    QTRY_COMPARE(quick->shownName(), QStringLiteral("b.txt"));
+
+    QTest::keyClick(quick, Qt::Key_Down);
+    QTRY_COMPARE(quick->shownName(), QStringLiteral("c.txt"));
+    QTRY_COMPARE(view->selectedItems().first().name(), QStringLiteral("c.txt"));
+    // After the last file there is nothing; the folder is not shown.
+    QTest::keyClick(quick, Qt::Key_Down);
+    QCOMPARE(quick->shownName(), QStringLiteral("c.txt"));
+    QTest::keyClick(quick, Qt::Key_Up);
+    QTRY_COMPARE(quick->shownName(), QStringLiteral("b.txt"));
+    QTest::keyClick(quick, Qt::Key_Up);
+    QTRY_COMPARE(quick->shownName(), QStringLiteral("a.txt"));
+    QTest::keyClick(quick, Qt::Key_Escape);
+    QVERIFY(!quick->isVisible());
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

@@ -698,6 +698,8 @@ private Q_SLOTS:
     void mirrorToOtherSide();
     void swapSides();
     void showQuickView();
+    /** Moves the quick view to the previous (-1) or next (+1) file of the view it looks into, and selects it there. */
+    void stepQuickView(int delta);
     /** Starts Ark to pack the selection, or to unpack it into the folder on the other side. */
     void runArk(bool unpack);
     void fillWorkspacesMenu(QMenu *menu);
@@ -881,6 +883,8 @@ private:
     /** The tab widget of the side that is currently active. It is always either #m_leftTabs or #m_rightTabs. */
     DolphinTabWidget *m_tabWidget;
     QPointer<QuickViewDialog> m_quickView;
+    /** The view whose files the quick view steps through. */
+    QPointer<DolphinViewContainer> m_quickViewSource;
     QUrl m_syncPreviousUrl; // the active view's url before its last change, for synchronized browsing
     SidesSplitter *m_sidesSplitter = nullptr;
     DolphinTabWidget *m_leftTabs = nullptr;

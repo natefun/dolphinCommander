@@ -19,6 +19,7 @@ class QMimeData;
 
 class FilePreviewWidget;
 class QLabel;
+class QKeyEvent;
 class QLineEdit;
 class QPlainTextEdit;
 class QTableWidget;
@@ -149,6 +150,15 @@ class QuickViewDialog : public QDialog
 public:
     explicit QuickViewDialog(QWidget *parent);
     void show(const KFileItem &item);
+    /** The name of the file that is shown. */
+    QString shownName() const;
+
+Q_SIGNALS:
+    /** The Up (-1) or Down (+1) key asks for the previous or the next file. */
+    void stepRequested(int delta);
+
+protected:
+    void keyPressEvent(QKeyEvent *event) override;
 
 private:
     FilePreviewWidget *m_preview;

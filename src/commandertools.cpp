@@ -27,6 +27,7 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QImage>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMimeData>
@@ -624,6 +625,20 @@ QuickViewDialog::QuickViewDialog(QWidget *parent)
     m_preview = new FilePreviewWidget(this);
     layout->addWidget(m_preview);
     resize(640, 480);
+}
+
+QString QuickViewDialog::shownName() const
+{
+    return m_preview->shownName();
+}
+
+void QuickViewDialog::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Up || event->key() == Qt::Key_Down) {
+        Q_EMIT stepRequested(event->key() == Qt::Key_Up ? -1 : 1);
+        return;
+    }
+    QDialog::keyPressEvent(event);
 }
 
 void QuickViewDialog::show(const KFileItem &item)

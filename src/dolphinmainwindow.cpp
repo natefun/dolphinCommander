@@ -2762,9 +2762,13 @@ void DolphinMainWindow::runArk(bool unpack)
 void DolphinMainWindow::showQuickView()
 {
     KFileItemList items;
+    DolphinViewContainer *source = m_activeViewContainer;
     DolphinTabPage *otherPage = inactiveTabWidget()->currentTabPage();
     if (otherPage && otherPage->activeViewContainer() != m_activeViewContainer) {
         items = otherPage->activeViewContainer()->view()->selectedItems();
+        if (!items.isEmpty()) {
+            source = otherPage->activeViewContainer();
+        }
     }
     if (items.isEmpty()) {
         items = m_activeViewContainer->view()->selectedItems();
@@ -2775,8 +2779,34 @@ void DolphinMainWindow::showQuickView()
     }
     if (!m_quickView) {
         m_quickView = new QuickViewDialog(this);
+        connect(m_quickView, &QuickViewDialog::stepRequested, this, &DolphinMainWindow::stepQuickView);
     }
+    m_quickViewSource = source;
     m_quickView->show(items.first());
+}
+
+void DolphinMainWindow::stepQuickView(int delta)
+{
+    if (!m_quickView || !m_quickViewSource) {
+        return;
+    }
+    DolphinView *view = m_quickViewSource->view();
+    const KFileItemList items = view->items();
+    int index = -1;
+    for (int i = 0; i < items.count(); ++i) {
+        if (items.at(i).name() == m_quickView->shownName()) {
+            index = i;
+            break;
+        }
+    }
+    // The next file in that direction; a folder has nothing to look into, so it is passed over.
+    for (int i = index + delta; i >= 0 && i < items.count(); i += delta) {
+        if (!items.at(i).isDir()) {
+            view->selectOnlyItemsNamed({items.at(i).name()});
+            m_quickView->show(items.at(i));
+            return;
+        }
+    }
 }
 
 void DolphinMainWindow::fillWorkspacesMenu(QMenu *menu)
