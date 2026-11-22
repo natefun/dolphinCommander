@@ -1942,6 +1942,19 @@ void DolphinMainWindow::activeViewChanged(DolphinViewContainer *viewContainer)
     Q_EMIT selectionChanged(m_activeViewContainer->view()->selectedItems());
 }
 
+void DolphinMainWindow::rememberRecentFolder(const QUrl &url)
+{
+    if (!url.isValid() || url.scheme() == QLatin1String("search") || url.scheme() == QLatin1String("timeline")) {
+        return;
+    }
+    KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("Commander"));
+    QStringList recent = group.readEntry("RecentFolders", QStringList());
+    const QString entry = url.adjusted(QUrl::StripTrailingSlash).toString();
+    recent.removeAll(entry);
+    recent.prepend(entry);
+    group.writeEntry("RecentFolders", recent.mid(0, 20));
+}
+
 void DolphinMainWindow::showFolderHotlist()
 {
     auto *menu = new QMenu(this);
@@ -1957,6 +1970,17 @@ void DolphinMainWindow::showFolderHotlist()
         connect(action, &QAction::triggered, this, [this, url]() {
             changeUrl(url);
         });
+    }
+    const QStringList recent = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("RecentFolders", QStringList());
+    if (!recent.isEmpty()) {
+        menu->addSection(i18nc("@title:menu", "Recent Folders"));
+        for (const QString &entry : recent) {
+            const QUrl url(entry);
+            QAction *action = menu->addAction(QIcon::fromTheme(QStringLiteral("folder")), url.isLocalFile() ? url.toLocalFile() : url.toDisplayString());
+            connect(action, &QAction::triggered, this, [this, url]() {
+                changeUrl(url);
+            });
+        }
     }
     menu->popup(m_activeViewContainer->mapToGlobal(QPoint(24, 24)));
 }
@@ -2200,6 +2224,7 @@ void DolphinMainWindow::compareDirectories()
 
 void DolphinMainWindow::syncOtherSide(const QUrl &newUrl)
 {
+    rememberRecentFolder(newUrl);
     const QUrl previous = m_syncPreviousUrl;
     m_syncPreviousUrl = newUrl;
     QAction *syncAction = actionCollection()->action(QStringLiteral("sync_browsing"));

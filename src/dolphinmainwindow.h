@@ -634,6 +634,8 @@ private Q_SLOTS:
     void updateWindowTitle();
 
     void showFolderHotlist();
+    /** Remembers a folder the user visited, newest first, for the recent folders of the hotlist. */
+    void rememberRecentFolder(const QUrl &url);
     void showChecksum();
     void showBatchRename();
     void showDuplicateFinder();
