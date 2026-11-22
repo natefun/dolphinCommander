@@ -15,7 +15,7 @@ hidden files, folders first, search (Dolphin's).
 ## Added on this branch
 Select/deselect by pattern (Alt++ and Alt+-), open folder on the other side, swap sides, update the other side,
 duplicate finder, recent folders in the hotlist, color labels (menu + row tint, stored as tags),
-New Note (Alt+N), Scripts menu, Folder Sizes dialog, Convert Images, Alt+C / Alt+M / Alt+S,
+New Note (Alt+N), To-Do files with a checkbox in the row, Scripts menu, Folder Sizes dialog, Convert Images, Alt+C / Alt+M / Alt+S,
 Paste Clipboard as File (Ctrl+Alt+V), Open With on Ctrl+Enter, middle-button selection rectangle, folder background image,
 zoom and pan in the image preview, To-Do files (.2do/.2dx), Recent Notifications, Color Rows by
 Age, Queue Copy and Move Jobs, Always Sort Folders by Name, Layout menu (Standard/Columns/Classic), File Views menu with saved views.
@@ -34,5 +34,4 @@ custom folder icons (the folder's Properties, which writes its .directory file),
 - Copy and move queue: copy, move and paste from a view, and Update the Other Side, are queued; a drop (drag and drop) is not
 - Ctrl+click in a parent column to add to the selection
 - Settings: pixel/item scrolling, column hover-expand tuning
-- Notes and To-Dos shown in the name column, with a checkbox
 - OneCommander's plain ~ for the notifications (Ctrl+Shift+~ opens the panel, Ctrl+Alt+N the menu); Ctrl+` toggles the Miller columns

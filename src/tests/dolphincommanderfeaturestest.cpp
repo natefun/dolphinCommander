@@ -17,6 +17,9 @@
 #include "dolphinviewcontainer.h"
 #include "jobqueue.h"
 #include "kitemviews/kfileitemmodel.h"
+#include "kitemviews/kitemlistcontainer.h"
+#include "kitemviews/kitemlistcontroller.h"
+#include "kitemviews/kitemlistview.h"
 #include "kitemviews/kitemlistwidget.h"
 #include "testdir.h"
 #include "views/columnsstrip.h"
@@ -34,6 +37,7 @@
 #include <QClipboard>
 #include <QDir>
 #include <QFile>
+#include <QGraphicsView>
 #include <QHBoxLayout>
 #include <QImage>
 #include <QInputDialog>
@@ -81,6 +85,7 @@ private Q_SLOTS:
     void testTheDialogsOfTheToolsShowTheirResults();
     void testFoldersCanAlwaysBeSortedByName();
     void testTheNotificationsPanelListsTheMessages();
+    void testAToDoIsCheckedOffByClickingItsCheckbox();
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
@@ -955,6 +960,48 @@ void DolphinCommanderFeaturesTest::testTheNotificationsPanelListsTheMessages()
     window.activeViewContainer()->showMessage(QStringLiteral("a message for the panel"), KMessageWidget::Information);
     QCOMPARE(list->count(), before + 1);
     QVERIFY(list->item(0)->text().endsWith(QStringLiteral("a message for the panel")));
+}
+
+void DolphinCommanderFeaturesTest::testAToDoIsCheckedOffByClickingItsCheckbox()
+{
+    TestDir dir;
+    dir.createFile("walk the dog.2do", "dog");
+    DolphinViewContainer container(dir.url(), nullptr);
+    container.resize(700, 400);
+    container.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&container));
+    QTRY_COMPARE(container.view()->itemsCount(), 1);
+    QTest::qWait(500);
+
+    auto *list = container.view()->findChild<KItemListContainer *>();
+    QVERIFY(list);
+    auto *graphicsView = list->findChild<QGraphicsView *>();
+    QVERIFY(graphicsView);
+    const QRectF row = list->controller()->view()->itemRect(0);
+    const QPointF box = KItemListWidget::todoCheckboxRect(row).center();
+    // A click beside the checkbox does nothing.
+    QTest::mouseClick(graphicsView->viewport(), Qt::LeftButton, Qt::NoModifier, graphicsView->mapFromScene(QPointF(row.left() + 30, row.center().y())));
+    QVERIFY(QFile::exists(dir.path() + QStringLiteral("/walk the dog.2do")));
+    // A checkbox is painted there: the pixels differ from the row of a file that is not a to-do, and from the checked one after the click.
+    const QRect boxRect = graphicsView->mapFromScene(KItemListWidget::todoCheckboxRect(row)).boundingRect();
+    const QImage open = graphicsView->viewport()->grab(boxRect).toImage();
+    QTest::mouseClick(graphicsView->viewport(), Qt::LeftButton, Qt::NoModifier, graphicsView->mapFromScene(box));
+    QTRY_VERIFY(QFile::exists(dir.path() + QStringLiteral("/walk the dog.2dx")));
+    QVERIFY(!QFile::exists(dir.path() + QStringLiteral("/walk the dog.2do")));
+    QTest::qWait(1000);
+    const QImage done = graphicsView->viewport()->grab(boxRect).toImage();
+    QVERIFY(open != done);
+    // Neither is blank: both show a drawn box.
+    const auto colors = [](const QImage &image) {
+        QSet<QRgb> found;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                found.insert(image.pixel(x, y));
+            }
+        }
+        return found.size();
+    };
+    QVERIFY2(colors(open) > 2 && colors(done) > 2, qPrintable(QStringLiteral("colors %1 and %2").arg(colors(open)).arg(colors(done))));
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()

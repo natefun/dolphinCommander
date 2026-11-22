@@ -103,6 +103,17 @@ QVariant KItemListWidget::value(const QByteArray &key) const
     return m_data.value(key);
 }
 
+QRectF KItemListWidget::todoCheckboxRect(const QRectF &row)
+{
+    const qreal side = qMin<qreal>(16, row.height() - 2);
+    return QRectF(row.right() - side - 6, row.top() + (row.height() - side) / 2, side, side);
+}
+
+bool KItemListWidget::isToDoName(const QString &name)
+{
+    return name.endsWith(QLatin1String(".2do"), Qt::CaseInsensitive) || name.endsWith(QLatin1String(".2dx"), Qt::CaseInsensitive);
+}
+
 static bool s_ageStripes = false;
 
 void KItemListWidget::setAgeStripesShown(bool shown)
@@ -159,6 +170,16 @@ void KItemListWidget::paint(QPainter *painter, const QStyleOptionGraphicsItem *o
             const double hue = 240.0 * qBound(0.0, std::log1p(qMax(days, 0.0)) / std::log1p(365.0), 1.0);
             painter->fillRect(QRectF(0, 0, 3, size().height()), QColor::fromHsvF(hue / 360.0, 0.8, 0.9));
         }
+    }
+
+    // A to-do has a checkbox: checked when it is done (.2dx).
+    const QString todoName = m_data.value("text").toString();
+    if (isToDoName(todoName)) {
+        QStyleOptionButton box;
+        box.rect = todoCheckboxRect(QRectF(QPointF(0, 0), size())).toRect();
+        box.state = QStyle::State_Enabled | (todoName.endsWith(QLatin1String(".2dx"), Qt::CaseInsensitive) ? QStyle::State_On : QStyle::State_Off);
+        box.palette = m_styleOption.palette;
+        QApplication::style()->drawControl(QStyle::CE_CheckBox, &box, painter, widget);
     }
 
     const QStyle::State selectedState(m_selected ? QStyle::State_Selected : QStyle::State(0));

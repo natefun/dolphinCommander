@@ -8,6 +8,7 @@
 #include "dolphinview.h"
 #include "commandertools.h"
 #include "jobqueue.h"
+#include "kitemviews/kitemlistwidget.h"
 
 #include "dolphin_detailsmodesettings.h"
 #include "dolphin_generalsettings.h"
@@ -72,6 +73,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QDropEvent>
+#include <QGraphicsSceneMouseEvent>
 #if KIO_VERSION < QT_VERSION_CHECK(6, 31, 0)
 #include <QFile>
 #endif
@@ -1194,6 +1196,37 @@ bool DolphinView::eventFilter(QObject *watched, QEvent *event)
     case QEvent::StyleChange:
         if (watched == m_container) {
             updateContainerFrame();
+        }
+        break;
+
+    case QEvent::GraphicsSceneMouseRelease:
+        if (watched == m_view) {
+            // A click on the checkbox of a to-do marks it done, or open again.
+            const auto *mouseEvent = static_cast<QGraphicsSceneMouseEvent *>(event);
+            if (mouseEvent->button() == Qt::LeftButton) {
+                // The to-dos shown are looked for by their rows: only the visible ones can be under the mouse.
+                const KItemListView *listView = m_view;
+                if (auto *model = static_cast<KFileItemModel *>(listView->model())) {
+                    const int first = listView->firstVisibleIndex();
+                    const int last = listView->lastVisibleIndex();
+                    for (int i = qMax(first, 0); i <= last && i < model->count(); ++i) {
+                        const QRectF row = listView->itemRect(i);
+                        if (!KItemListWidget::todoCheckboxRect(row).contains(mouseEvent->pos())) {
+                            continue;
+                        }
+                        const KFileItem item = model->fileItem(i);
+                        if (!item.isNull() && item.isLocalFile() && KItemListWidget::isToDoName(item.name())) {
+                            // .2do (open) becomes .2dx (done) and back.
+                            QString toggled = item.name();
+                            const bool open = toggled.endsWith(QLatin1Char('o'), Qt::CaseInsensitive);
+                            toggled.chop(1);
+                            toggled += open ? QLatin1Char('x') : QLatin1Char('o');
+                            QFile::rename(item.localPath(), item.url().adjusted(QUrl::RemoveFilename).toLocalFile() + toggled);
+                        }
+                        break;
+                    }
+                }
+            }
         }
         break;
 
