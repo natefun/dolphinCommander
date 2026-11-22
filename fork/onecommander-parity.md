@@ -34,7 +34,7 @@ covered by `testSeveralSelectedItemsShowNoFolder` in `dolphincolumnsviewtest`), 
 - File View Designer: a window (File Views > Design This View) picks the columns, their order and widths and can keep the design under a name; "Hide Columns When Narrow" hides the columns that do not fit; each column can have its own width of the view under which it is hidden, set in the designer
 - XAML themes: not as such. Themes are colors, a text size, an icon theme and a Qt style sheet (the program's own CSS-like language, edited in
   Color Theme > Style Sheet…), and they can be saved to a .theme file and loaded again; there is no XAML and no layout templates
-- Copy and move queue: copy, move and paste from a view, and Update the Other Side, are queued; a drop (drag and drop) is not
+- Copy and move queue: copy, move and paste from a view, a drop (drag and drop) and Update the Other Side are queued (the drop is not covered by a test; it needs a drag)
 - Column hover-expand tuning: does not apply here. The Miller columns of the fork scroll sideways instead of shrinking
   the columns farther back in the path, so there is no compressed column to expand
 - OneCommander's plain ~ for the notifications (Ctrl+Shift+~ opens the panel, Ctrl+Alt+N the menu); Ctrl+` toggles the Miller columns
@@ -67,9 +67,8 @@ schemes recolor them in a real desktop session is not verified.
 - `` ` `` alone, `~`, `\` alone, and the letters: type-to-filter needs them, so the fork uses Ctrl+` (columns), Ctrl+Shift+~ (notifications) and Alt+D / Ctrl+L (path).
 - Shift+F1 (center the window): taken by What's This, so it is Ctrl+Shift+F1.
 - Ctrl+I (properties): taken by the filter bar; Alt+Enter is the properties key.
-- Ctrl+Shift+Enter (run with arguments) and Ctrl+Enter (open with) are there; Ctrl+Shift+F12 (restart as administrator) and Ctrl+F10 (terminal as administrator) are not.
-- F8 (toggle column resizing in the Columns layout) is not there.
+- Ctrl+Shift+Enter (run with arguments), Ctrl+Enter (open with), F8 (lock the dividers of the Miller columns), Ctrl+F10 (terminal as administrator) and Ctrl+Shift+F12 are there. The last two go through pkexec (konsole for the terminal), were not tried with a real password prompt, and Ctrl+Shift+F12 opens a root copy of the window and leaves this one open.
 
 ## How this was tested
-`build/bin/dolphincommanderfeaturestest` (59 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
+`build/bin/dolphincommanderfeaturestest` (60 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
 `fork/check-tests.py` shows one test of Dolphin's columns view (`testTheContentWidthFollowsInsertedAndRemovedNames`) that fails under load and passes alone.

@@ -60,6 +60,7 @@
 #include <QScrollArea>
 #include <QSignalSpy>
 #include <QSpinBox>
+#include <QSplitterHandle>
 #include <QStandardPaths>
 #include <QSystemTrayIcon>
 #include <QTableWidget>
@@ -128,6 +129,7 @@ private Q_SLOTS:
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
+    void testLockedColumnDividersCannotBeDragged();
     void testClipboardAsFile();
     void testTheMainWindowHasTheOneCommanderActions();
 
@@ -413,7 +415,10 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "queue_jobs",
                                "paste_clipboard_as_file",
                                "new_tab_from_clipboard",
-                               "run_with_arguments"};
+                               "run_with_arguments",
+                               "lock_column_resizing",
+                               "open_terminal_as_administrator",
+                               "restart_as_administrator"};
     for (const QString &name : names) {
         QVERIFY2(actions->action(name), qPrintable(name));
     }
@@ -423,12 +428,52 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                                       {"duplicate", QKeySequence(Qt::CTRL | Qt::Key_D)},
                                                       {"create_dir", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N)},
                                                       {"focus_inactive_split_view", QKeySequence(Qt::ALT | Qt::Key_F)},
-                                                      {"replace_location", QKeySequence(Qt::ALT | Qt::Key_D)}};
+                                                      {"replace_location", QKeySequence(Qt::ALT | Qt::Key_D)},
+                                                      {"lock_column_resizing", QKeySequence(Qt::Key_F8)},
+                                                      {"open_terminal_as_administrator", QKeySequence(Qt::CTRL | Qt::Key_F10)},
+                                                      {"restart_as_administrator", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F12)}};
     for (const auto &[name, key] : keys) {
         QAction *action = actions->action(name);
         QVERIFY2(action, qPrintable(name));
         QVERIFY2(action->shortcuts().contains(key), qPrintable(name + QStringLiteral(" lacks ") + key.toString()));
     }
+}
+
+void DolphinCommanderFeaturesTest::testLockedColumnDividersCannotBeDragged()
+{
+    ColumnsStrip strip;
+    strip.resize(900, 300);
+    strip.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&strip));
+    strip.setUrl(QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/subdir")));
+    QTRY_VERIFY(strip.count() >= 3);
+
+    // Drags the divider next to the last column and says whether any column changed its width.
+    const auto dragsADivider = [&strip]() {
+        QSplitterHandle *handle = nullptr;
+        for (int i = strip.count() - 1; i >= 1 && !handle; --i) {
+            QSplitterHandle *candidate = strip.handle(i);
+            if (candidate && candidate->isVisible() && candidate->width() > 0) {
+                handle = candidate;
+            }
+        }
+        if (!handle) {
+            return false;
+        }
+        const QList<int> before = strip.sizes();
+        const QPoint start = handle->rect().center();
+        QTest::mousePress(handle, Qt::LeftButton, Qt::NoModifier, start);
+        QTest::mouseMove(handle, start + QPoint(-40, 0));
+        QTest::mouseRelease(handle, Qt::LeftButton, Qt::NoModifier, start + QPoint(-40, 0));
+        return strip.sizes() != before;
+    };
+
+    ColumnsStrip::setResizingLocked(false);
+    QVERIFY(dragsADivider());
+    ColumnsStrip::setResizingLocked(true);
+    const bool movedWhileLocked = dragsADivider();
+    ColumnsStrip::setResizingLocked(false);
+    QVERIFY(!movedWhileLocked);
 }
 
 void DolphinCommanderFeaturesTest::testClipboardAsFile()

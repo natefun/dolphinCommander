@@ -16,10 +16,13 @@
 #include <KLocalizedString>
 #include <KNotificationJobUiDelegate>
 
+#include <QEnterEvent>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPointer>
 #include <QResizeEvent>
+#include <QSplitterHandle>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -82,6 +85,51 @@ QUrl parentUrl(const QUrl &url)
     }
     return up.adjusted(QUrl::RemoveFilename | QUrl::StripTrailingSlash);
 }
+}
+
+namespace
+{
+bool s_resizingLocked = false;
+
+class LockableHandle : public QSplitterHandle
+{
+public:
+    using QSplitterHandle::QSplitterHandle;
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (!s_resizingLocked) {
+            QSplitterHandle::mousePressEvent(event);
+        }
+    }
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (!s_resizingLocked) {
+            QSplitterHandle::mouseMoveEvent(event);
+        }
+    }
+    void enterEvent(QEnterEvent *event) override
+    {
+        setCursor(s_resizingLocked ? Qt::ArrowCursor : Qt::SplitHCursor);
+        QSplitterHandle::enterEvent(event);
+    }
+};
+}
+
+void ColumnsStrip::setResizingLocked(bool locked)
+{
+    s_resizingLocked = locked;
+}
+
+bool ColumnsStrip::isResizingLocked()
+{
+    return s_resizingLocked;
+}
+
+QSplitterHandle *ColumnsStrip::createHandle()
+{
+    return new LockableHandle(orientation(), this);
 }
 
 ColumnsStrip::ColumnsStrip(QWidget *parent)

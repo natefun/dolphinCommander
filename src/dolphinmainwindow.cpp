@@ -35,6 +35,7 @@
 #include "panels/terminal/terminalpanel.h"
 #include "search/dolphinquery.h"
 #include "selectionmode/actiontexthelper.h"
+#include "views/columnsstrip.h"
 #if KIO_VERSION >= QT_VERSION_CHECK(6, 24, 0)
 #include "servicemenushortcutmanager.h"
 #endif
@@ -1750,6 +1751,19 @@ void DolphinMainWindow::openPreferredSearchTool()
     if (tool) {
         tool->trigger();
     }
+}
+
+bool DolphinMainWindow::runAsAdministrator(const QString &program, const QStringList &arguments)
+{
+    // pkexec asks for the password itself; the display variables let a graphical program start as root.
+    QStringList args{QStringLiteral("env")};
+    for (const char *name : {"DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "XAUTHORITY"}) {
+        if (qEnvironmentVariableIsSet(name)) {
+            args << QString::fromLatin1(name) + QLatin1Char('=') + qEnvironmentVariable(name);
+        }
+    }
+    args << program << arguments;
+    return QProcess::startDetached(QStringLiteral("pkexec"), args);
 }
 
 void DolphinMainWindow::openTerminal()
@@ -3731,6 +3745,34 @@ void DolphinMainWindow::setupActions()
     connect(queueJobs, &QAction::toggled, this, [](bool on) {
         JobQueue::setEnabled(on);
         KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("QueueJobs", on);
+    });
+
+    QAction *lockColumns = actionCollection()->addAction(QStringLiteral("lock_column_resizing"));
+    lockColumns->setText(i18nc("@action:inmenu", "Lock Column Resizing"));
+    lockColumns->setToolTip(i18nc("@info:tooltip", "Stop the dividers between the Miller columns from being dragged."));
+    lockColumns->setIcon(QIcon::fromTheme(QStringLiteral("object-locked")));
+    lockColumns->setCheckable(true);
+    actionCollection()->setDefaultShortcut(lockColumns, Qt::Key_F8);
+    connect(lockColumns, &QAction::toggled, this, [](bool on) {
+        ColumnsStrip::setResizingLocked(on);
+    });
+
+    QAction *terminalAsAdmin = actionCollection()->addAction(QStringLiteral("open_terminal_as_administrator"));
+    terminalAsAdmin->setText(i18nc("@action:inmenu", "Open Terminal as Administrator"));
+    terminalAsAdmin->setIcon(QIcon::fromTheme(QStringLiteral("utilities-terminal")));
+    actionCollection()->setDefaultShortcut(terminalAsAdmin, Qt::CTRL | Qt::Key_F10);
+    connect(terminalAsAdmin, &QAction::triggered, this, [this]() {
+        const QString dir = m_activeViewContainer->url().toLocalFile();
+        runAsAdministrator(QStringLiteral("konsole"), dir.isEmpty() ? QStringList() : QStringList{QStringLiteral("--workdir"), dir});
+    });
+
+    QAction *restartAsAdmin = actionCollection()->addAction(QStringLiteral("restart_as_administrator"));
+    restartAsAdmin->setText(i18nc("@action:inmenu", "Open a Copy of This Window as Administrator"));
+    restartAsAdmin->setToolTip(i18nc("@info:tooltip", "Starts another dolphinCommander as root for this folder; this window stays open."));
+    restartAsAdmin->setIcon(QIcon::fromTheme(QStringLiteral("dialog-password")));
+    actionCollection()->setDefaultShortcut(restartAsAdmin, Qt::CTRL | Qt::SHIFT | Qt::Key_F12);
+    connect(restartAsAdmin, &QAction::triggered, this, [this]() {
+        runAsAdministrator(QCoreApplication::applicationFilePath(), {m_activeViewContainer->url().toString()});
     });
 
     QAction *toggleColumns = actionCollection()->addAction(QStringLiteral("toggle_columns_view"));

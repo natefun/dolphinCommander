@@ -86,6 +86,9 @@
             <Action name="hide_columns_when_narrow" />
             <Action name="keep_running_when_closed" />
             <Action name="names_only" />
+            <Action name="lock_column_resizing" />
+            <Action name="open_terminal_as_administrator" />
+            <Action name="restart_as_administrator" />
             <Action name="center_window" />
             <Action name="reload_theme" />
             <Action name="new_note" />

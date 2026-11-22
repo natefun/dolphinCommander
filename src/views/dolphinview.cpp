@@ -1691,6 +1691,10 @@ void DolphinView::dropUrls(const QUrl &destUrl, QDropEvent *dropEvent, QWidget *
 
     if (job) {
         connect(job, &KIO::DropJob::result, this, &DolphinView::slotJobResult);
+        // A copy or move that a drop starts waits for the ones before it, like a paste does.
+        connect(job, &KIO::DropJob::copyJobStarted, this, [](KIO::CopyJob *copyJob) {
+            JobQueue::add(copyJob);
+        });
 
         if (selectDroppedItems) {
             // Mark the dropped urls as selected.
