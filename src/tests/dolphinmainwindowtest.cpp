@@ -119,6 +119,7 @@ private Q_SLOTS:
     void testTheSelectionModeBarFollowsAViewOfAnotherMode();
     void testTheSecondViewOfASplitReportsARedirectionAsTheFirst();
     void testSynchronizedBrowsingFollowsOnTheOtherSide();
+    void testCompareFoldersSelectsWhatDiffers();
     void cleanupTestCase();
 
 private:
@@ -399,6 +400,51 @@ void DolphinMainWindowTest::testSynchronizedBrowsingFollowsOnTheOtherSide()
     leftContainer->setUrl(url(left.url(), QStringLiteral("onlyleft")));
     QTRY_VERIFY(same(leftContainer, url(left.url(), QStringLiteral("onlyleft"))));
     QVERIFY(same(rightContainer, right.url()));
+}
+
+// Compare Folders selects what only one side has and the newer of two differing files.
+void DolphinMainWindowTest::testCompareFoldersSelectsWhatDiffers()
+{
+    TestDir left;
+    TestDir right;
+    const QDateTime old = QDateTime::currentDateTime().addDays(-2);
+    const QDateTime recent = QDateTime::currentDateTime().addDays(-1);
+    auto write = [](TestDir &dir, const QString &name, const QByteArray &data, const QDateTime &time) {
+        dir.createFile(name, data, time);
+    };
+    write(left, QStringLiteral("same"), "a", old);
+    write(right, QStringLiteral("same"), "a", old);
+    write(left, QStringLiteral("onlyleft"), "a", old);
+    write(right, QStringLiteral("onlyright"), "a", old);
+    write(left, QStringLiteral("newerleft"), "a", recent);
+    write(right, QStringLiteral("newerleft"), "a", old);
+    write(left, QStringLiteral("sizeonly"), "a", old);
+    write(right, QStringLiteral("sizeonly"), "aaa", old);
+
+    m_mainWindow->openDirectories({left.url()}, false);
+    m_mainWindow->show();
+    auto *leftTabs = m_mainWindow->findChild<DolphinTabWidget *>("tabWidget");
+    auto *rightTabs = m_mainWindow->findChild<DolphinTabWidget *>("rightTabWidget");
+    auto *leftContainer = leftTabs->currentTabPage()->activeViewContainer();
+    auto *rightContainer = rightTabs->currentTabPage()->activeViewContainer();
+    rightContainer->setUrl(right.url());
+    QTRY_COMPARE(leftContainer->view()->itemsCount(), 4);
+    QTRY_COMPARE(rightContainer->view()->itemsCount(), 4);
+    leftContainer->setActive(true);
+    QTRY_COMPARE(m_mainWindow->activeViewContainer(), leftContainer);
+
+    m_mainWindow->actionCollection()->action(QStringLiteral("compare_directories"))->trigger();
+
+    auto names = [](DolphinView *view) {
+        QStringList result;
+        for (const KFileItem &item : view->selectedItems()) {
+            result << item.name();
+        }
+        result.sort();
+        return result;
+    };
+    QCOMPARE(names(leftContainer->view()), (QStringList{QStringLiteral("newerleft"), QStringLiteral("onlyleft"), QStringLiteral("sizeonly")}));
+    QCOMPARE(names(rightContainer->view()), (QStringList{QStringLiteral("onlyright"), QStringLiteral("sizeonly")}));
 }
 
 // A tab opened straight onto a search url, as session restore does, shows a search before any

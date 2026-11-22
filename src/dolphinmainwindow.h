@@ -631,6 +631,9 @@ private Q_SLOTS:
      */
     void updateWindowTitle();
 
+    /** Selects what differs between the two sides. */
+    void compareDirectories();
+
     /** Makes the other side follow the active one when synchronized browsing is on. */
     void syncOtherSide(const QUrl &newUrl);
 

@@ -1938,6 +1938,60 @@ void DolphinMainWindow::activeViewChanged(DolphinViewContainer *viewContainer)
     Q_EMIT selectionChanged(m_activeViewContainer->view()->selectedItems());
 }
 
+void DolphinMainWindow::compareDirectories()
+{
+    DolphinTabPage *otherPage = inactiveTabWidget()->currentTabPage();
+    DolphinViewContainer *other = otherPage ? otherPage->activeViewContainer() : nullptr;
+    if (!other || !m_activeViewContainer || other == m_activeViewContainer) {
+        return;
+    }
+    m_sidesSplitter->showBothSides();
+    DolphinView *mine = m_activeViewContainer->view();
+    DolphinView *theirs = other->view();
+
+    QHash<QString, KFileItem> mineByName;
+    QHash<QString, KFileItem> theirsByName;
+    for (const KFileItem &item : mine->items()) {
+        mineByName.insert(item.name(), item);
+    }
+    for (const KFileItem &item : theirs->items()) {
+        theirsByName.insert(item.name(), item);
+    }
+
+    QSet<QString> selectMine;
+    QSet<QString> selectTheirs;
+    for (auto it = mineByName.cbegin(); it != mineByName.cend(); ++it) {
+        const auto match = theirsByName.constFind(it.key());
+        if (match == theirsByName.cend()) {
+            selectMine.insert(it.key());
+            continue;
+        }
+        const KFileItem &a = it.value();
+        const KFileItem &b = match.value();
+        if (a.isDir() || b.isDir()) {
+            continue;
+        }
+        const QDateTime timeA = a.time(KFileItem::ModificationTime);
+        const QDateTime timeB = b.time(KFileItem::ModificationTime);
+        if (timeA != timeB) {
+            (timeA > timeB ? selectMine : selectTheirs).insert(it.key());
+        } else if (a.size() != b.size()) {
+            selectMine.insert(it.key());
+            selectTheirs.insert(it.key());
+        }
+    }
+    for (auto it = theirsByName.cbegin(); it != theirsByName.cend(); ++it) {
+        if (!mineByName.contains(it.key())) {
+            selectTheirs.insert(it.key());
+        }
+    }
+    mine->selectOnlyItemsNamed(selectMine);
+    theirs->selectOnlyItemsNamed(selectTheirs);
+    m_activeViewContainer->showMessage(i18ncp("@info:status", "%1 item selected here, ", "%1 items selected here, ", selectMine.size())
+                                           + i18ncp("@info:status", "%1 on the other side", "%1 on the other side", selectTheirs.size()),
+                                       KMessageWidget::Information);
+}
+
 void DolphinMainWindow::syncOtherSide(const QUrl &newUrl)
 {
     const QUrl previous = m_syncPreviousUrl;
@@ -2199,6 +2253,17 @@ void DolphinMainWindow::setupActions()
     syncBrowsing->setIcon(QIcon::fromTheme(QStringLiteral("view-refresh")));
     syncBrowsing->setCheckable(true);
     actionCollection()->setDefaultShortcut(syncBrowsing, Qt::CTRL | Qt::ALT | Qt::Key_S);
+
+    QAction *compareDirectories = actionCollection()->addAction(QStringLiteral("compare_directories"));
+    compareDirectories->setText(i18nc("@action:inmenu", "Compare Folders"));
+    compareDirectories->setToolTip(i18nc("@info:tooltip", "Select what differs between the two sides."));
+    compareDirectories->setWhatsThis(xi18nc("@info:whatsthis",
+                                            "This selects the items that only one side has, and of the items "
+                                            "that both sides have the newer one if they differ in modification time "
+                                            "(both if only their size differs). Folders are compared by name only."));
+    compareDirectories->setIcon(QIcon::fromTheme(QStringLiteral("document-edit-decrypt")));
+    actionCollection()->setDefaultShortcut(compareDirectories, Qt::CTRL | Qt::SHIFT | Qt::Key_F2);
+    connect(compareDirectories, &QAction::triggered, this, &DolphinMainWindow::compareDirectories);
 
     QAction *showFilterBar = actionCollection()->addAction(QStringLiteral("show_filter_bar"));
     showFilterBar->setText(i18nc("@action:inmenu Tools", "Filter…"));

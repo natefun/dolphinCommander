@@ -525,6 +525,17 @@ void DolphinView::selectItems(const QRegularExpression &regexp, bool enabled)
     }
 }
 
+void DolphinView::selectOnlyItemsNamed(const QSet<QString> &names)
+{
+    clearSelection();
+    KItemListSelectionManager *selectionManager = m_container->controller()->selectionManager();
+    for (int index = 0; index < m_model->count(); index++) {
+        if (names.contains(m_model->fileItem(index).name())) {
+            selectionManager->setSelected(index, 1, KItemListSelectionManager::Select);
+        }
+    }
+}
+
 void DolphinView::setZoomLevel(int level)
 {
     if (m_defaultZoomLevel < 0) {

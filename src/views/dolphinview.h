@@ -211,6 +211,9 @@ public:
      */
     void selectItems(const QRegularExpression &regexp, bool enabled);
 
+    /** Selects exactly the items with these names and nothing else. */
+    void selectOnlyItemsNamed(const QSet<QString> &names);
+
     /**
      * Sets the zoom level to \a level. It is assured that the used
      * level is adjusted to be inside the range ZoomLevelInfo::minimumLevel() and
