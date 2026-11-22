@@ -2309,15 +2309,29 @@ void DolphinMainWindow::applyFileView(const QString &name)
     } else if (name.startsWith(QLatin1String("saved:"))) {
         const KConfigGroup saved(KSharedConfig::openConfig(), QStringLiteral("Commander FileViews"));
         const QStringList parts = saved.readEntry(name.mid(6), QStringList());
-        // mode action, previews (0 or 1), then the roles
+        // mode action, previews (0 or 1), the widths of the columns as "W=" and numbers, then the roles
         if (parts.size() >= 3) {
             trigger(parts.at(0).toLatin1().constData());
             view->setPreviewsShown(parts.at(1) == QLatin1String("1"));
             QList<QByteArray> roles;
-            for (const QString &role : parts.mid(2)) {
-                roles << role.toLatin1();
+            QList<int> widths;
+            for (const QString &part : parts.mid(2)) {
+                if (part.startsWith(QLatin1String("W="))) {
+                    for (const QString &width : part.mid(2).split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+                        widths << width.toInt();
+                    }
+                } else {
+                    roles << part.toLatin1();
+                }
             }
             view->setVisibleRoles(roles);
+            // The widths only count when there is one for each column that is shown.
+            if (widths.count() == roles.count() && view->url().isLocalFile()) {
+                ViewProperties props(view->url());
+                props.setHeaderColumnWidths(widths);
+                props.save();
+                view->readSettings();
+            }
         }
     } else if (name == QLatin1String("thumbs-details")) {
         trigger("details");
@@ -2343,6 +2357,11 @@ void DolphinMainWindow::saveFileView()
         modeAction = QStringLiteral("compact");
     }
     QStringList entry{modeAction, view->previewsShown() ? QStringLiteral("1") : QStringLiteral("0")};
+    QStringList widths;
+    for (const int width : ViewProperties(view->url()).headerColumnWidths()) {
+        widths << QString::number(width);
+    }
+    entry << QLatin1String("W=") + widths.join(QLatin1Char(','));
     for (const QByteArray &role : view->visibleRoles()) {
         entry << QString::fromLatin1(role);
     }
@@ -3082,7 +3101,8 @@ void DolphinMainWindow::setupActions()
     }
 
     {
-        auto *saveViewAction = new QAction(i18nc("@action:inmenu", "Save Current View As…"), fileViewsMenu);
+        auto *saveViewAction = actionCollection()->addAction(QStringLiteral("save_file_view"));
+        saveViewAction->setText(i18nc("@action:inmenu", "Save Current View As…"));
         connect(saveViewAction, &QAction::triggered, this, &DolphinMainWindow::saveFileView);
         fileViewsMenu->addSeparator();
         fileViewsMenu->addAction(saveViewAction);

@@ -26,6 +26,7 @@
 #include "views/dolphincolumnsview.h"
 #include "views/dolphinview.h"
 #include "views/viewheader.h"
+#include "views/viewproperties.h"
 
 #include <KActionCollection>
 #include <KActionMenu>
@@ -88,6 +89,7 @@ private Q_SLOTS:
     void testAToDoIsCheckedOffByClickingItsCheckbox();
     void testTheColorThemesRecolorTheProgram();
     void testItemScrollingStepsByRows();
+    void testASavedFileViewKeepsTheColumnWidths();
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
@@ -1055,6 +1057,68 @@ void DolphinCommanderFeaturesTest::testItemScrollingStepsByRows()
     KItemListView::setItemScrolling(false);
     QCOMPARE(ofRow, view->itemSize().height());
     QVERIFY(ofRow != ofText);
+}
+
+void DolphinCommanderFeaturesTest::testASavedFileViewKeepsTheColumnWidths()
+{
+    TestDir dir;
+    dir.createFile("x");
+    QTimer answerer;
+    answerer.setInterval(100);
+    connect(&answerer, &QTimer::timeout, this, [&]() {
+        if (auto *input = qobject_cast<QInputDialog *>(QApplication::activeModalWidget())) {
+            input->setTextValue(QStringLiteral("wide names"));
+            input->accept();
+        } else if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    answerer.start();
+    DolphinMainWindow window;
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    KActionCollection *actions = window.actionCollection();
+    window.openDirectories({dir.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    QTRY_COMPARE(window.activeViewContainer()->view()->itemsCount(), 1);
+    // Reading the settings again would bring back the setting of the whole program for the view properties.
+    GeneralSettings::setGlobalViewProps(false);
+
+    const int columns = window.activeViewContainer()->view()->visibleRoles().count();
+    QVERIFY(columns >= 2);
+    QList<int> wide;
+    for (int i = 0; i < columns; ++i) {
+        wide << 420 - i * 60;
+    }
+    {
+        ViewProperties props(dir.url());
+        props.setViewMode(DolphinView::DetailsView);
+        props.setHeaderColumnWidths(wide);
+        props.save();
+    }
+    QCOMPARE(ViewProperties(dir.url()).headerColumnWidths(), wide);
+    actions->action(QStringLiteral("save_file_view"))->trigger();
+
+    // Another set of widths is replaced by the saved view.
+    {
+        ViewProperties props(dir.url());
+        props.setHeaderColumnWidths(QList<int>(columns, 100));
+        props.save();
+    }
+    auto *fileViews = qobject_cast<KActionMenu *>(actions->action(QStringLiteral("file_views")));
+    QVERIFY(fileViews);
+    Q_EMIT fileViews->menu()->aboutToShow();
+    QAction *saved = nullptr;
+    for (QAction *action : fileViews->menu()->actions()) {
+        if (action->text() == QStringLiteral("wide names")) {
+            saved = action;
+        }
+    }
+    QVERIFY(saved);
+    saved->trigger();
+    GeneralSettings::setGlobalViewProps(false);
+    QCOMPARE(ViewProperties(dir.url()).headerColumnWidths(), wide);
+    answerer.stop();
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()
