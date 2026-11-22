@@ -2313,6 +2313,17 @@ void DolphinMainWindow::pasteClipboardAsFile()
     m_activeViewContainer->view()->markUrlsAsSelected({QUrl::fromLocalFile(path)});
 }
 
+void DolphinMainWindow::newTabFromClipboard()
+{
+    const QString text = QApplication::clipboard()->text().trimmed();
+    const QUrl url = text.startsWith(QLatin1Char('/')) ? QUrl::fromLocalFile(text) : QUrl::fromUserInput(text);
+    if (text.isEmpty() || !url.isValid()) {
+        m_activeViewContainer->showMessage(i18nc("@info", "The clipboard has no folder path."), KMessageWidget::Information);
+        return;
+    }
+    openNewTab(url);
+}
+
 void DolphinMainWindow::newNote()
 {
     const QUrl folder = m_activeViewContainer->url();
@@ -3022,6 +3033,12 @@ void DolphinMainWindow::setupActions()
     pasteAsFile->setIcon(QIcon::fromTheme(QStringLiteral("edit-paste")));
     actionCollection()->setDefaultShortcut(pasteAsFile, Qt::CTRL | Qt::ALT | Qt::Key_V);
     connect(pasteAsFile, &QAction::triggered, this, &DolphinMainWindow::pasteClipboardAsFile);
+
+    QAction *tabFromClipboard = actionCollection()->addAction(QStringLiteral("new_tab_from_clipboard"));
+    tabFromClipboard->setText(i18nc("@action:inmenu", "New Tab from Clipboard Path"));
+    tabFromClipboard->setIcon(QIcon::fromTheme(QStringLiteral("tab-new")));
+    actionCollection()->setDefaultShortcut(tabFromClipboard, Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_T);
+    connect(tabFromClipboard, &QAction::triggered, this, &DolphinMainWindow::newTabFromClipboard);
 
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));

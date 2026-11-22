@@ -75,6 +75,7 @@
             <Action name="commander_layouts" />
             <Action name="file_views" />
             <Action name="paste_clipboard_as_file" />
+            <Action name="new_tab_from_clipboard" />
             <Action name="new_note" />
             <Action name="new_todo" />
             <Action name="toggle_todo_done" />

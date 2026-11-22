@@ -34,4 +34,4 @@ a delete key for the trash and permanent delete.
 - PowerShell/Python script handling, Ctrl+Shift+Enter launch arguments
 - Notes and To-Dos shown in the name column, with a checkbox
 - Shift+` notifications pane, backtick toggle between breadcrumb and columns
-- Alt+middle-click to move a tab to the other side, Ctrl+Shift+T new tab from the clipboard path
+- Alt+middle-click to move a tab to the other side
