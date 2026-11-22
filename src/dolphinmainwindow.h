@@ -631,6 +631,9 @@ private Q_SLOTS:
      */
     void updateWindowTitle();
 
+    /** Makes the other side follow the active one when synchronized browsing is on. */
+    void syncOtherSide(const QUrl &newUrl);
+
     /**
      * This slot is called when the user requested to unmount a removable media
      * from the places menu
@@ -801,6 +804,7 @@ private:
 
     /** The tab widget of the side that is currently active. It is always either #m_leftTabs or #m_rightTabs. */
     DolphinTabWidget *m_tabWidget;
+    QUrl m_syncPreviousUrl; // the active view's url before its last change, for synchronized browsing
     SidesSplitter *m_sidesSplitter = nullptr;
     DolphinTabWidget *m_leftTabs = nullptr;
     DolphinTabWidget *m_rightTabs = nullptr;

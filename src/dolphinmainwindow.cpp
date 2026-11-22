@@ -50,6 +50,7 @@
 #include <KDualAction>
 #include <KFileItemListProperties>
 #include <KIO/CommandLauncherJob>
+#include <KIO/Global>
 #include <KIO/JobUiDelegateFactory>
 #include <KIO/OpenFileManagerWindowJob>
 #include <KIO/OpenUrlJob>
@@ -87,6 +88,7 @@
 #include <QLineEdit>
 #include <QMenuBar>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScopeGuard>
 #include <QSharedPointer>
 #include <QShowEvent>
@@ -1885,6 +1887,7 @@ void DolphinMainWindow::activeViewChanged(DolphinViewContainer *viewContainer)
     Q_ASSERT(viewContainer);
 
     m_activeViewContainer = viewContainer;
+    m_syncPreviousUrl = viewContainer->url();
 
     if (oldViewContainer) {
         // Disconnect all signals between the old view container (container,
@@ -1933,6 +1936,51 @@ void DolphinMainWindow::activeViewChanged(DolphinViewContainer *viewContainer)
     const QUrl url = viewContainer->url();
     Q_EMIT urlChanged(url);
     Q_EMIT selectionChanged(m_activeViewContainer->view()->selectedItems());
+}
+
+void DolphinMainWindow::syncOtherSide(const QUrl &newUrl)
+{
+    const QUrl previous = m_syncPreviousUrl;
+    m_syncPreviousUrl = newUrl;
+    QAction *syncAction = actionCollection()->action(QStringLiteral("sync_browsing"));
+    if (!syncAction || !syncAction->isChecked() || !previous.isValid() || !m_activeViewContainer) {
+        return;
+    }
+    DolphinTabPage *otherPage = inactiveTabWidget()->currentTabPage();
+    DolphinViewContainer *other = otherPage ? otherPage->activeViewContainer() : nullptr;
+    if (!other || other == m_activeViewContainer) {
+        return;
+    }
+    QUrl from = previous.adjusted(QUrl::StripTrailingSlash);
+    QUrl to = newUrl.adjusted(QUrl::StripTrailingSlash);
+    QUrl target;
+    if (from.isParentOf(to)) {
+        // Entered a folder: enter the folder of the same name on the other side, if there is one.
+        const QString relative = to.path().mid(from.path().size()).remove(QRegularExpression(QStringLiteral("^/+")));
+        target = other->url().adjusted(QUrl::StripTrailingSlash);
+        target.setPath(target.path() + QLatin1Char('/') + relative);
+        if (target.isLocalFile() && !QFileInfo(target.toLocalFile()).isDir()) {
+            return;
+        }
+    } else if (to.isParentOf(from)) {
+        // Went up some levels: go up as many levels on the other side.
+        const int levels = from.path().split(QLatin1Char('/'), Qt::SkipEmptyParts).size() - to.path().split(QLatin1Char('/'), Qt::SkipEmptyParts).size();
+        target = other->url();
+        for (int i = 0; i < levels; ++i) {
+            target = KIO::upUrl(target);
+        }
+    } else {
+        return;
+    }
+    if (target != other->url()) {
+        // Following must not take the focus: the side that is browsed stays the active one.
+        QPointer<DolphinViewContainer> driver = m_activeViewContainer;
+        other->setUrl(target);
+        if (driver && m_activeViewContainer != driver) {
+            driver->setActive(true);
+            driver->view()->setFocus();
+        }
+    }
 }
 
 void DolphinMainWindow::tabCountChanged(int count)
@@ -2144,6 +2192,13 @@ void DolphinMainWindow::setupActions()
         m_sidesSplitter->showBothSides();
         activateSide(inactiveTabWidget());
     });
+
+    QAction *syncBrowsing = actionCollection()->addAction(QStringLiteral("sync_browsing"));
+    syncBrowsing->setText(i18nc("@action:inmenu", "Synchronized Browsing"));
+    syncBrowsing->setToolTip(i18nc("@info:tooltip", "Make the other side follow when you enter a folder or go up."));
+    syncBrowsing->setIcon(QIcon::fromTheme(QStringLiteral("view-refresh")));
+    syncBrowsing->setCheckable(true);
+    actionCollection()->setDefaultShortcut(syncBrowsing, Qt::CTRL | Qt::ALT | Qt::Key_S);
 
     QAction *showFilterBar = actionCollection()->addAction(QStringLiteral("show_filter_bar"));
     showFilterBar->setText(i18nc("@action:inmenu Tools", "Filter…"));
@@ -3045,6 +3100,7 @@ void DolphinMainWindow::connectViewSignals(DolphinViewContainer *container)
     connect(view, &DolphinView::goBackRequested, this, &DolphinMainWindow::goBack);
     connect(view, &DolphinView::goForwardRequested, this, &DolphinMainWindow::goForward);
     connect(view, &DolphinView::urlActivated, this, &DolphinMainWindow::handleUrl);
+    connect(view, &DolphinView::urlChanged, this, &DolphinMainWindow::syncOtherSide);
     connect(view, &DolphinView::goUpRequested, this, &DolphinMainWindow::goUp);
     connect(view, &DolphinView::doubleClickViewBackground, this, &DolphinMainWindow::slotDoubleClickViewBackground);
     connect(view, &DolphinView::clickViewBackground, this, &DolphinMainWindow::slotClickViewBackground);

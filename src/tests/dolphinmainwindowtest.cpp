@@ -118,6 +118,7 @@ private Q_SLOTS:
     void testARestoredTabReopensItsColumnsWithAModePerFolder();
     void testTheSelectionModeBarFollowsAViewOfAnotherMode();
     void testTheSecondViewOfASplitReportsARedirectionAsTheFirst();
+    void testSynchronizedBrowsingFollowsOnTheOtherSide();
     void cleanupTestCase();
 
 private:
@@ -339,6 +340,65 @@ void DolphinMainWindowTest::testLeavingASearchRestoresTheFolderViewProperties()
 
     QTRY_COMPARE(container->url(), folderUrl);
     QCOMPARE(container->view()->viewPropertiesContext(), QString());
+}
+
+// With synchronized browsing on, entering a folder or going up on the active side does the same on
+// the other side, where that is possible.
+void DolphinMainWindowTest::testSynchronizedBrowsingFollowsOnTheOtherSide()
+{
+    TestDir left;
+    TestDir right;
+    left.createDir("sub/deeper");
+    right.createDir("sub/deeper");
+    right.createDir("only");
+    left.createDir("onlyleft");
+
+    m_mainWindow->openDirectories({left.url()}, false);
+    m_mainWindow->show();
+    auto *leftTabs = m_mainWindow->findChild<DolphinTabWidget *>("tabWidget");
+    auto *rightTabs = m_mainWindow->findChild<DolphinTabWidget *>("rightTabWidget");
+    QVERIFY(leftTabs);
+    QVERIFY(rightTabs);
+    auto *leftContainer = leftTabs->currentTabPage()->activeViewContainer();
+    auto *rightContainer = rightTabs->currentTabPage()->activeViewContainer();
+    QVERIFY(leftContainer);
+    QVERIFY(rightContainer);
+    rightContainer->setUrl(right.url());
+    QTRY_COMPARE(rightContainer->url().adjusted(QUrl::StripTrailingSlash), right.url().adjusted(QUrl::StripTrailingSlash));
+    // Drive from the left side whichever side the window made active.
+    leftContainer->setActive(true);
+    QTRY_COMPARE(m_mainWindow->activeViewContainer(), leftContainer);
+
+    auto url = [](const QUrl &base, const QString &sub) {
+        return QUrl::fromLocalFile(base.toLocalFile() + QLatin1Char('/') + sub);
+    };
+    auto same = [](DolphinViewContainer *c, const QUrl &u) {
+        return c->url().adjusted(QUrl::StripTrailingSlash) == u.adjusted(QUrl::StripTrailingSlash);
+    };
+
+    // Off: the other side stays where it is.
+    leftContainer->setUrl(url(left.url(), QStringLiteral("sub")));
+    QTRY_VERIFY(same(leftContainer, url(left.url(), QStringLiteral("sub"))));
+    QVERIFY(same(rightContainer, right.url()));
+    leftContainer->setUrl(left.url());
+    QTRY_VERIFY(same(leftContainer, left.url()));
+
+    m_mainWindow->actionCollection()->action(QStringLiteral("sync_browsing"))->setChecked(true);
+
+    // On: entering a folder enters the one of the same name.
+    leftContainer->setUrl(url(left.url(), QStringLiteral("sub")));
+    QTRY_VERIFY(same(rightContainer, url(right.url(), QStringLiteral("sub"))));
+    leftContainer->setUrl(url(left.url(), QStringLiteral("sub/deeper")));
+    QTRY_VERIFY(same(rightContainer, url(right.url(), QStringLiteral("sub/deeper"))));
+
+    // Going up two levels goes up two levels.
+    leftContainer->setUrl(left.url());
+    QTRY_VERIFY(same(rightContainer, right.url()));
+
+    // A folder the other side does not have leaves it where it is.
+    leftContainer->setUrl(url(left.url(), QStringLiteral("onlyleft")));
+    QTRY_VERIFY(same(leftContainer, url(left.url(), QStringLiteral("onlyleft"))));
+    QVERIFY(same(rightContainer, right.url()));
 }
 
 // A tab opened straight onto a search url, as session restore does, shows a search before any
