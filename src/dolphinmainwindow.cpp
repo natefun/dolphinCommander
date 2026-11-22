@@ -2011,6 +2011,18 @@ void DolphinMainWindow::swapSides()
     other->setUrl(mine);
 }
 
+void DolphinMainWindow::showDuplicateFinder()
+{
+    const QUrl url = m_activeViewContainer->url();
+    if (!url.isLocalFile()) {
+        m_activeViewContainer->showMessage(i18nc("@info", "Duplicates can only be found in folders on this computer."), KMessageWidget::Information);
+        return;
+    }
+    auto *dialog = new DuplicateFinderDialog(url.toLocalFile(), this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->show();
+}
+
 void DolphinMainWindow::showBatchRename()
 {
     const KFileItemList items = m_activeViewContainer->view()->selectedItems();
@@ -2497,6 +2509,12 @@ void DolphinMainWindow::setupActions()
     swap->setIcon(QIcon::fromTheme(QStringLiteral("exchange-positions")));
     actionCollection()->setDefaultShortcut(swap, Qt::CTRL | Qt::ALT | Qt::Key_X);
     connect(swap, &QAction::triggered, this, &DolphinMainWindow::swapSides);
+
+    QAction *duplicates = actionCollection()->addAction(QStringLiteral("find_duplicates"));
+    duplicates->setText(i18nc("@action:inmenu", "Find Duplicate Files…"));
+    duplicates->setToolTip(i18nc("@info:tooltip", "Find files with the same content in this folder and below."));
+    duplicates->setIcon(QIcon::fromTheme(QStringLiteral("edit-duplicate")));
+    connect(duplicates, &QAction::triggered, this, &DolphinMainWindow::showDuplicateFinder);
 
     QAction *batchRename = actionCollection()->addAction(QStringLiteral("batch_rename"));
     batchRename->setText(i18nc("@action:inmenu", "Rename by Pattern…"));

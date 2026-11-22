@@ -636,6 +636,7 @@ private Q_SLOTS:
     void showFolderHotlist();
     void showChecksum();
     void showBatchRename();
+    void showDuplicateFinder();
     /** Asks for a wildcard pattern and (de)selects the matching items of the active view. */
     void selectByPattern(bool select);
     /** Makes the other side show this folder (mirror), or swaps the folders of the two sides. */

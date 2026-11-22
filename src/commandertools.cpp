@@ -11,11 +11,15 @@
 #include <KIO/PreviewJob>
 #include <KLocalizedString>
 
+#include <KIO/FileUndoManager>
 #include <QDialogButtonBox>
+#include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QFont>
 #include <QFontDatabase>
+#include <QFutureWatcher>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
@@ -27,6 +31,8 @@
 #include <QSet>
 #include <QTableWidget>
 #include <QThread>
+#include <QTreeWidget>
+#include <QTreeWidgetItemIterator>
 #include <QVBoxLayout>
 #include <QtConcurrent>
 
@@ -82,6 +88,101 @@ bool CommanderTools::checksumsMatch(const QString &a, const QString &b)
         return s.simplified().remove(QLatin1Char(' ')).toLower();
     };
     return !clean(a).isEmpty() && clean(a) == clean(b);
+}
+
+QList<QStringList> CommanderTools::findDuplicates(const QString &folder)
+{
+    QHash<qint64, QStringList> bySize;
+    QDirIterator it(folder, QDir::Files | QDir::NoSymLinks | QDir::Hidden, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        const QString path = it.next();
+        const qint64 size = it.fileInfo().size();
+        if (size > 0) {
+            bySize[size].append(path);
+        }
+    }
+    QList<QStringList> groups;
+    for (const QStringList &sameSize : std::as_const(bySize)) {
+        if (sameSize.size() < 2) {
+            continue;
+        }
+        QHash<QString, QStringList> byHash;
+        for (const QString &path : sameSize) {
+            const QString hash = hashFile(path, QCryptographicHash::Sha256);
+            if (!hash.isEmpty()) {
+                byHash[hash].append(path);
+            }
+        }
+        for (QStringList group : std::as_const(byHash)) {
+            if (group.size() > 1) {
+                group.sort();
+                groups.append(group);
+            }
+        }
+    }
+    std::sort(groups.begin(), groups.end(), [](const QStringList &a, const QStringList &b) {
+        return a.first() < b.first();
+    });
+    return groups;
+}
+
+DuplicateFinderDialog::DuplicateFinderDialog(const QString &folder, QWidget *parent)
+    : QDialog(parent)
+{
+    setWindowTitle(i18nc("@title:window", "Duplicate Files in %1", folder));
+    resize(700, 450);
+    auto *layout = new QVBoxLayout(this);
+    auto *status = new QLabel(i18nc("@info:status", "Searching…"), this);
+    layout->addWidget(status);
+    auto *tree = new QTreeWidget(this);
+    tree->setHeaderHidden(true);
+    layout->addWidget(tree);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
+    auto *trash = buttons->addButton(i18nc("@action:button", "Move Ticked to Trash"), QDialogButtonBox::ActionRole);
+    trash->setEnabled(false);
+    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    auto *watcher = new QFutureWatcher<QList<QStringList>>(this);
+    connect(watcher, &QFutureWatcherBase::finished, this, [=]() {
+        const QList<QStringList> groups = watcher->result();
+        status->setText(i18ncp("@info:status", "%1 group of identical files", "%1 groups of identical files", groups.size()));
+        for (const QStringList &group : groups) {
+            auto *parentItem =
+                new QTreeWidgetItem(tree, {i18ncp("@item", "%1 copy of %2", "%1 copies of %2", group.size(), QFileInfo(group.first()).fileName())});
+            for (int i = 0; i < group.size(); ++i) {
+                auto *child = new QTreeWidgetItem(parentItem, {group.at(i)});
+                child->setFlags(child->flags() | Qt::ItemIsUserCheckable);
+                // The first copy is the one to keep: nothing is ticked for it.
+                child->setCheckState(0, Qt::Unchecked);
+            }
+            parentItem->setExpanded(true);
+        }
+        trash->setEnabled(!groups.isEmpty());
+    });
+    watcher->setFuture(QtConcurrent::run(&CommanderTools::findDuplicates, folder));
+
+    connect(trash, &QPushButton::clicked, this, [=, this]() {
+        QList<QUrl> urls;
+        for (QTreeWidgetItemIterator iter(tree); *iter; ++iter) {
+            if ((*iter)->parent() && (*iter)->checkState(0) == Qt::Checked) {
+                urls.append(QUrl::fromLocalFile((*iter)->text(0)));
+            }
+        }
+        if (urls.isEmpty()) {
+            return;
+        }
+        auto *job = KIO::trash(urls);
+        connect(job, &KJob::result, this, [=]() {
+            for (QTreeWidgetItemIterator iter(tree); *iter;) {
+                QTreeWidgetItem *item = *iter;
+                ++iter;
+                if (item->parent() && item->checkState(0) == Qt::Checked) {
+                    delete item;
+                }
+            }
+        });
+    });
 }
 
 ChecksumDialog::ChecksumDialog(const KFileItem &item, QWidget *parent)

@@ -49,6 +49,7 @@ private Q_SLOTS:
     void testRenamePatterns_data();
     void testRenamePatterns();
     void testChecksums();
+    void testFindDuplicates();
 
 private:
     void waitForViewReady(DolphinViewContainer *container);
@@ -267,6 +268,22 @@ void DolphinCommanderFeaturesTest::testChecksums()
     QVERIFY(CommanderTools::checksumsMatch(QStringLiteral("  900150983CD24FB0D6963F7D28E17F72\n"), QStringLiteral("900150983cd24fb0d6963f7d28e17f72")));
     QVERIFY(!CommanderTools::checksumsMatch(QString(), QString()));
     QVERIFY(!CommanderTools::checksumsMatch(QStringLiteral("aa"), QStringLiteral("ab")));
+}
+
+void DolphinCommanderFeaturesTest::testFindDuplicates()
+{
+    TestDir dir;
+    dir.createFile("a", "same");
+    dir.createFile("sub/b", "same");
+    dir.createFile("c", "diff");
+    dir.createFile("d", "sam3");
+    dir.createFile("e", "");
+    dir.createFile("f", "");
+    const QList<QStringList> groups = CommanderTools::findDuplicates(dir.path());
+    QCOMPARE(groups.size(), 1);
+    QCOMPARE(groups.first().size(), 2);
+    QVERIFY(groups.first().first().endsWith(QStringLiteral("/a")));
+    QVERIFY(groups.first().last().endsWith(QStringLiteral("/sub/b")));
 }
 
 void DolphinCommanderFeaturesTest::testATabDroppedAmongPinnedTabsGoesAfterThem()

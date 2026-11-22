@@ -10,6 +10,8 @@
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDialog>
+#include <QList>
+#include <QStringList>
 #include <QUrl>
 
 class FilePreviewWidget;
@@ -36,7 +38,18 @@ QString hashFile(const QString &path, QCryptographicHash::Algorithm algorithm);
 
 /** True when two hex digests are the same, ignoring case and the whitespace a pasted one brings. */
 bool checksumsMatch(const QString &a, const QString &b);
+
+/** Groups of files below @p folder (recursively, without symlinks) that have the same content. Empty files are ignored. */
+QList<QStringList> findDuplicates(const QString &folder);
 }
+
+/** Lists the duplicates below a folder and moves the ticked ones to the trash. */
+class DuplicateFinderDialog : public QDialog
+{
+    Q_OBJECT
+public:
+    DuplicateFinderDialog(const QString &folder, QWidget *parent);
+};
 
 /** Shows MD5, SHA-1 and SHA-256 of a file and checks them against a checksum that is pasted in. */
 class ChecksumDialog : public QDialog
