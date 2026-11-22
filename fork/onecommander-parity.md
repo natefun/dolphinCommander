@@ -28,7 +28,8 @@ a delete key for the trash and permanent delete, Ctrl+Space to toggle the select
 (OneCommander's "hide temporary files").
 
 ## Not done
-- File View Designer (column order, widths, which columns hide when narrow)
+- File View Designer: only partly. Dolphin's Details header already picks and orders the columns and File Views > Save Current
+  View As keeps them under a name; what is missing is column widths and "hide when narrow"
 - XAML themes, custom folder icons
 - Copy and move queue
 - Ctrl+click in a parent column to add to the selection
