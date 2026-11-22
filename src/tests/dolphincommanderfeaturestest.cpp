@@ -30,6 +30,7 @@
 
 #include <KIO/CopyJob>
 #include <QApplication>
+#include <QClipboard>
 #include <QDir>
 #include <QFile>
 #include <QHBoxLayout>
@@ -37,6 +38,7 @@
 #include <QMimeData>
 #include <QSignalSpy>
 #include <QStandardPaths>
+#include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
 #include <QToolButton>
@@ -69,6 +71,7 @@ private Q_SLOTS:
     void testTheOtherSideCanBeUpdated();
     void testNotesAndColorLabelsAreMadeFromTheMenus();
     void testToDosFileViewsAndLayoutsWork();
+    void testThePasteAndQueueActionsWork();
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
@@ -718,6 +721,54 @@ void DolphinCommanderFeaturesTest::testToDosFileViewsAndLayoutsWork()
     QVERIFY(!infoPanel || !infoPanel->isChecked());
     layoutActions.at(1)->trigger(); // Columns
     QTRY_VERIFY(qobject_cast<DolphinColumnsView *>(window.activeViewContainer()->view()));
+}
+
+void DolphinCommanderFeaturesTest::testThePasteAndQueueActionsWork()
+{
+    TestDir dir;
+    dir.createFile("keep");
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    KActionCollection *actions = window.actionCollection();
+    window.openDirectories({dir.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    QTRY_COMPARE(window.activeViewContainer()->view()->itemsCount(), 1);
+
+    // Paste Clipboard as File makes a dated .txt of the text that was copied.
+    QApplication::clipboard()->setText(QStringLiteral("remember this"));
+    actions->action(QStringLiteral("paste_clipboard_as_file"))->trigger();
+    const QStringList made = QDir(dir.path()).entryList({QStringLiteral("*.txt")});
+    QCOMPARE(made.size(), 1);
+    QFile file(dir.path() + QLatin1Char('/') + made.first());
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QCOMPARE(file.readAll(), QByteArray("remember this"));
+
+    // The queue switch turns JobQueue on and off.
+    QAction *queue = actions->action(QStringLiteral("queue_jobs"));
+    QVERIFY(queue->isCheckable());
+    queue->setChecked(false);
+    QVERIFY(!JobQueue::isEnabled());
+    queue->setChecked(true);
+    QVERIFY(JobQueue::isEnabled());
+
+    // New Tab from Clipboard Path opens a tab for the folder on the clipboard.
+    QTemporaryDir other;
+    QVERIFY(other.isValid());
+    const int tabsBefore = window.findChildren<DolphinTabWidget *>().first()->count() + window.findChildren<DolphinTabWidget *>().last()->count();
+    QApplication::clipboard()->setText(other.path());
+    actions->action(QStringLiteral("new_tab_from_clipboard"))->trigger();
+    const int tabsAfter = window.findChildren<DolphinTabWidget *>().first()->count() + window.findChildren<DolphinTabWidget *>().last()->count();
+    QCOMPARE(tabsAfter, tabsBefore + 1);
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()
