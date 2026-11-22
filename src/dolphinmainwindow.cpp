@@ -77,6 +77,9 @@
 #include <KUrlNavigator>
 #include <KWindowSystem>
 #include <KXMLGUIFactory>
+#include <QDateTime>
+#include <QDir>
+#include <QFile>
 #include <QPixmap>
 
 #include <kwidgetsaddons_version.h>
@@ -2094,6 +2097,51 @@ void DolphinMainWindow::syncToOtherSide()
                                        KMessageWidget::Information);
 }
 
+void DolphinMainWindow::newNote()
+{
+    const QUrl folder = m_activeViewContainer->url();
+    if (!folder.isLocalFile()) {
+        m_activeViewContainer->showMessage(i18nc("@info", "Notes can only be made in folders on this computer."), KMessageWidget::Information);
+        return;
+    }
+    const QString base = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH.mm")) + QLatin1String(" note");
+    QString path = folder.toLocalFile() + QLatin1Char('/') + base + QLatin1String(".txt");
+    for (int i = 2; QFile::exists(path); ++i) {
+        path = folder.toLocalFile() + QLatin1Char('/') + base + QLatin1Char(' ') + QString::number(i) + QLatin1String(".txt");
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        m_activeViewContainer->showMessage(i18nc("@info", "The note could not be made."), KMessageWidget::Error);
+        return;
+    }
+    file.close();
+    m_activeViewContainer->view()->markUrlsAsSelected({QUrl::fromLocalFile(path)});
+    m_activeViewContainer->view()->renameSelectedItems();
+}
+
+void DolphinMainWindow::fillScriptsMenu(QMenu *menu)
+{
+    menu->clear();
+    const QString dirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QLatin1String("/scripts");
+    const QFileInfoList scripts = QDir(dirPath).entryInfoList(QDir::Files | QDir::Executable, QDir::Name);
+    for (const QFileInfo &script : scripts) {
+        const QString scriptPath = script.absoluteFilePath();
+        menu->addAction(script.completeBaseName(), this, [this, scriptPath]() {
+            QStringList args;
+            const KFileItemList selected = m_activeViewContainer->view()->selectedItems();
+            for (const KFileItem &item : selected) {
+                if (item.isLocalFile()) {
+                    args << item.localPath();
+                }
+            }
+            QProcess::startDetached(scriptPath, args, m_activeViewContainer->url().toLocalFile());
+        });
+    }
+    if (scripts.isEmpty()) {
+        menu->addAction(i18nc("@info:status", "Put executable scripts in %1", dirPath))->setEnabled(false);
+    }
+}
+
 void DolphinMainWindow::showDuplicateFinder()
 {
     const QUrl url = m_activeViewContainer->url();
@@ -2624,6 +2672,20 @@ void DolphinMainWindow::setupActions()
     syncFolders->setIcon(QIcon::fromTheme(QStringLiteral("folder-sync")));
     actionCollection()->setDefaultShortcut(syncFolders, Qt::CTRL | Qt::ALT | Qt::Key_U);
     connect(syncFolders, &QAction::triggered, this, &DolphinMainWindow::syncToOtherSide);
+
+    QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
+    note->setText(i18nc("@action:inmenu", "New Note"));
+    note->setToolTip(i18nc("@info:tooltip", "Make a text file named by the date in this folder."));
+    note->setIcon(QIcon::fromTheme(QStringLiteral("document-new")));
+    actionCollection()->setDefaultShortcut(note, Qt::ALT | Qt::Key_N);
+    connect(note, &QAction::triggered, this, &DolphinMainWindow::newNote);
+
+    auto *scriptsMenu = actionCollection()->add<KActionMenu>(QStringLiteral("scripts_menu"));
+    scriptsMenu->setText(i18nc("@action:inmenu", "Scripts"));
+    scriptsMenu->setIcon(QIcon::fromTheme(QStringLiteral("system-run")));
+    connect(scriptsMenu->menu(), &QMenu::aboutToShow, this, [this, scriptsMenu]() {
+        fillScriptsMenu(scriptsMenu->menu());
+    });
 
     QAction *duplicates = actionCollection()->addAction(QStringLiteral("find_duplicates"));
     duplicates->setText(i18nc("@action:inmenu", "Find Duplicate Files…"));

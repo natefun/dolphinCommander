@@ -639,6 +639,10 @@ private Q_SLOTS:
     void showChecksum();
     void showBatchRename();
     void showDuplicateFinder();
+    /** Makes a text file named by the date in the folder and starts renaming it. */
+    void newNote();
+    /** Fills the Scripts menu with the executables of the scripts folder; they are run with the selection as arguments. */
+    void fillScriptsMenu(QMenu *menu);
     /** Copies what is missing or older on the other side from the active side (one way, no deletions). */
     void syncToOtherSide();
     /** Gives the selected local files the color label (a tag named like the color), or none when empty. */
