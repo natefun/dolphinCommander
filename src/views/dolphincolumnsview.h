@@ -17,6 +17,7 @@
 #include <utility>
 
 class DolphinColumnPane;
+class FilePreviewWidget;
 class QScrollArea;
 class QSplitter;
 class QTimer;
@@ -164,6 +165,7 @@ private:
     void connectActivePane(DolphinColumnPane *newPane);
 
     QScrollArea *m_scrollArea = nullptr;
+    FilePreviewWidget *m_preview = nullptr; // the selected file, on the right of the columns
     QSplitter *m_splitter = nullptr;
     QWidget *m_filler = nullptr;
 

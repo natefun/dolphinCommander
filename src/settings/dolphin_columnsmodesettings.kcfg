@@ -40,5 +40,9 @@
             <label>Adjust column width to its content</label>
             <default>true</default>
         </entry>
+        <entry name="ShowPreview" type="Bool">
+            <label>Show a preview of the selected file</label>
+            <default>true</default>
+        </entry>
     </group>
 </kcfg>

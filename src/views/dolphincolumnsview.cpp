@@ -6,6 +6,7 @@
  */
 
 #include "dolphincolumnsview.h"
+#include "filepreviewwidget.h"
 
 #include "dolphin_columnsmodesettings.h"
 #include "dolphin_generalsettings.h"
@@ -21,6 +22,7 @@
 #include <QApplication>
 #include <QGraphicsSceneDragDropEvent>
 #include <QGuiApplication>
+#include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QResizeEvent>
@@ -93,7 +95,16 @@ void DolphinColumnsView::initColumnsUi()
     m_splitter->handle(0)->installEventFilter(this);
 
     m_scrollArea->setWidget(m_splitter);
-    topLayout()->addWidget(m_scrollArea);
+    // The preview of a selected file sits on the right of the columns, outside what scrolls.
+    auto *columnsRow = new QHBoxLayout();
+    columnsRow->setContentsMargins(0, 0, 0, 0);
+    columnsRow->setSpacing(0);
+    columnsRow->addWidget(m_scrollArea, 1);
+    m_preview = new FilePreviewWidget(this);
+    m_preview->setFixedWidth(260);
+    m_preview->hide();
+    columnsRow->addWidget(m_preview);
+    topLayout()->addLayout(columnsRow);
 
     m_scrollArea->hide();
 
@@ -615,6 +626,8 @@ void DolphinColumnsView::restoreOpenFolders(const QSet<QUrl> &folders, const QUr
 
 void DolphinColumnsView::rebuildColumnsForUrl(const QUrl &url)
 {
+    m_preview->setItem(KFileItem());
+    m_preview->hide();
     // Removing the columns can move the focus out of the view.
     const bool hadFocus = hasFocusInside();
     popAfter(-1);
@@ -1164,8 +1177,14 @@ bool DolphinColumnsView::followItem(int column, const KFileItem &item)
 {
     const QUrl folderUrl = DolphinColumnPane::folderUrlFor(item);
     if (!folderUrl.isEmpty()) {
+        m_preview->setItem(KFileItem());
+        m_preview->hide();
         openChild(column, folderUrl);
         return true;
+    }
+    if (ColumnsModeSettings::self()->showPreview()) {
+        m_preview->setItem(item);
+        m_preview->setVisible(!m_preview->shownName().isEmpty());
     }
     // The columns to the right belong to a folder that is no longer the selected one.
     closeColumnsAfter(column);

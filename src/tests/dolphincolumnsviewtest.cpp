@@ -17,6 +17,7 @@
 #include "testdir.h"
 #include "views/dolphincolumnpane.h"
 #include "views/dolphinitemlistview.h"
+#include "views/filepreviewwidget.h"
 #include "views/viewproperties.h"
 #include "views/zoomlevelinfo.h"
 
@@ -79,6 +80,7 @@ private Q_SLOTS:
     void testColumnCountAfterNavigation();
     void testPopAfterNavigation();
 
+    void testThePreviewShowsTheSelectedFile();
     void testKeyRight_opensChild();
     void testKeyRight_fileDoesNotOpen();
     void testKeyLeft_activatesParent();
@@ -275,6 +277,8 @@ void DolphinColumnsViewTest::resetSettings()
         settings->setDefaults();
         settings->save();
     }
+    // The preview takes room from the columns, which the tests measure. testThePreviewShowsTheSelectedFile turns it on.
+    ColumnsModeSettings::self()->setShowPreview(false);
     // A sort or group role set on the view is saved to the global view properties.
     QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/view_properties")).removeRecursively();
 }
@@ -398,6 +402,22 @@ void DolphinColumnsViewTest::testPopAfterNavigation()
 
     navigateLeft();
     QCOMPARE(m_view->activeColumnIndex(), 0);
+}
+
+void DolphinColumnsViewTest::testThePreviewShowsTheSelectedFile()
+{
+    ColumnsModeSettings::self()->setShowPreview(true);
+    QVERIFY(m_view->m_preview->isHidden());
+
+    activateColumn(0);
+    selectItemInColumn(0, QStringLiteral("single-file.txt"));
+    QTRY_COMPARE(m_view->m_preview->shownName(), QStringLiteral("single-file.txt"));
+    QVERIFY(!m_view->m_preview->isHidden());
+
+    // A folder has no preview.
+    selectItemInColumn(0, QStringLiteral("alpha"));
+    QTRY_VERIFY(m_view->m_preview->isHidden());
+    QCOMPARE(m_view->m_preview->shownName(), QString());
 }
 
 void DolphinColumnsViewTest::testKeyRight_opensChild()

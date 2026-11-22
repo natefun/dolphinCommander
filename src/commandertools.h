@@ -12,6 +12,7 @@
 #include <QDialog>
 #include <QUrl>
 
+class FilePreviewWidget;
 class QLabel;
 class QLineEdit;
 class QPlainTextEdit;
@@ -81,9 +82,7 @@ public:
     void show(const KFileItem &item);
 
 private:
-    QLabel *m_title;
-    QLabel *m_image;
-    QPlainTextEdit *m_text;
+    FilePreviewWidget *m_preview;
 };
 
 #endif

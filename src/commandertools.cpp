@@ -4,6 +4,8 @@
 
 #include "commandertools.h"
 
+#include "views/filepreviewwidget.h"
+
 #include <KFileItem>
 #include <KIO/CopyJob>
 #include <KIO/PreviewJob>
@@ -234,56 +236,16 @@ void BatchRenameDialog::rename()
 QuickViewDialog::QuickViewDialog(QWidget *parent)
     : QDialog(parent)
 {
-    setAttribute(Qt::WA_DeleteOnClose, false);
     auto *layout = new QVBoxLayout(this);
-    m_title = new QLabel(this);
-    layout->addWidget(m_title);
-    m_image = new QLabel(this);
-    m_image->setAlignment(Qt::AlignCenter);
-    layout->addWidget(m_image);
-    m_text = new QPlainTextEdit(this);
-    m_text->setReadOnly(true);
-    m_text->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-    layout->addWidget(m_text);
+    m_preview = new FilePreviewWidget(this);
+    layout->addWidget(m_preview);
     resize(640, 480);
 }
 
 void QuickViewDialog::show(const KFileItem &item)
 {
     setWindowTitle(i18nc("@title:window", "Quick View: %1", item.name()));
-    m_title->setText(item.name());
-    m_image->clear();
-    m_text->clear();
-    m_image->hide();
-    m_text->hide();
-
-    const QString path = item.localPath();
-    const QMimeType mime = item.determineMimeType();
-    if (!path.isEmpty() && mime.inherits(QStringLiteral("text/plain"))) {
-        QFile file(path);
-        if (file.open(QIODevice::ReadOnly)) {
-            m_text->setPlainText(QString::fromUtf8(file.read(64 * 1024)));
-            m_text->show();
-        }
-    } else if (!path.isEmpty() || mime.name().startsWith(QLatin1String("image/"))) {
-        auto *job = new KIO::PreviewJob(KFileItemList{item}, QSize(600, 400));
-        job->setIgnoreMaximumSize(false);
-        QPointer<QuickViewDialog> self(this);
-        connect(job, &KIO::PreviewJob::gotPreview, this, [self](const KFileItem &, const QPixmap &pixmap) {
-            if (self) {
-                self->m_image->setPixmap(pixmap);
-                self->m_image->show();
-            }
-        });
-        connect(job, &KIO::PreviewJob::failed, this, [self, item]() {
-            if (self) {
-                self->m_title->setText(i18nc("@info", "%1 — no preview for this kind of file.", item.name()));
-            }
-        });
-        job->start();
-    } else {
-        m_title->setText(i18nc("@info", "%1 — no preview for this kind of file.", item.name()));
-    }
+    m_preview->setItem(item);
     QDialog::show();
     raise();
 }
