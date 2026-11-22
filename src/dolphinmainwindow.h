@@ -639,6 +639,8 @@ private Q_SLOTS:
     void showChecksum();
     void showBatchRename();
     void showDuplicateFinder();
+    /** Gives the selected local files the color label (a tag named like the color), or none when empty. */
+    void setColorLabel(const QString &color);
     /** Asks for a wildcard pattern and (de)selects the matching items of the active view. */
     void selectByPattern(bool select);
     /** Makes the other side show this folder (mirror), or swaps the folders of the two sides. */

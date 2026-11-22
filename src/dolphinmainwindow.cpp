@@ -50,6 +50,7 @@
 #include <KDialogJobUiDelegate>
 #include <KDualAction>
 #include <KFileItemListProperties>
+#include <KFileMetaData/UserMetaData>
 #include <KIO/CommandLauncherJob>
 #include <KIO/Global>
 #include <KIO/JobUiDelegateFactory>
@@ -75,6 +76,7 @@
 #include <KUrlNavigator>
 #include <KWindowSystem>
 #include <KXMLGUIFactory>
+#include <QPixmap>
 
 #include <kwidgetsaddons_version.h>
 
@@ -2035,6 +2037,31 @@ void DolphinMainWindow::swapSides()
     other->setUrl(mine);
 }
 
+void DolphinMainWindow::setColorLabel(const QString &color)
+{
+    static const QStringList colors =
+        {QStringLiteral("red"), QStringLiteral("orange"), QStringLiteral("yellow"), QStringLiteral("green"), QStringLiteral("blue"), QStringLiteral("purple")};
+    const KFileItemList items = m_activeViewContainer->view()->selectedItems();
+    if (items.isEmpty()) {
+        m_activeViewContainer->showMessage(i18nc("@info", "Select the items to label."), KMessageWidget::Information);
+        return;
+    }
+    for (const KFileItem &item : items) {
+        if (!item.isLocalFile()) {
+            continue;
+        }
+        KFileMetaData::UserMetaData data(item.localPath());
+        QStringList tags = data.tags();
+        tags.removeIf([](const QString &tag) {
+            return colors.contains(tag);
+        });
+        if (!color.isEmpty()) {
+            tags.append(color);
+        }
+        data.setTags(tags);
+    }
+}
+
 void DolphinMainWindow::showDuplicateFinder()
 {
     const QUrl url = m_activeViewContainer->url();
@@ -2534,6 +2561,30 @@ void DolphinMainWindow::setupActions()
     swap->setIcon(QIcon::fromTheme(QStringLiteral("exchange-positions")));
     actionCollection()->setDefaultShortcut(swap, Qt::CTRL | Qt::ALT | Qt::Key_X);
     connect(swap, &QAction::triggered, this, &DolphinMainWindow::swapSides);
+
+    auto *labelMenu = actionCollection()->add<KActionMenu>(QStringLiteral("color_label"));
+    labelMenu->setText(i18nc("@action:inmenu", "Color Label"));
+    labelMenu->setIcon(QIcon::fromTheme(QStringLiteral("tag")));
+    const struct {
+        const char *name;
+        const char *label;
+    } labelColors[] = {{"red", "Red"}, {"orange", "Orange"}, {"yellow", "Yellow"}, {"green", "Green"}, {"blue", "Blue"}, {"purple", "Purple"}};
+    for (const auto &entry : labelColors) {
+        const QString name = QString::fromLatin1(entry.name);
+        QPixmap swatch(16, 16);
+        swatch.fill(QColor(name));
+        auto *colorAction = new QAction(QIcon(swatch), i18nc("@action:inmenu color label", entry.label), labelMenu);
+        labelMenu->addAction(colorAction);
+        connect(colorAction, &QAction::triggered, this, [this, name]() {
+            setColorLabel(name);
+        });
+    }
+    labelMenu->addSeparator();
+    auto *noLabel = new QAction(i18nc("@action:inmenu", "No Color Label"), labelMenu);
+    labelMenu->addAction(noLabel);
+    connect(noLabel, &QAction::triggered, this, [this]() {
+        setColorLabel(QString());
+    });
 
     QAction *duplicates = actionCollection()->addAction(QStringLiteral("find_duplicates"));
     duplicates->setText(i18nc("@action:inmenu", "Find Duplicate Files…"));
