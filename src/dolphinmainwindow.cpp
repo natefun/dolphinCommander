@@ -2045,13 +2045,18 @@ void DolphinMainWindow::swapSides()
 {
     DolphinTabPage *otherPage = inactiveTabWidget()->currentTabPage();
     DolphinViewContainer *other = otherPage ? otherPage->activeViewContainer() : nullptr;
-    if (!other || !m_activeViewContainer || other == m_activeViewContainer) {
+    // Both are kept in variables: changing a folder can change which side is the active one.
+    DolphinViewContainer *mine = m_activeViewContainer;
+    if (!other || !mine || other == mine) {
         return;
     }
     m_sidesSplitter->showBothSides();
-    const QUrl mine = m_activeViewContainer->url();
-    m_activeViewContainer->setUrl(other->url());
-    other->setUrl(mine);
+    const QUrl mineUrl = mine->url();
+    const QUrl otherUrl = other->url();
+    mine->setUrl(otherUrl);
+    other->setUrl(mineUrl);
+    // Going to a folder on the other side moved the focus there: it stays where it was.
+    mine->setActive(true);
 }
 
 void DolphinMainWindow::setColorLabel(const QString &color)

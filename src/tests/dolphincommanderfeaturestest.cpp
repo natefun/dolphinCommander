@@ -63,6 +63,7 @@ private Q_SLOTS:
     void testFolderSize();
     void testToDoNames();
     void testConvertImage();
+    void testTheTwoSidesCanBeSwapped();
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
@@ -488,6 +489,48 @@ void DolphinCommanderFeaturesTest::testAFolderImageIsPaintedBehindTheItems()
     QTest::qWait(1500);
     const int after = green(m_container->grab().toImage());
     QVERIFY2(after > before + 2000, qPrintable(QStringLiteral("green pixels %1 before, %2 after").arg(before).arg(after)));
+}
+
+void DolphinCommanderFeaturesTest::testTheTwoSidesCanBeSwapped()
+{
+    TestDir a;
+    TestDir b;
+    a.createFile("a1");
+    b.createFile("b1");
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    KActionCollection *actions = window.actionCollection();
+
+    window.openDirectories({a.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    actions->action(QStringLiteral("focus_inactive_split_view"))->trigger();
+    window.openDirectories({b.url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    QTest::qWait(300);
+    actions->action(QStringLiteral("focus_inactive_split_view"))->trigger();
+    QTest::qWait(300);
+    // A path is all that matters: the view may report it with or without the file scheme.
+    const auto plain = [](const QUrl &url) {
+        return url.adjusted(QUrl::StripTrailingSlash).path();
+    };
+    const QString here = plain(window.activeViewContainer()->url());
+    QVERIFY2(here == plain(a.url()) || here == plain(b.url()), qPrintable(here));
+    const QString there = here == plain(a.url()) ? plain(b.url()) : plain(a.url());
+
+    // Which side is active can change when a folder is opened on the other one, so the sides are followed by their containers.
+    DolphinViewContainer *thisSide = window.activeViewContainer();
+    actions->action(QStringLiteral("swap_sides"))->trigger();
+    QTRY_COMPARE(plain(thisSide->url()), there);
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()
