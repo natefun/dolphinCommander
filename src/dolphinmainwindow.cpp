@@ -8,6 +8,8 @@
 
 #include "dolphinmainwindow.h"
 #include "kitemviews/kfileitemmodel.h"
+#include "kitemviews/kitemlistcontainer.h"
+#include "kitemviews/kitemlistview.h"
 #include "kitemviews/kitemlistwidget.h"
 #include "sidessplitter.h"
 
@@ -3210,6 +3212,23 @@ void DolphinMainWindow::setupActions()
     if (savedTheme != QLatin1String("system")) {
         applyColorTheme(savedTheme);
     }
+
+    QAction *itemScrolling = actionCollection()->addAction(QStringLiteral("item_scrolling"));
+    itemScrolling->setText(i18nc("@action:inmenu", "Scroll by Whole Items"));
+    itemScrolling->setToolTip(i18nc("@info:tooltip", "Make a step of the mouse wheel move by the height of a row."));
+    itemScrolling->setIcon(QIcon::fromTheme(QStringLiteral("go-down")));
+    itemScrolling->setCheckable(true);
+    const bool itemScrollingOn = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ItemScrolling", false);
+    itemScrolling->setChecked(itemScrollingOn);
+    KItemListView::setItemScrolling(itemScrollingOn);
+    connect(itemScrolling, &QAction::toggled, this, [this](bool on) {
+        KItemListView::setItemScrolling(on);
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ItemScrolling", on);
+        // The scroll bars take their step again.
+        for (QWidget *w : findChildren<KItemListContainer *>()) {
+            w->updateGeometry();
+        }
+    });
 
     QAction *note = actionCollection()->addAction(QStringLiteral("new_note"));
     note->setText(i18nc("@action:inmenu", "New Note"));

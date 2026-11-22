@@ -506,7 +506,27 @@ int KItemListView::selectedItemOnScreen() const
     return -1;
 }
 
+static bool s_itemScrolling = false;
+
+void KItemListView::setItemScrolling(bool enabled)
+{
+    s_itemScrolling = enabled;
+}
+
+bool KItemListView::itemScrolling()
+{
+    return s_itemScrolling;
+}
+
 qreal KItemListView::scrollSingleStep() const
+{
+    if (s_itemScrolling && scrollOrientation() == Qt::Vertical && itemSize().height() > 0) {
+        return itemSize().height();
+    }
+    return textScrollSingleStep();
+}
+
+qreal KItemListView::textScrollSingleStep() const
 {
     /**
      * The scroll distance is supposed to be similar between every scroll area in existence, so users can predict how much scrolling they need to do to see the

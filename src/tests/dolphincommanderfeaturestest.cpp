@@ -87,6 +87,7 @@ private Q_SLOTS:
     void testTheNotificationsPanelListsTheMessages();
     void testAToDoIsCheckedOffByClickingItsCheckbox();
     void testTheColorThemesRecolorTheProgram();
+    void testItemScrollingStepsByRows();
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
@@ -360,6 +361,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "file_views",
                                "toggle_columns_view",
                                "folders_sorted_by_name",
+                               "item_scrolling",
                                "color_theme",
                                "show_notifications_panel",
                                "queue_jobs",
@@ -1031,6 +1033,28 @@ void DolphinCommanderFeaturesTest::testTheColorThemesRecolorTheProgram()
     choices.at(0)->trigger(); // Follow the desktop
     QCOMPARE(QApplication::palette().color(QPalette::Base), before);
     QCOMPARE(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ColorTheme"), QStringLiteral("system"));
+}
+
+void DolphinCommanderFeaturesTest::testItemScrollingStepsByRows()
+{
+    TestDir dir;
+    for (int i = 0; i < 60; ++i) {
+        dir.createFile(QStringLiteral("file %1").arg(i, 2, 10, QLatin1Char('0')));
+    }
+    DolphinViewContainer container(dir.url(), nullptr);
+    container.resize(500, 300);
+    container.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&container));
+    QTRY_COMPARE(container.view()->itemsCount(), 60);
+    auto *list = container.view()->findChild<KItemListContainer *>();
+    QVERIFY(list);
+    KItemListView *view = list->controller()->view();
+    const qreal ofText = view->scrollSingleStep();
+    KItemListView::setItemScrolling(true);
+    const qreal ofRow = view->scrollSingleStep();
+    KItemListView::setItemScrolling(false);
+    QCOMPARE(ofRow, view->itemSize().height());
+    QVERIFY(ofRow != ofText);
 }
 
 void DolphinCommanderFeaturesTest::testConvertImage()
