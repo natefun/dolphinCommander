@@ -6,6 +6,20 @@ It is an independent project and is not affiliated with or endorsed by KDE.
 
 > **Status:** experimental and used by its author. It builds and runs, but it has not been tested widely and the unit tests have not been updated for the new window layout.
 
+## Screenshots
+
+![Two sides, each with its own tabs, path bar and Miller columns](doc/screenshots/main.png)
+*Two sides, each with its own tabs, path bar and Miller columns. The places and the button row are on the left.*
+
+![The menu button](doc/screenshots/menu.png)
+*Everything that was in Dolphin's menus and toolbar is in the menu button below the places.*
+
+![One side hidden](doc/screenshots/one-side.png)
+*The right side hidden with the arrows on the divider, and a folder of pictures in the Icons view.*
+
+![The Columns view with a preview](doc/screenshots/columns-preview.png)
+*The Columns view, with a preview of the selected file on the right.*
+
 ## What is different from Dolphin
 
 - **Two panes, always.** The window is split into a left and a right side. Each side has its own tab bar and its own tabs, with a new-tab button that is always visible.
@@ -22,25 +36,98 @@ It can be installed next to Dolphin. It uses its own program name (`dolphincomma
 
 ## Installing
 
-On Arch Linux and Manjaro, install `dolphincommander` from the AUR, or download the package of the
-latest [release](https://github.com/natefun/dolphinCommander/releases) and install it with
-`sudo pacman -U dolphincommander-*.pkg.tar.zst`. It installs under `/opt/dolphincommander`. A new
-release comes out every week that has changes, with the latest fixes from Dolphin merged in
-(see [fork/README.md](fork/README.md)).
+### Arch Linux and Manjaro
 
-## Building
-
-dolphinCommander is based on the development version of Dolphin (KDE Gear 26.11), so it needs recent Qt 6 and KDE Frameworks 6 (6.23 or newer) with their development files.
+dolphinCommander is in the AUR as `dolphincommander`. With an AUR helper:
 
 ```bash
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX=$HOME/.local
+yay -S dolphincommander      # or: paru -S dolphincommander
+```
+
+Without a helper:
+
+```bash
+git clone https://aur.archlinux.org/dolphincommander.git
+cd dolphincommander
+makepkg -si
+```
+
+Or download the package of the latest [release](https://github.com/natefun/dolphinCommander/releases) and install it with:
+
+```bash
+sudo pacman -U dolphincommander-*.pkg.tar.zst
+```
+
+The package installs under `/opt/dolphincommander`, with a `dolphincommander` launcher in `/usr/bin` and an entry in the application menu, so it does not get in the way of Dolphin. Remove it with `sudo pacman -R dolphincommander`.
+
+A new release comes out every week that has changes, with the latest fixes from Dolphin merged in (see [fork/README.md](fork/README.md)).
+
+### Other distributions
+
+There are no packages for other distributions yet. Build it from source as described below. It needs KDE Frameworks 6.23 or newer, which rolling distributions such as openSUSE Tumbleweed have but Ubuntu and Debian stable do not yet.
+
+## Building from source
+
+dolphinCommander is based on the development version of Dolphin (KDE Gear 26.11), so it needs recent Qt 6 and KDE Frameworks 6 (6.23 or newer) with their development files, CMake, Ninja (or Make) and a C++ compiler.
+
+### 1. Install the dependencies
+
+On Arch Linux and Manjaro:
+
+```bash
+sudo pacman -S --needed base-devel git cmake ninja extra-cmake-modules \
+    qt6-base qt6-multimedia qt6-tools \
+    kbookmarks kcmutils kcodecs kcolorscheme kcompletion kconfig kcoreaddons kcrash \
+    kdbusaddons kdoctools kguiaddons ki18n kiconthemes kio knotifications kparts \
+    kservice ktextwidgets kwidgetsaddons kwindowsystem kxmlgui solid \
+    kfilemetadata baloo baloo-widgets kio-extras
+```
+
+On other distributions, install the development packages of the same Qt 6 modules and KDE Frameworks. CMake lists any missing package when it configures. Baloo (file search and the information panel), KFileMetaData and PackageKit are optional; `kio-extras` is only needed at run time, for thumbnails and more locations.
+
+### 2. Get the code and build it
+
+```bash
+git clone https://github.com/natefun/dolphinCommander.git
+cd dolphinCommander
+cmake -S . -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DBUILD_TESTING=OFF \
+    -DCMAKE_INSTALL_PREFIX=$HOME/.local
 cmake --build build
+```
+
+Add `-DBUILD_TESTING=ON` to build the tests as well, and run them with `ctest --test-dir build`. `fork/ci-build-and-test.sh` builds and checks the tests the same way the GitHub workflows do.
+
+### 3. Try it without installing
+
+```bash
+LD_LIBRARY_PATH=build/bin build/bin/dolphincommander
+```
+
+### 4. Install it
+
+```bash
 cmake --install build
 ```
 
-Then start `dolphincommander`. To try it without installing, run `build/bin/dolphincommander` with `LD_LIBRARY_PATH=build/bin`.
+With the prefix above, this installs into `~/.local` and needs no root. The program finds its settings pages and other plugins through `QT_PLUGIN_PATH`, so start it like this (or put the two `export` lines in `~/.profile`):
 
-CMake lists any missing packages when it configures. Baloo (file search and the information panel) and PackageKit are optional.
+```bash
+export QT_PLUGIN_PATH="$HOME/.local/lib/plugins${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
+export XDG_DATA_DIRS="$HOME/.local/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+dolphincommander
+```
+
+Some distributions put plugins in `lib64/plugins` or `lib/qt6/plugins` instead; `cmake --install` prints where they went.
+
+Do not install it with the prefix `/usr` when Dolphin is installed: both have `libdolphinprivate`, the same settings schemas and the same translations, and installing over them breaks Dolphin. Use `~/.local` or a folder of its own such as `/opt/dolphincommander`.
+
+To uninstall, remove the files that the install listed:
+
+```bash
+xargs rm -f < build/install_manifest.txt
+```
 
 ## Documentation
 
