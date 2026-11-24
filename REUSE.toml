@@ -82,3 +82,10 @@ path = "doc/*.docbook"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "KDE Contributors"
 SPDX-License-Identifier = "GPL-2.0-or-later"
+
+# README screenshots — binary files, no comment syntax.
+[[annotations]]
+path = "doc/screenshots/*.png"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "dolphinCommander contributors"
+SPDX-License-Identifier = "GPL-2.0-or-later"
