@@ -1,11 +1,12 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="51">
+<gui name="dolphin" version="52">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
             <Action name="file_new" />
             <Action name="new_tab" />
+            <Action name="new_tab_from_clipboard" />
             <Action name="file_close" />
             <Action name="undo_close_tab" />
             <Separator/>
@@ -13,10 +14,19 @@
             <Separator/>
             <Action name="renamefile" />
             <Action name="duplicate" />
+            <Action name="color_label" />
             <Action name="movetotrash" />
             <Action name="deletefile" />
             <Separator/>
             <Action name="show_target" />
+            <Separator/>
+            <Menu name="notes_menu" icon="document-new">
+                <text context="@title:menu">Notes and To-Dos</text>
+                <Action name="new_note" />
+                <Action name="new_todo" />
+                <Action name="toggle_todo_done" />
+            </Menu>
+            <Action name="paste_clipboard_as_file" />
             <Separator/>
             <Action name="properties" />
         </Menu>
@@ -53,62 +63,51 @@
             <Action name="restore_view_settings_default" />
             <Action name="view_properties" />
             <Separator/>
-            <Action name="split_view_menu" />
-            <Action name="move_to_tabs_split_view" />
-            <Action name="popout_split_view" />
-            <Action name="focus_inactive_split_view" />
-            <Action name="sync_browsing" />
-            <Action name="mirror_to_other_side" />
-            <Action name="swap_sides" />
-            <Action name="compare_directories" />
-            <Action name="sync_to_other_side" />
-            <Action name="folder_hotlist" />
-            <Action name="quick_view" />
-            <Action name="show_checksum" />
-            <Action name="batch_rename" />
-            <Action name="find_duplicates" />
-            <Action name="folder_sizes" />
-            <Action name="convert_images" />
-            <Action name="open_with_dialog" />
-            <Action name="run_with_arguments" />
-            <Action name="recent_notifications" />
-            <Action name="show_notifications_panel" />
-            <Action name="age_stripes" />
             <Action name="commander_layouts" />
             <Action name="file_views" />
-            <Action name="paste_clipboard_as_file" />
-            <Action name="new_tab_from_clipboard" />
-            <Action name="queue_jobs" />
-            <Action name="toggle_columns_view" />
-            <Action name="folders_sorted_by_name" />
             <Action name="color_theme" />
-            <Action name="item_scrolling" />
-            <Action name="hide_columns_when_narrow" />
-            <Action name="keep_running_when_closed" />
-            <Action name="names_only" />
-            <Action name="lock_column_resizing" />
-            <Action name="open_terminal_as_administrator" />
-            <Action name="restart_as_administrator" />
-            <Action name="center_window" />
-            <Action name="reload_theme" />
-            <Action name="new_note" />
-            <Action name="new_todo" />
-            <Action name="toggle_todo_done" />
-            <Action name="scripts_menu" />
-            <Action name="color_label" />
-            <Action name="pack_selection" />
-            <Action name="unpack_to_other_side" />
-            <Action name="workspaces_menu" />
-            <Action name="split_stash" />
+            <Menu name="appearance_menu" icon="preferences-desktop-theme">
+                <text context="@title:menu">Appearance and Behavior</text>
+                <Action name="toggle_columns_view" />
+                <Action name="lock_column_resizing" />
+                <Action name="names_only" />
+                <Action name="hide_columns_when_narrow" />
+                <Action name="age_stripes" />
+                <Action name="folders_sorted_by_name" />
+                <Action name="item_scrolling" />
+                <Separator/>
+                <Action name="reload_theme" />
+                <Action name="center_window" />
+            </Menu>
+            <Separator/>
             <Action name="redisplay" />
             <Action name="stop" />
             <Separator/>
             <Action name="panels" />
+            <Action name="show_notifications_panel" />
             <Menu name="location_bar" icon="edit-select-text">
                 <text context="@title:menu">Location Bar</text>
                 <Action name="editable_location" />
                 <Action name="replace_location" />
             </Menu>
+        </Menu>
+        <Menu name="sides_menu">
+            <text context="@title:menu">&amp;Sides</text>
+            <Action name="split_view_menu" />
+            <Action name="move_to_tabs_split_view" />
+            <Action name="popout_split_view" />
+            <Action name="focus_inactive_split_view" />
+            <Separator/>
+            <Action name="sync_browsing" />
+            <Action name="mirror_to_other_side" />
+            <Action name="swap_sides" />
+            <Action name="sync_to_other_side" />
+            <Action name="compare_directories" />
+            <Action name="unpack_to_other_side" />
+            <Separator/>
+            <Action name="folder_hotlist" />
+            <Action name="workspaces_menu" />
+            <Action name="split_stash" />
         </Menu>
         <Menu name="go">
             <Action name="bookmarks" />
@@ -121,6 +120,25 @@
             <Action name="manage_disk_space" />
             <Action name="compare_files" />
             <Action name="change_remote_encoding" />
+            <Separator/>
+            <Action name="quick_view" />
+            <Action name="show_checksum" />
+            <Action name="batch_rename" />
+            <Action name="find_duplicates" />
+            <Action name="folder_sizes" />
+            <Action name="convert_images" />
+            <Action name="pack_selection" />
+            <Separator/>
+            <Action name="open_with_dialog" />
+            <Action name="run_with_arguments" />
+            <Action name="scripts_menu" />
+            <Separator/>
+            <Action name="open_terminal_as_administrator" />
+            <Action name="restart_as_administrator" />
+            <Separator/>
+            <Action name="recent_notifications" />
+            <Action name="queue_jobs" />
+            <Action name="keep_running_when_closed" />
         </Menu>
         <Menu name="settings">
         </Menu>
