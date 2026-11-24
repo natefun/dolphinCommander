@@ -441,6 +441,7 @@ void DolphinTabBar::contextMenuEvent(QContextMenuEvent *event)
             pinTabAction = menu.addAction(QIcon::fromTheme(QStringLiteral("window-pin")), i18nc("@action:inmenu", "Pin Tab"));
         }
         menu.addSeparator();
+        QAction *copyTabAction = menu.addAction(QIcon::fromTheme(QStringLiteral("tab-duplicate")), i18nc("@action:inmenu", "Copy Tab to the Other Side"));
         QAction *renameTabAction = menu.addAction(QIcon::fromTheme(QStringLiteral("edit-rename")), i18nc("@action:inmenu", "Rename Tab"));
         menu.addSeparator();
         QAction *closeOtherTabsAction = menu.addAction(QIcon::fromTheme(QStringLiteral("tab-close-other")), i18nc("@action:inmenu", "Close Other Tabs"));
@@ -448,6 +449,9 @@ void DolphinTabBar::contextMenuEvent(QContextMenuEvent *event)
         closeTabsToLeftAction->setEnabled(index > 0);
         QAction *closeTabsToRightAction = menu.addAction(QIcon::fromTheme(QStringLiteral("go-next")), i18nc("@action:inmenu", "Close Tabs to the Right"));
         closeTabsToRightAction->setEnabled(index < count() - 1);
+        QAction *closeStaleTabsAction =
+            menu.addAction(QIcon::fromTheme(QStringLiteral("tab-close-other")), i18nc("@action:inmenu", "Close Stale Tabs (Not Shown for a Day)"));
+        closeStaleTabsAction->setEnabled(!staleTabs().isEmpty());
         QAction *closeTabAction = menu.addAction(QIcon::fromTheme(QStringLiteral("tab-close")), i18nc("@action:inmenu", "Close Tab"));
         closeTabAction->setEnabled(!pinned);
 
@@ -471,6 +475,13 @@ void DolphinTabBar::contextMenuEvent(QContextMenuEvent *event)
             const int tabCount = count();
             for (int i = index + 1; i < tabCount; i++) {
                 Q_EMIT tabCloseRequested(index + 1);
+            }
+        } else if (selectedAction == copyTabAction) {
+            Q_EMIT tabCopyToOtherSideRequested(index);
+        } else if (selectedAction == closeStaleTabsAction) {
+            const QList<int> stale = staleTabs();
+            for (int i = stale.size() - 1; i >= 0; --i) {
+                Q_EMIT tabCloseRequested(stale.at(i));
             }
         } else if (selectedAction == closeTabAction) {
             Q_EMIT tabCloseRequested(index);
@@ -619,9 +630,27 @@ void DolphinTabBar::setPinned(int index, bool pinned)
     Q_EMIT tabPinStateChanged(newIndex, pinned);
 }
 
+QList<int> DolphinTabBar::staleTabs(const QDateTime &now, qint64 seconds) const
+{
+    QList<int> stale;
+    for (int i = 0; i < count(); ++i) {
+        const QDateTime shown = tabData(i).toDateTime();
+        if (i != currentIndex() && !isPinned(i) && shown.isValid() && shown.secsTo(now) >= seconds) {
+            stale << i;
+        }
+    }
+    return stale;
+}
+
+void DolphinTabBar::setLastShown(int index, const QDateTime &time)
+{
+    setTabData(index, time);
+}
+
 void DolphinTabBar::tabInserted(int index)
 {
     QTabBar::tabInserted(index);
+    setTabData(index, QDateTime::currentDateTime());
     QTimer::singleShot(0, this, [this]() {
         updateNewTabButtonGeometry();
         updatePinnedTabButtons();

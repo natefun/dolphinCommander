@@ -7,6 +7,7 @@
 #ifndef DOLPHIN_TAB_BAR_H
 #define DOLPHIN_TAB_BAR_H
 
+#include <QDateTime>
 #include <QPointer>
 #include <QTabBar>
 
@@ -25,6 +26,14 @@ public:
 
     void setNewTabButtonVisible(bool visible);
 
+    /**
+     * The tabs that were not shown for @p seconds before @p now (a day by default), except the current one and the pinned ones: OneCommander's "stale tabs".
+     * A tab counts from when it was made or last became the current one in this run.
+     */
+    QList<int> staleTabs(const QDateTime &now = QDateTime::currentDateTime(), qint64 seconds = 24 * 3600) const;
+    /** Says when the tab at @p index was last shown; for the stale tabs, and for tests. */
+    void setLastShown(int index, const QDateTime &time);
+
 Q_SIGNALS:
     void openNewActivatedTab(int index);
     void tabDragMoveEvent(int index, QDragMoveEvent *event);
@@ -34,6 +43,8 @@ Q_SIGNALS:
     void tabMoveRequested(int index, DolphinTabBar *target, int targetIndex);
     /** Emitted when the tab at @p index was clicked with the middle button while Alt was held: it is to go to the other side. */
     void tabMoveToOtherSideRequested(int index);
+    /** Emitted when the tab at @p index is to be copied to the other side: a new tab there with the same folder. */
+    void tabCopyToOtherSideRequested(int index);
     void tabRenamed(int index, const QString &label);
     void newTabRequested();
     void tabPinStateChanged(int index, bool pinned);

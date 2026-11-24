@@ -139,6 +139,7 @@ private Q_SLOTS:
     void testJobsRunOneAfterAnother();
     void testTheMainToolbarHasOneCommandersButtons();
     void testNewFilesComeFromTemplates();
+    void testStaleTabsAreThoseNotShownForADay();
     void testAWebAddressBecomesALinkFile();
     void testPathsAreCopiedInTheChosenFormat();
     void testTheRichFileViewShowsPreviewsInTallRows();
@@ -543,6 +544,24 @@ void DolphinCommanderFeaturesTest::testNewFilesComeFromTemplates()
 
     QFile::remove(saved);
     QFile::remove(second);
+}
+
+void DolphinCommanderFeaturesTest::testStaleTabsAreThoseNotShownForADay()
+{
+    DolphinTabBar bar(nullptr);
+    for (int i = 0; i < 4; ++i) {
+        bar.addTab(QStringLiteral("tab %1").arg(i));
+    }
+    const QDateTime now = QDateTime::currentDateTime();
+    bar.setCurrentIndex(3);
+    // Nothing is stale at the start; a tab not shown for two days is, unless it is the current one.
+    QVERIFY(bar.staleTabs(now).isEmpty());
+    bar.setLastShown(0, now.addDays(-2));
+    bar.setLastShown(1, now.addSecs(-3600));
+    bar.setLastShown(3, now.addDays(-5));
+    QCOMPARE(bar.staleTabs(now), QList<int>({0}));
+    bar.setCurrentIndex(0);
+    QCOMPARE(bar.staleTabs(now), QList<int>({3}));
 }
 
 void DolphinCommanderFeaturesTest::testAWebAddressBecomesALinkFile()

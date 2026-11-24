@@ -90,6 +90,7 @@ public:
 Q_SIGNALS:
     /** The user asked, with Alt + the middle button, for the tab at @p index to go to the other side. */
     void tabMoveToOtherSideRequested(int index);
+    void tabCopyToOtherSideRequested(int index);
     /**
      * Is emitted when the active view has been changed, by changing the current
      * tab or by activating another view when split view is enabled in the current

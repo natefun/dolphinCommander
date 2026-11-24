@@ -238,6 +238,12 @@ DolphinMainWindow::DolphinMainWindow()
                                       Q_ARG(DolphinTabBar *, static_cast<DolphinTabBar *>(other->tabBar())),
                                       Q_ARG(int, -1));
         });
+        connect(tabs, &DolphinTabWidget::tabCopyToOtherSideRequested, this, [this, tabs](int index) {
+            DolphinTabWidget *other = tabs == m_leftTabs ? m_rightTabs : m_leftTabs;
+            if (DolphinTabPage *page = tabs->tabPageAt(index)) {
+                other->openNewActivatedTab(page->activeViewContainer()->url());
+            }
+        });
         connect(tabs, &DolphinTabWidget::activeViewChanged, this, [this, tabs](DolphinViewContainer *viewContainer) {
             setActiveSide(tabs);
             activeViewChanged(viewContainer);

@@ -40,6 +40,7 @@ DolphinTabWidget::DolphinTabWidget(DolphinNavigatorsWidgetAction *navigatorsWidg
     connect(tabBar, &DolphinTabBar::tabDetachRequested, this, &DolphinTabWidget::detachTab);
     connect(tabBar, &DolphinTabBar::tabMoveRequested, this, &DolphinTabWidget::moveTabToOtherSide);
     connect(tabBar, &DolphinTabBar::tabMoveToOtherSideRequested, this, &DolphinTabWidget::tabMoveToOtherSideRequested);
+    connect(tabBar, &DolphinTabBar::tabCopyToOtherSideRequested, this, &DolphinTabWidget::tabCopyToOtherSideRequested);
     connect(tabBar, &DolphinTabBar::tabRenamed, this, &DolphinTabWidget::renameTab);
     connect(tabBar, &DolphinTabBar::newTabRequested, this, &DolphinTabWidget::openNewTabFromButton);
     connect(tabBar, &DolphinTabBar::tabPinStateChanged, this, &DolphinTabWidget::tabPinStateChanged);
