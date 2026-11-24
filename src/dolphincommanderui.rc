@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="56">
+<gui name="dolphin" version="57">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
@@ -79,6 +79,7 @@
                 <Action name="folders_sorted_by_name" />
                 <Action name="item_scrolling" />
                 <Separator/>
+                <Action name="cycle_layout" />
                 <Action name="reload_theme" />
                 <Action name="center_window" />
             </Menu>

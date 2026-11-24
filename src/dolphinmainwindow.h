@@ -935,6 +935,7 @@ private:
     TerminalPanel *m_terminalPanel;
     PlacesPanel *m_placesPanel;
     FavoritesPanel *m_favoritesPanel = nullptr;
+    CommanderLayout m_commanderLayout = CommanderLayout::Standard;
     /** The dock with the places and the button for the settings below them. */
     DolphinDockWidget *m_placesDock = nullptr;
     /// The row below the places with the buttons for the menu, refresh, search and the settings.

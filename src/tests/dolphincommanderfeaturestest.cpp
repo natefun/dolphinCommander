@@ -73,6 +73,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
+#include <QToolBar>
 #include <QToolButton>
 #include <QTreeWidget>
 
@@ -135,6 +136,7 @@ private Q_SLOTS:
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
+    void testTheMainToolbarHasOneCommandersButtons();
     void testFavoritesAreKeptInGroups();
     void testADriveSaysHowFullItIs();
     void testTheNordThemeHasItsColors();
@@ -431,6 +433,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "show_details_pane",
                                "colored_badges",
                                "compact_rows",
+                               "cycle_layout",
                                "add_to_favorites",
                                "show_favorites_panel",
                                "open_terminal_as_administrator",
@@ -460,6 +463,33 @@ void DolphinCommanderFeaturesTest::testADriveSaysHowFullItIs()
     const QString text = PlacesPanel::usageText(QStringLiteral("/"));
     QVERIFY(!text.isEmpty());
     QVERIFY2(text.contains(QRegularExpression(QStringLiteral("^\\d+% "))), qPrintable(text));
+}
+
+void DolphinCommanderFeaturesTest::testTheMainToolbarHasOneCommandersButtons()
+{
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    // Layout, file automator, new window and about sit together in one toolbar, as in OneCommander's main toolbar.
+    const QStringList names = {QStringLiteral("cycle_layout"), QStringLiteral("scripts_menu"), QStringLiteral("file_new"), QStringLiteral("help_about_app")};
+    bool together = false;
+    const auto bars = window.findChildren<QToolBar *>();
+    for (QToolBar *bar : bars) {
+        bool all = true;
+        for (const QString &name : names) {
+            QAction *action = window.actionCollection()->action(name);
+            all = all && action && bar->actions().contains(action);
+        }
+        together = together || all;
+    }
+    QVERIFY(together);
 }
 
 void DolphinCommanderFeaturesTest::testFavoritesAreKeptInGroups()

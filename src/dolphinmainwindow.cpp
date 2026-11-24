@@ -405,6 +405,27 @@ DolphinMainWindow::DolphinMainWindow()
             topBar->addAction(action);
         }
     }
+    // OneCommander's main toolbar, on a row of its own above that one: layout, file automator (the scripts), new window and about.
+    auto *mainBar = new QToolBar(m_placesDock->widget());
+    mainBar->setObjectName(QStringLiteral("commanderMainToolbar"));
+    mainBar->setMovable(false);
+    mainBar->setFloatable(false);
+    mainBar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    mainBar->setIconSize(QSize(16, 16));
+    mainBar->setContextMenuPolicy(Qt::NoContextMenu);
+    mainBar->layout()->setSpacing(0);
+    mainBar->setStyleSheet(QStringLiteral("QToolButton { padding: 2px; }"));
+    for (const QString &name : {QStringLiteral("cycle_layout"),
+                                QStringLiteral("scripts_menu"),
+                                KStandardAction::name(KStandardAction::New),
+                                KStandardAction::name(KStandardAction::AboutApp)}) {
+        if (QAction *action = actionCollection()->action(name)) {
+            mainBar->addAction(action);
+        }
+    }
+    if (auto *placesBox = qobject_cast<QBoxLayout *>(m_placesDock->widget()->layout())) {
+        placesBox->insertWidget(qMax(placesBox->count() - 1, 0), mainBar);
+    }
     m_placesButtonRow->insertWidget(0, topBar);
 
     updateAllowedToolbarAreas();
@@ -2395,6 +2416,7 @@ void DolphinMainWindow::showRecentNotifications()
 
 void DolphinMainWindow::setCommanderLayout(CommanderLayout layout)
 {
+    m_commanderLayout = layout;
     QAction *infoPanel = actionCollection()->action(QStringLiteral("show_information_panel"));
     switch (layout) {
     case CommanderLayout::Standard:
@@ -3668,6 +3690,14 @@ void DolphinMainWindow::setupActions()
             setCommanderLayout(chosen);
         });
     }
+
+    QAction *cycleLayout = actionCollection()->addAction(QStringLiteral("cycle_layout"));
+    cycleLayout->setText(i18nc("@action:inmenu", "Change Layout"));
+    cycleLayout->setToolTip(i18nc("@info:tooltip", "Switch to the next layout: Standard, Columns, Classic."));
+    cycleLayout->setIcon(QIcon::fromTheme(QStringLiteral("view-split-left-right")));
+    connect(cycleLayout, &QAction::triggered, this, [this]() {
+        setCommanderLayout(CommanderLayout((int(m_commanderLayout) + 1) % 3));
+    });
 
     auto *designFileSave = actionCollection()->addAction(QStringLiteral("export_view_design"));
     designFileSave->setText(i18nc("@action:inmenu", "Save View Design to File…"));

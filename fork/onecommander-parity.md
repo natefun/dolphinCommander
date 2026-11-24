@@ -1,5 +1,7 @@
 # OneCommander parity: where dolphinCommander stands
 
+Wine was tried for a side-by-side run: the program is a .NET Framework WPF one and needs a real .NET 4.8 in the prefix, which
+was not installed (the sandbox refused to run the installers). The look below comes from OneCommander's own screenshots and help instead.
 Compiled from OneCommander's own help (onecommander.com/help2: Folder Columns and Navigation Pane,
 Folder Pane, File Views, Browsers and Layouts, Sidebar, Details Pane, Main Window, Settings, Search,
 Favorites, File Automator). Its Shortcut keys page (Shortcutkeys.html) has been read.
@@ -27,6 +29,8 @@ Colored Badges for Dates and Sizes (View > Appearance and Behavior, on by defaul
 Nord color theme (Color Theme > Nord; the palette of OneCommander's Nord theme) and Compact Rows (View > Appearance and Behavior: sets the zoom of every view to its smallest).
 Favorites panel with groups (Ctrl+Alt+F; View > Show Panels): folders kept in named groups, added with Ctrl+Alt+D, by dropping a folder on the panel, or from the panel's menu; groups can be made, renamed and removed. Kept in the settings.
 Drive usage: pointing at a drive in the Places panel shows how full it is ("79% used, 205 GiB free of 959 GiB"). Not drawn on the entry itself, because the entries are painted by KIO's KFilePlacesView.
+Main toolbar (bottom left of the sidebar, as OneCommander's): Change Layout (cycles Standard, Columns, Classic), File Automator (the Scripts menu), New Window and About.
+OneCommander has no menu bar; its commands are in this toolbar, its context menus and its shortcut keys, so the fork keeps the menu bar hidden by default and the menus are grouped for those who show it (Ctrl+M).
 
 ## Dolphin already does (found while checking the list)
 Tab aliases (Rename Tab), new tab after the last tab or the current one, remembering tabs and a start
@@ -76,5 +80,5 @@ schemes recolor them in a real desktop session is not verified.
 - Ctrl+Shift+Enter (run with arguments), Ctrl+Enter (open with), F8 (lock the dividers of the Miller columns), Ctrl+F10 (terminal as administrator) and Ctrl+Shift+F12 are there. The last two go through pkexec (konsole for the terminal), were not tried with a real password prompt, and Ctrl+Shift+F12 opens a root copy of the window and leaves this one open.
 
 ## How this was tested
-`build/bin/dolphincommanderfeaturestest` (65 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
+`build/bin/dolphincommanderfeaturestest` (66 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
 `fork/check-tests.py` shows one test of Dolphin's columns view (`testTheContentWidthFollowsInsertedAndRemovedNames`) that fails under load and passes alone.
