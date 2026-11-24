@@ -47,6 +47,13 @@ class DOLPHIN_EXPORT KFileItemModel : public KItemModelBase
     Q_OBJECT
 
 public:
+    /**
+     * The icon the user put in ~/.config/dolphincommander/icons/ for @p item, as OneCommander allows: "<suffix>.png" (such as txt.png) for the
+     * files of a kind, "<folder name>.png" (such as Music.png) for the folders of that name and "folder.png" for all others.
+     * An absolute path to the picture, empty if there is none.
+     */
+    static QString customIcon(const KFileItem &item);
+
     explicit KFileItemModel(QObject *parent = nullptr);
     ~KFileItemModel() override;
 
@@ -89,6 +96,10 @@ public:
      */
     void setSortDirectoriesFirst(bool dirsFirst);
     bool sortDirectoriesFirst() const;
+
+    /** Sorts the folders by name, in whatever role and order the rest is sorted, as OneCommander's "Sort folders by name always" does. */
+    static void setFoldersAlwaysSortedByName(bool enabled);
+    static bool foldersAlwaysSortedByName();
 
     /**
      * Sets a separate sorting with hidden files and folders last (true) or not (false).

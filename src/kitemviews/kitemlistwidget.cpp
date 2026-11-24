@@ -16,9 +16,11 @@
 #include <KSharedConfig>
 
 #include <QApplication>
+#include <QDateTime>
 #include <QPainter>
 #include <QPropertyAnimation>
 #include <QStyleOption>
+#include <cmath>
 
 KItemListWidgetInformant::KItemListWidgetInformant() = default;
 
@@ -101,6 +103,40 @@ QVariant KItemListWidget::value(const QByteArray &key) const
     return m_data.value(key);
 }
 
+QRectF KItemListWidget::todoCheckboxRect(const QRectF &row)
+{
+    const qreal side = qMin<qreal>(16, row.height() - 2);
+    return QRectF(row.right() - side - 6, row.top() + (row.height() - side) / 2, side, side);
+}
+
+bool KItemListWidget::isToDoName(const QString &name)
+{
+    return name.endsWith(QLatin1String(".2do"), Qt::CaseInsensitive) || name.endsWith(QLatin1String(".2dx"), Qt::CaseInsensitive);
+}
+
+static bool s_ageStripes = false;
+static bool s_badges = false;
+
+void KItemListWidget::setBadgesShown(bool shown)
+{
+    s_badges = shown;
+}
+
+bool KItemListWidget::badgesShown()
+{
+    return s_badges;
+}
+
+void KItemListWidget::setAgeStripesShown(bool shown)
+{
+    s_ageStripes = shown;
+}
+
+bool KItemListWidget::ageStripesShown()
+{
+    return s_ageStripes;
+}
+
 void KItemListWidget::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
 {
     Q_UNUSED(option)
@@ -120,6 +156,41 @@ void KItemListWidget::paint(QPainter *painter, const QStyleOptionGraphicsItem *o
 
         const QRectF backgroundRect(0, 0, size().width(), size().height());
         painter->fillRect(backgroundRect, backgroundColor);
+    }
+
+    // A color label is a tag named like the color: tint the row with it.
+    static const QStringList labelColors =
+        {QStringLiteral("red"), QStringLiteral("orange"), QStringLiteral("yellow"), QStringLiteral("green"), QStringLiteral("blue"), QStringLiteral("purple")};
+    const QString tags = m_data.value("tags").toString();
+    if (!tags.isEmpty()) {
+        for (const QString &color : labelColors) {
+            if (tags.split(QLatin1String(", ")).contains(color, Qt::CaseInsensitive)) {
+                QColor tint(color);
+                tint.setAlphaF(0.25);
+                painter->fillRect(QRectF(0, 0, size().width(), size().height()), tint);
+                break;
+            }
+        }
+    }
+
+    if (s_ageStripes) {
+        const qlonglong seconds = m_data.value("modificationtime").toLongLong();
+        if (seconds > 0) {
+            const double days = (QDateTime::currentSecsSinceEpoch() - seconds) / 86400.0;
+            // Hue from red (0) for today to blue (240) for a year and more.
+            const double hue = 240.0 * qBound(0.0, std::log1p(qMax(days, 0.0)) / std::log1p(365.0), 1.0);
+            painter->fillRect(QRectF(0, 0, 3, size().height()), QColor::fromHsvF(hue / 360.0, 0.8, 0.9));
+        }
+    }
+
+    // A to-do has a checkbox: checked when it is done (.2dx).
+    const QString todoName = m_data.value("text").toString();
+    if (isToDoName(todoName)) {
+        QStyleOptionButton box;
+        box.rect = todoCheckboxRect(QRectF(QPointF(0, 0), size())).toRect();
+        box.state = QStyle::State_Enabled | (todoName.endsWith(QLatin1String(".2dx"), Qt::CaseInsensitive) ? QStyle::State_On : QStyle::State_Off);
+        box.palette = m_styleOption.palette;
+        QApplication::style()->drawControl(QStyle::CE_CheckBox, &box, painter, widget);
     }
 
     const QStyle::State selectedState(m_selected ? QStyle::State_Selected : QStyle::State(0));

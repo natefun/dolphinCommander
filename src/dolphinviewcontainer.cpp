@@ -6,7 +6,9 @@
 
 #include "dolphinviewcontainer.h"
 #include "views/columnsstrip.h"
+#include "views/itemdetailspane.h"
 #include "views/viewheader.h"
+#include "views/zoomlevelinfo.h"
 
 #include "admin/bar.h"
 #include "admin/workerintegration.h"
@@ -29,6 +31,7 @@
 
 #include <KActionCollection>
 #include <KApplicationTrader>
+#include <KConfigGroup>
 #include <KFileItemActions>
 #include <KFilePlacesModel>
 #include <KIO/JobUiDelegateFactory>
@@ -36,6 +39,7 @@
 #include <KIO/OpenUrlJob>
 #include <KLocalizedString>
 #include <KProtocolManager>
+#include <KSharedConfig>
 #include <KShell>
 #include <kio_version.h>
 
@@ -47,9 +51,11 @@
 #include <QDropEvent>
 #include <QGridLayout>
 #include <QGuiApplication>
+#include <QMimeDatabase>
 #include <QRegularExpression>
 #include <QScrollBar>
 #include <QStyle>
+#include <QTime>
 #include <QTimer>
 #include <QToolButton>
 #include <QUrl>
@@ -71,8 +77,9 @@ struct LayoutStructure {
     int viewHeader = 6;
     int filterBar = 7;
     int view = 8;
-    int selectionModeBottomBar = 9;
-    int statusBar = 10;
+    int detailsPane = 9;
+    int selectionModeBottomBar = 10;
+    int statusBar = 11;
 };
 constexpr LayoutStructure positionFor;
 
@@ -192,6 +199,9 @@ DolphinViewContainer::DolphinViewContainer(const QUrl &url, QWidget *parent)
     installEventFilter(this);
     m_topLayout->addWidget(m_view, positionFor.view, 0);
     m_topLayout->addWidget(m_filterBar, positionFor.filterBar, 0);
+    m_detailsPane = new ItemDetailsPane(this);
+    m_topLayout->addWidget(m_detailsPane, positionFor.detailsPane, 0);
+    setDetailsPaneShown(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ShowDetailsPane", true));
     if (GeneralSettings::showStatusBar() == GeneralSettings::EnumShowStatusBar::FullWidth) {
         m_topLayout->addWidget(m_statusBar, positionFor.statusBar, 0);
     }
@@ -276,8 +286,37 @@ void DolphinViewContainer::connectViewSignals()
     connect(ContentDisplaySettings::self(), &KCoreConfigSkeleton::configChanged, m_view, &DolphinView::reload);
 }
 
+void DolphinViewContainer::setDetailsPaneShown(bool shown)
+{
+    m_detailsPane->setVisible(shown);
+    if (shown) {
+        updateDetailsPane();
+    }
+}
+
+bool DolphinViewContainer::isDetailsPaneShown() const
+{
+    return m_detailsPane->isVisibleTo(this);
+}
+
+ItemDetailsPane *DolphinViewContainer::detailsPane() const
+{
+    return m_detailsPane;
+}
+
+void DolphinViewContainer::updateDetailsPane()
+{
+    if (m_detailsPane && m_detailsPane->isVisibleTo(this)) {
+        m_detailsPane->setContents(KFileItem(m_view->url()), m_view->itemsCount(), m_view->selectedItems());
+    }
+}
+
 void DolphinViewContainer::connectForkViewSignals()
 {
+    connect(m_view, &DolphinView::selectionChanged, this, &DolphinViewContainer::updateDetailsPane);
+    connect(m_view, &DolphinView::urlChanged, this, &DolphinViewContainer::updateDetailsPane);
+    connect(m_view, &DolphinView::itemCountChanged, this, &DolphinViewContainer::updateDetailsPane);
+    connect(m_view, &DolphinView::directoryLoadingCompleted, this, &DolphinViewContainer::updateDetailsPane);
     // Kept apart from connectViewSignals() so that a merge of Dolphin touches as little of it as possible.
     connect(m_view, &DolphinView::typedText, this, &DolphinViewContainer::startFiltering);
     connect(m_view, &DolphinView::escapePressed, this, [this]() {
@@ -648,10 +687,33 @@ void DolphinViewContainer::slotSplitTabDisabled()
     }
 }
 
+static QStringList &messageHistory()
+{
+    static QStringList history;
+    return history;
+}
+
+MessageNotifier *DolphinViewContainer::messageNotifier()
+{
+    static MessageNotifier notifier;
+    return &notifier;
+}
+
+QStringList DolphinViewContainer::recentMessages()
+{
+    return messageHistory();
+}
+
 void DolphinViewContainer::showMessage(const QString &message, KMessageWidget::MessageType messageType, std::initializer_list<QAction *> buttonActions)
 {
     if (message.isEmpty()) {
         return;
+    }
+    const QString stamped = QTime::currentTime().toString(Qt::TextDate) + QLatin1String("  ") + message;
+    messageHistory().prepend(stamped);
+    Q_EMIT messageNotifier()->messageShown(stamped);
+    while (messageHistory().size() > 50) {
+        messageHistory().removeLast();
     }
 
     m_messageWidget->setText(message);
@@ -891,8 +953,51 @@ void DolphinViewContainer::slotDirectoryLoadingStarted()
     }
 }
 
+static bool s_autoThumbsDetails = false;
+
+void DolphinViewContainer::setAutoThumbsDetails(bool enabled)
+{
+    s_autoThumbsDetails = enabled;
+}
+
+bool DolphinViewContainer::autoThumbsDetails()
+{
+    return s_autoThumbsDetails;
+}
+
+bool DolphinViewContainer::areMostlyPictures(const QStringList &names)
+{
+    if (names.size() < 3) {
+        return false;
+    }
+    int pictures = 0;
+    const QMimeDatabase database;
+    for (const QString &name : names) {
+        pictures += database.mimeTypeForFile(name, QMimeDatabase::MatchExtension).name().startsWith(QLatin1String("image/")) ? 1 : 0;
+    }
+    return pictures * 100 >= names.size() * 60;
+}
+
 void DolphinViewContainer::slotDirectoryLoadingCompleted()
 {
+    // A folder of pictures, with no style chosen for it yet, is shown with thumbnails (OneCommander's auto-switch to Thumbs + Details).
+    if (s_autoThumbsDetails && m_view->url().isLocalFile() && !isSearchUrl(m_view->url())) {
+        ViewProperties props(m_view->url());
+        props.setAutoSaveEnabled(false);
+        if (props.isDefaults()) {
+            QStringList names;
+            for (const KFileItem &item : m_view->items()) {
+                if (item.isFile()) {
+                    names << item.name();
+                }
+            }
+            if (areMostlyPictures(names)) {
+                m_view->setPreviewsShown(true);
+                m_view->setZoomLevel(qMin(ZoomLevelInfo::minimumLevel() + 4, ZoomLevelInfo::maximumLevel()));
+            }
+        }
+    }
+
     m_statusBar->showProgress(QString(), 100);
 
     if (isSearchUrl(url()) && m_view->itemsCount() == 0) {

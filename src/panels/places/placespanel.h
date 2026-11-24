@@ -55,7 +55,13 @@ Q_SIGNALS:
 
 protected:
     void dragMoveEvent(QDragMoveEvent *event) override;
+    bool viewportEvent(QEvent *event) override;
 
+public:
+    /** "79% used, 205 GiB free of 959 GiB" for the file system that holds @p path, empty if it cannot be told. */
+    static QString usageText(const QString &path);
+
+protected:
 private Q_SLOTS:
     void slotConfigureTrash();
     void slotUrlsDropped(const QUrl &dest, QDropEvent *event, QWidget *parent);

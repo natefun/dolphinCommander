@@ -30,6 +30,7 @@ namespace Admin
 class Bar;
 }
 class ColumnsStrip;
+class ItemDetailsPane;
 class ViewHeader;
 class FilterBar;
 class QAction;
@@ -64,6 +65,14 @@ bool isSearchUrl(const QUrl &url);
  * @see KUrlNavigator
  * @see DolphinStatusBar
  */
+/** Tells that a view has shown a message. */
+class MessageNotifier : public QObject
+{
+    Q_OBJECT
+Q_SIGNALS:
+    void messageShown(const QString &message);
+};
+
 class DolphinViewContainer : public QWidget
 {
     Q_OBJECT
@@ -196,6 +205,11 @@ public:
      */
     void showMessage(const QString &message, KMessageWidget::MessageType messageType, std::initializer_list<QAction *> buttonActions = {});
 
+    /** The messages shown by any view, newest first, at most 50. */
+    static QStringList recentMessages();
+    /** Emits messageShown() for each message shown by any view, for the notifications panel. */
+    static class MessageNotifier *messageNotifier();
+
     /**
      * Forwards to DolphinStatusBar::showProgress(). Only exception: The button to cancel the task is hidden.
      * @see DolphinStatusBar::showProgress().
@@ -287,6 +301,18 @@ public Q_SLOTS:
 
     /** Shows or hides the Miller columns of this view only, and updates the arrow that does the same. */
     void setMillerColumnsShown(bool shown);
+
+    /** Shows or hides the pane under the list that describes the selected file (OneCommander's details pane). */
+    void setDetailsPaneShown(bool shown);
+
+    /** While on, a folder with a style of its own not yet chosen that holds mostly pictures is shown as Thumbs + Details when it has been read. */
+    static void setAutoThumbsDetails(bool enabled);
+    static bool autoThumbsDetails();
+    /** Whether @p names are mostly pictures: three items or more, and at least 60 percent of them images. */
+    static bool areMostlyPictures(const QStringList &names);
+    bool isDetailsPaneShown() const;
+    ItemDetailsPane *detailsPane() const;
+    void updateDetailsPane();
 
     /** Gives this view the state of the Miller columns that the settings say. */
     void applyMillerColumnsSetting();
@@ -586,6 +612,7 @@ private:
     DolphinView *m_view;
     ColumnsStrip *m_columnsStrip = nullptr;
     QToolButton *m_columnsToggle = nullptr;
+    ItemDetailsPane *m_detailsPane = nullptr;
     ViewHeader *m_viewHeader = nullptr;
 
     FilterBar *m_filterBar;

@@ -10,14 +10,27 @@
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDialog>
+#include <QHash>
+#include <QList>
+#include <QPointF>
+#include <QStringList>
 #include <QUrl>
+#include <optional>
+
+class QMimeData;
 
 class FilePreviewWidget;
 class QLabel;
+class QKeyEvent;
+class QPushButton;
+class QMediaPlayer;
+class QVideoWidget;
 class QLineEdit;
 class QPlainTextEdit;
 class QTableWidget;
+class QCheckBox;
 class QDialogButtonBox;
+class QListWidget;
 
 /** What dolphinCommander adds beyond Dolphin: helpers and dialogs for checksums, batch renaming and quick view. */
 namespace CommanderTools
@@ -36,7 +49,106 @@ QString hashFile(const QString &path, QCryptographicHash::Algorithm algorithm);
 
 /** True when two hex digests are the same, ignoring case and the whitespace a pasted one brings. */
 bool checksumsMatch(const QString &a, const QString &b);
+
+/** Saves the image at @p source next to itself in @p format ("png", "jpg", "webp", ...) and returns the new path, or an empty string if it failed. An existing
+ * file is not overwritten. */
+QString convertImage(const QString &source, const QString &format);
+
+/** The name of a to-do file with its state flipped: .2do (open) becomes .2dx (done) and back. Other names stay as they are. */
+QString toggledToDoName(const QString &fileName);
+
+/** Writes the clipboard's image as a dated .png, or its text as a dated .txt, into @p folder, and returns the path (empty if the clipboard has neither or it
+ * failed). */
+QString saveClipboardAsFile(const QMimeData *clipboard, const QString &folder);
+
+/** The folder that holds the file templates: the templates folder of the user (~/Templates), made if it is missing. */
+QString templatesFolder();
+/** The templates, by file name. */
+QStringList templateNames();
+/** Copies the template @p templatePath into @p folder as @p name. Returns the path of the new file, empty if the name is empty or taken, or the copy failed. */
+QString createFromTemplate(const QString &templatePath, const QString &folder, const QString &name);
+/** Copies the file into the templates folder, under a free name. Returns the path of the template, empty if it failed. */
+QString saveAsTemplate(const QString &filePath);
+
+/** How a path is written when it is copied. OneCommander offers backslashes, quotes, doubled backslashes and forward slashes; here: */
+enum class PathFormat {
+    Plain, ///< /home/me/My Files
+    Quoted, ///< "/home/me/My Files"
+    ShellEscaped, ///< /home/me/My\ Files
+    FileUrl ///< file:///home/me/My%20Files
+};
+QString formattedPath(const QString &path, PathFormat format);
+
+/** The address when @p text is one web address (http, https or ftp) and nothing else, an invalid URL otherwise. */
+QUrl webLinkIn(const QString &text);
+/** Writes a link file (a .desktop file of Type=Link) to @p url into @p folder, named after the site. Returns its path, empty on failure. */
+QString saveLinkAsFile(const QUrl &url, const QString &folder);
+
+/** Makes a symbolic link in @p folder to each of @p urls (local files and folders), named after its target, under a free name if that is taken.
+ * Returns the paths of the links. */
+QStringList pasteAsLinks(const QList<QUrl> &urls, const QString &folder);
+
+/** Where a photo was taken, from its metadata: x is the longitude and y the latitude. Empty if the file has no position. */
+std::optional<QPointF> photoLocation(const QString &path);
+
+/** A map of OpenStreetMap that shows @p location. */
+QUrl mapUrl(const QPointF &location);
+
+/** The total size in bytes of the files below @p folder, without following symlinks. */
+qint64 folderSize(const QString &folder);
+
+/** Groups of files below @p folder (recursively, without symlinks) that have the same content. Empty files are ignored. */
+QList<QStringList> findDuplicates(const QString &folder);
 }
+
+/** Shows the size of each of the given folders, biggest first, as they are worked out. */
+class FolderSizesDialog : public QDialog
+{
+    Q_OBJECT
+public:
+    FolderSizesDialog(const QStringList &folders, QWidget *parent);
+};
+
+/** Lists the duplicates below a folder and moves the ticked ones to the trash. */
+class DuplicateFinderDialog : public QDialog
+{
+    Q_OBJECT
+public:
+    DuplicateFinderDialog(const QString &folder, QWidget *parent);
+};
+
+/**
+ * A window to design a file view: which columns it shows, in what order and how wide they are.
+ * The columns are the roles of the file model; the rows are in the order of the view, the shown ones first.
+ */
+class FileViewDesignerDialog : public QDialog
+{
+    Q_OBJECT
+public:
+    /** @p roles are the columns now shown, in order, and @p widths their widths (empty: automatic). */
+    FileViewDesignerDialog(const QList<QByteArray> &roles, const QList<int> &widths, QWidget *parent);
+
+    /** The columns that are ticked, in the order of the rows. */
+    QList<QByteArray> roles() const;
+    /** The width of each of roles(); empty when "Automatic widths" is ticked. */
+    QList<int> widths() const;
+    /** The name to keep the design under; empty if it is not to be saved. */
+    QString name() const;
+    /** True when the design is to be tried on the folder without keeping it (the "Apply Without Saving" button). */
+    bool temporaryOnly() const;
+    /** For each of roles(), the width of the view under which the column is hidden; 0 for the automatic rule. */
+    QList<int> hideBelow() const;
+    /** Sets the thresholds that the rows start with, by role. */
+    void setHideBelow(const QHash<QByteArray, int> &thresholds);
+
+private:
+    void moveCurrentRow(int by);
+
+    QTableWidget *m_table;
+    QCheckBox *m_automatic;
+    QLineEdit *m_name;
+    bool m_temporaryOnly = false;
+};
 
 /** Shows MD5, SHA-1 and SHA-256 of a file and checks them against a checksum that is pasted in. */
 class ChecksumDialog : public QDialog
@@ -73,6 +185,53 @@ private:
     QDialogButtonBox *m_buttons;
 };
 
+/** OneCommander's New File window (Ctrl+N): pick a template, give the file a name and create it, and open it if wanted. */
+class NewFromTemplateDialog : public QDialog
+{
+    Q_OBJECT
+public:
+    explicit NewFromTemplateDialog(QWidget *parent);
+    /** The path of the chosen template, empty if there is none. */
+    QString selectedTemplate() const;
+    QString fileName() const;
+    /** True after "Create and Open". */
+    bool openAfterwards() const;
+    /** True after "Edit Templates". */
+    bool editRequested() const;
+
+private:
+    QListWidget *m_list;
+    QLineEdit *m_name;
+    bool m_open = false;
+    bool m_edit = false;
+};
+
+/** OneCommander's New Folder window (Ctrl+Shift+N): a name, and Enter makes the folder, Ctrl+Enter makes it and opens it, Shift+Enter makes it and moves the
+ * selected files into it. */
+class NewFolderDialog : public QDialog
+{
+    Q_OBJECT
+public:
+    enum class Result {
+        Create,
+        CreateAndOpen,
+        CreateAndMoveSelected
+    };
+    /** @p hasSelection tells whether files are selected, which the third way needs. */
+    NewFolderDialog(bool hasSelection, QWidget *parent);
+    QString folderName() const;
+    Result result() const;
+    void setFolderName(const QString &name);
+
+protected:
+    void keyPressEvent(QKeyEvent *event) override;
+
+private:
+    QLineEdit *m_name;
+    QPushButton *m_moveButton;
+    Result m_result = Result::Create;
+};
+
 /** A small window that shows what is in a file: a preview of an image, or the start of a text. */
 class QuickViewDialog : public QDialog
 {
@@ -80,9 +239,35 @@ class QuickViewDialog : public QDialog
 public:
     explicit QuickViewDialog(QWidget *parent);
     void show(const KFileItem &item);
+    /** The name of the file that is shown. */
+    QString shownName() const;
+
+    /** Moves the playing video or sound by @p milliseconds, within its length. Does nothing when no media is shown. */
+    void seekBy(qint64 milliseconds);
+    /** Steps one frame (about 40 ms) back or forth; the media is paused first. */
+    void stepFrame(int direction);
+    /** Plays or pauses. */
+    void togglePlayback();
+    /** The map to show where the photo was taken; empty when the file has no position. */
+    QUrl mapLink() const;
+    /** Where the media is, in milliseconds, and how long it is; both 0 when no media is shown. */
+    qint64 mediaPosition() const;
+    qint64 mediaDuration() const;
+
+Q_SIGNALS:
+    /** The Up (-1) or Down (+1) key asks for the previous or the next file. */
+    void stepRequested(int delta);
+
+protected:
+    void keyPressEvent(QKeyEvent *event) override;
 
 private:
     FilePreviewWidget *m_preview;
+    QString m_shownName;
+    QUrl m_mapLink;
+    QPushButton *m_mapButton;
+    QMediaPlayer *m_player;
+    QVideoWidget *m_video;
 };
 
 #endif

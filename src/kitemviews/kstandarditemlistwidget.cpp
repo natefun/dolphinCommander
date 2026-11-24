@@ -28,6 +28,7 @@
 #include <QStyleOption>
 #include <QTextBoundaryFinder>
 #include <QVariantAnimation>
+#include <cmath>
 
 // #define KSTANDARDITEMLISTWIDGET_DEBUG
 
@@ -335,6 +336,40 @@ bool KStandardItemListWidget::supportsItemExpanding() const
     return m_supportsItemExpanding;
 }
 
+void KStandardItemListWidget::drawBadge(QPainter *painter, const QByteArray &role, const TextInfo *textInfo)
+{
+    // A date is on a badge whose hue is its age (red for today, blue for a year and more); a size is on one
+    // whose hue goes from green for the small to red for the large.
+    double hue = -1;
+    if (role == "modificationtime" || role == "creationtime" || role == "accesstime") {
+        const qlonglong seconds = data().value(role).toLongLong();
+        if (seconds <= 0) {
+            return;
+        }
+        const double days = (QDateTime::currentSecsSinceEpoch() - seconds) / 86400.0;
+        hue = 240.0 * qBound(0.0, std::log1p(qMax(days, 0.0)) / std::log1p(365.0), 1.0);
+    } else if (role == "size") {
+        const qlonglong bytes = data().value(role).toLongLong();
+        if (bytes <= 0) {
+            return;
+        }
+        // Green below a kilobyte, red from a gigabyte.
+        hue = 120.0 * (1.0 - qBound(0.0, (std::log10(double(bytes)) - 3.0) / 6.0, 1.0));
+    } else {
+        return;
+    }
+    QColor fill = QColor::fromHsvF(hue / 360.0, 0.6, 0.85);
+    fill.setAlphaF(0.35);
+    const QSizeF textSize = textInfo->staticText.size();
+    const QRectF badge = QRectF(textInfo->pos, textSize).adjusted(-4, 1, 4, -1);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(fill);
+    painter->drawRoundedRect(badge, 3, 3);
+    painter->restore();
+}
+
 void KStandardItemListWidget::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
 {
     const_cast<KStandardItemListWidget *>(this)->triggerCacheRefreshing();
@@ -448,6 +483,9 @@ void KStandardItemListWidget::paint(QPainter *painter, const QStyleOptionGraphic
 
     for (int i = 1; i < m_sortedVisibleRoles.count(); ++i) {
         const TextInfo *textInfo = m_textInfo.value(m_sortedVisibleRoles[i]);
+        if (KItemListWidget::badgesShown()) {
+            drawBadge(painter, m_sortedVisibleRoles[i], textInfo);
+        }
         painter->drawStaticText(textInfo->pos, textInfo->staticText);
     }
 

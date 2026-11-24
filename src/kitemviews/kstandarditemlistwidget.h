@@ -213,6 +213,7 @@ private Q_SLOTS:
     void slotRoleEditingFinished(const QByteArray &role, const QVariant &value);
 
 private:
+    void drawBadge(QPainter *painter, const QByteArray &role, const TextInfo *textInfo);
     void triggerCacheRefreshing();
     void updateExpansionArea();
     void updatePixmapCache();

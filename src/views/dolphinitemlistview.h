@@ -10,6 +10,7 @@
 #include "dolphin_export.h"
 #include "kitemviews/kfileitemlistview.h"
 #include "settings/viewmodes/viewmodesettings.h"
+#include <QPixmap>
 
 #include <optional>
 
@@ -54,6 +55,13 @@ public:
     void readSettings();
     void writeSettings();
 
+    /** Shows the image at @p path faintly behind the items; an empty path shows none. */
+    void setBackgroundImage(const QString &path);
+    /** The first of cover.jpg, folder.jpg, front.jpg, background.jpg and poster.jpg (or .png) in @p folder, or an empty string. */
+    static QString backgroundImageIn(const QString &folder);
+
+    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = nullptr) override;
+
 protected:
     KItemListWidgetCreatorBase *defaultWidgetCreator() const override;
     /** Overwriting in the Dolphin-specific class because we want this to be user-configurable.
@@ -77,6 +85,7 @@ private:
 
 private:
     int m_zoomLevel;
+    QPixmap m_backgroundImage;
     int m_previewSize = 0;
     int m_iconSize = 0;
     // Empty while the view mode follows the item layout.
