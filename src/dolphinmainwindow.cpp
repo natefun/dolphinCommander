@@ -36,6 +36,7 @@
 #include "search/dolphinquery.h"
 #include "selectionmode/actiontexthelper.h"
 #include "views/columnsstrip.h"
+#include "views/zoomlevelinfo.h"
 #if KIO_VERSION >= QT_VERSION_CHECK(6, 24, 0)
 #include "servicemenushortcutmanager.h"
 #endif
@@ -2618,6 +2619,7 @@ void DolphinMainWindow::askFirstStartChoices()
     themeChoice->addItem(i18nc("@item:inlistbox", "Follow the desktop"), QStringLiteral("system"));
     themeChoice->addItem(i18nc("@item:inlistbox", "Light"), QStringLiteral("light"));
     themeChoice->addItem(i18nc("@item:inlistbox", "Dark"), QStringLiteral("dark"));
+    themeChoice->addItem(i18nc("@item:inlistbox", "Nord"), QStringLiteral("nord"));
     layout->addRow(i18nc("@label:listbox", "Colors:"), themeChoice);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
@@ -2727,7 +2729,8 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
     systemIconThemeName();
     static const QPalette systemPalette = QApplication::palette();
     // The views take their background from the program's palette while one of the fork's themes is on.
-    DolphinView::setUsesApplicationPalette(theme == QLatin1String("dark") || theme == QLatin1String("light") || theme == QLatin1String("custom"));
+    DolphinView::setUsesApplicationPalette(theme == QLatin1String("dark") || theme == QLatin1String("light") || theme == QLatin1String("custom")
+                                           || theme == QLatin1String("nord"));
 
     // Light and Dark are the desktop's own Breeze color schemes when they are installed: their icons are recolored with them.
     const auto installedScheme = [](const QString &id) {
@@ -2753,13 +2756,20 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
         KColorSchemeManager::instance()->activateSchemeId(QString());
         m_schemeThemeActive = false;
     }
-    if (theme == QLatin1String("dark") || theme == QLatin1String("light") || theme == QLatin1String("custom")) {
-        const bool dark = theme == QLatin1String("dark");
+    if (theme == QLatin1String("dark") || theme == QLatin1String("light") || theme == QLatin1String("custom") || theme == QLatin1String("nord")) {
+        const bool dark = theme == QLatin1String("dark") || theme == QLatin1String("nord");
         QPalette palette;
         QColor window = dark ? QColor(37, 39, 43) : QColor(244, 244, 246);
         QColor base = dark ? QColor(27, 29, 33) : QColor(255, 255, 255);
         QColor text = dark ? QColor(230, 232, 236) : QColor(30, 32, 36);
         QColor highlight = dark ? QColor(61, 132, 220) : QColor(42, 110, 200);
+        if (theme == QLatin1String("nord")) {
+            // The Nord palette, as OneCommander's Nord theme uses it: polar night for the windows, snow storm for the text, frost for the highlight.
+            window = QColor(59, 66, 82);
+            base = QColor(46, 52, 64);
+            text = QColor(216, 222, 233);
+            highlight = QColor(94, 129, 172);
+        }
         if (theme == QLatin1String("custom")) {
             // window, base, text, highlight: the colors the user chose
             const QStringList chosen = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("CustomTheme", QStringList());
@@ -3607,6 +3617,23 @@ void DolphinMainWindow::setupActions()
         }
     });
 
+    QAction *compactRows = actionCollection()->addAction(QStringLiteral("compact_rows"));
+    compactRows->setText(i18nc("@action:inmenu", "Compact Rows"));
+    compactRows->setToolTip(
+        i18nc("@info:tooltip", "Make the rows of the lists as low as they go, as OneCommander's are (the zoom of the views is set to its smallest)."));
+    compactRows->setIcon(QIcon::fromTheme(QStringLiteral("zoom-out")));
+    connect(compactRows, &QAction::triggered, this, [this]() {
+        for (DolphinTabWidget *tabs : {m_leftTabs, m_rightTabs}) {
+            for (int i = 0; i < tabs->count(); ++i) {
+                for (DolphinViewContainer *container : {tabs->tabPageAt(i)->primaryViewContainer(), tabs->tabPageAt(i)->secondaryViewContainer()}) {
+                    if (container) {
+                        container->view()->setZoomLevel(ZoomLevelInfo::minimumLevel());
+                    }
+                }
+            }
+        }
+    });
+
     QAction *badges = actionCollection()->addAction(QStringLiteral("colored_badges"));
     badges->setText(i18nc("@action:inmenu", "Colored Badges for Dates and Sizes"));
     badges->setToolTip(i18nc("@info:tooltip", "Draw the dates on a badge by age (red today, blue a year ago) and the sizes on one from green to red."));
@@ -3849,7 +3876,7 @@ void DolphinMainWindow::setupActions()
     const struct {
         const char *id;
         const char *label;
-    } themes[] = {{"system", "Follow the Desktop"}, {"light", "Light"}, {"dark", "Dark"}};
+    } themes[] = {{"system", "Follow the Desktop"}, {"light", "Light"}, {"dark", "Dark"}, {"nord", "Nord"}};
     const QString savedTheme = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ColorTheme", QStringLiteral("system"));
     for (const auto &entry : themes) {
         auto *themeAction = new QAction(i18nc("@action:inmenu", entry.label), themeGroup);

@@ -133,6 +133,7 @@ private Q_SLOTS:
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
+    void testTheNordThemeHasItsColors();
     void testTheDatesAreDrawnOnBadges();
     void testTheDetailsPaneDescribesTheSelectedFile();
     void testLockedColumnDividersCannotBeDragged();
@@ -425,6 +426,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "lock_column_resizing",
                                "show_details_pane",
                                "colored_badges",
+                               "compact_rows",
                                "open_terminal_as_administrator",
                                "restart_as_administrator"};
     for (const QString &name : names) {
@@ -445,6 +447,26 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
         QVERIFY2(action, qPrintable(name));
         QVERIFY2(action->shortcuts().contains(key), qPrintable(name + QStringLiteral(" lacks ") + key.toString()));
     }
+}
+
+void DolphinCommanderFeaturesTest::testTheNordThemeHasItsColors()
+{
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    const QColor before = QApplication::palette().color(QPalette::Base);
+    QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("nord")));
+    QCOMPARE(QApplication::palette().color(QPalette::Base), QColor(46, 52, 64));
+    QCOMPARE(QApplication::palette().color(QPalette::Highlight), QColor(94, 129, 172));
+    QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("system")));
+    QCOMPARE(QApplication::palette().color(QPalette::Base), before);
 }
 
 void DolphinCommanderFeaturesTest::testTheDatesAreDrawnOnBadges()
@@ -1184,7 +1206,7 @@ void DolphinCommanderFeaturesTest::testTheColorThemesRecolorTheProgram()
     auto *themes = qobject_cast<KActionMenu *>(window.actionCollection()->action(QStringLiteral("color_theme")));
     QVERIFY(themes);
     const QList<QAction *> choices = themes->menu()->actions();
-    QCOMPARE(choices.size(), 9); // the three themes, a separator, "Text and Icons…", saving and loading, "Style Sheet…" and "Custom Colors…"
+    QCOMPARE(choices.size(), 10); // the four themes, a separator, "Text and Icons…", saving and loading, "Style Sheet…" and "Custom Colors…"
     const QColor before = QApplication::palette().color(QPalette::Base);
 
     choices.at(2)->trigger(); // Dark
