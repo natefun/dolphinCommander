@@ -29,9 +29,12 @@
 #ifndef QT_NO_ACCESSIBILITY
 #include <QAccessible>
 #endif
+#include <QDir>
 #include <QElapsedTimer>
+#include <QFileInfo>
 #include <QMimeData>
 #include <QMimeDatabase>
+#include <QStandardPaths>
 #include <QTimer>
 #include <QWidget>
 #include <QtCore/qcompare.h>
@@ -316,6 +319,30 @@ Qt::strong_ordering decimalAwareNaturalCompare(QStringView a, QStringView b, con
 
     return orderingFromInt(a.compare(b, Qt::CaseSensitive));
 }
+}
+
+QString KFileItemModel::customIcon(const KFileItem &item)
+{
+    static QHash<QString, QString> pictures; // lower-case name without the suffix -> path
+    static QDateTime scannedState;
+    const QDir dir(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/dolphincommander/icons"));
+    // The folder is read again when its modification time changes (a picture was added or removed).
+    const QDateTime state = QFileInfo(dir.path()).lastModified();
+    if (state != scannedState) {
+        scannedState = state;
+        pictures.clear();
+        const QFileInfoList files = dir.entryInfoList({QStringLiteral("*.png"), QStringLiteral("*.svg"), QStringLiteral("*.ico")}, QDir::Files);
+        for (const QFileInfo &file : files) {
+            pictures.insert(file.completeBaseName().toLower(), file.absoluteFilePath());
+        }
+    }
+    if (pictures.isEmpty() || !item.isLocalFile()) {
+        return QString();
+    }
+    if (item.isDir()) {
+        return pictures.value(item.name().toLower(), pictures.value(QStringLiteral("folder")));
+    }
+    return pictures.value(QFileInfo(item.name()).suffix().toLower());
 }
 
 KFileItemModel::KFileItemModel(QObject *parent)
@@ -2454,7 +2481,8 @@ SmallHash KFileItemModel::retrieveData(const KFileItem &item, const ItemData *pa
     }
 
     if (item.isMimeTypeKnown()) {
-        const QString iconName = item.iconName();
+        const QString customIcon = KFileItemModel::customIcon(item);
+        const QString iconName = customIcon.isEmpty() ? item.iconName() : customIcon;
         if (!iconName.isEmpty()) {
             data.insert(sharedValue("iconName"), iconName);
         }

@@ -137,6 +137,7 @@ private Q_SLOTS:
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
     void testTheMainToolbarHasOneCommandersButtons();
+    void testUserIconsReplaceTheIconsOfAKind();
     void testFavoritesAreKeptInGroups();
     void testADriveSaysHowFullItIs();
     void testTheNordThemeHasItsColors();
@@ -490,6 +491,49 @@ void DolphinCommanderFeaturesTest::testTheMainToolbarHasOneCommandersButtons()
         together = together || all;
     }
     QVERIFY(together);
+}
+
+void DolphinCommanderFeaturesTest::testUserIconsReplaceTheIconsOfAKind()
+{
+    const QString iconDir = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/dolphincommander/icons");
+    QDir(iconDir).removeRecursively();
+    const KFileItem text(QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/file1.txt")));
+    const KFileItem folder(QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/subdir")));
+    QVERIFY(KFileItemModel::customIcon(text).isEmpty());
+
+    QVERIFY(QDir().mkpath(iconDir));
+    QImage picture(16, 16, QImage::Format_ARGB32);
+    picture.fill(Qt::red);
+    QVERIFY(picture.save(iconDir + QStringLiteral("/txt.png")));
+    QVERIFY(picture.save(iconDir + QStringLiteral("/Subdir.png")));
+    // A kind of file gets the picture of its suffix, and a folder the one of its name, whatever the case.
+    QTRY_COMPARE(KFileItemModel::customIcon(text), iconDir + QStringLiteral("/txt.png"));
+    QCOMPARE(KFileItemModel::customIcon(folder), iconDir + QStringLiteral("/Subdir.png"));
+    const KFileItem other(QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/subdir/inner.md")));
+    QVERIFY(KFileItemModel::customIcon(other).isEmpty());
+
+    // The list draws them: the red pictures show up as red pixels.
+    const auto red = [](const QImage &image) {
+        int found = 0;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                const QColor c = image.pixelColor(x, y);
+                found += (c.red() > 200 && c.green() < 60 && c.blue() < 60) ? 1 : 0;
+            }
+        }
+        return found;
+    };
+    m_container->resize(700, 500);
+    m_container->show();
+    QVERIFY(QTest::qWaitForWindowExposed(m_container));
+    m_container->view()->reload();
+    QTest::qWait(1500); // UNAVOIDABLE: the rows are painted after the roles arrive; no signal says that a grab shows them
+    const int withPictures = red(m_container->grab().toImage());
+    QDir(iconDir).removeRecursively();
+    m_container->view()->reload();
+    QTest::qWait(1500); // UNAVOIDABLE: the rows are painted after the roles arrive; no signal says that a grab shows them
+    const int without = red(m_container->grab().toImage());
+    QVERIFY2(withPictures > without + 100, qPrintable(QStringLiteral("red pixels %1 with the pictures, %2 without").arg(withPictures).arg(without)));
 }
 
 void DolphinCommanderFeaturesTest::testFavoritesAreKeptInGroups()

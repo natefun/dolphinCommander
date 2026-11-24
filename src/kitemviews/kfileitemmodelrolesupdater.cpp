@@ -1301,7 +1301,10 @@ bool KFileItemModelRolesUpdater::applyResolvedRoles(int index, ResolveHint hint,
             data = rolesData(item, index);
         }
 
-        if (!item.iconName().isEmpty()) {
+        const QString customIcon = KFileItemModel::customIcon(item);
+        if (!customIcon.isEmpty()) {
+            data.insert("iconName", customIcon);
+        } else if (!item.iconName().isEmpty()) {
             data.insert("iconName", item.iconName());
         }
 
