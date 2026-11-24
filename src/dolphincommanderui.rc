@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="53">
+<gui name="dolphin" version="54">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
@@ -74,6 +74,7 @@
                 <Action name="names_only" />
                 <Action name="hide_columns_when_narrow" />
                 <Action name="age_stripes" />
+                <Action name="colored_badges" />
                 <Action name="folders_sorted_by_name" />
                 <Action name="item_scrolling" />
                 <Separator/>

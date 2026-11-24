@@ -133,6 +133,7 @@ private Q_SLOTS:
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
+    void testTheDatesAreDrawnOnBadges();
     void testTheDetailsPaneDescribesTheSelectedFile();
     void testLockedColumnDividersCannotBeDragged();
     void testClipboardAsFile();
@@ -423,6 +424,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "run_with_arguments",
                                "lock_column_resizing",
                                "show_details_pane",
+                               "colored_badges",
                                "open_terminal_as_administrator",
                                "restart_as_administrator"};
     for (const QString &name : names) {
@@ -443,6 +445,37 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
         QVERIFY2(action, qPrintable(name));
         QVERIFY2(action->shortcuts().contains(key), qPrintable(name + QStringLiteral(" lacks ") + key.toString()));
     }
+}
+
+void DolphinCommanderFeaturesTest::testTheDatesAreDrawnOnBadges()
+{
+    // Pinkish pixels: what a red badge at about a third of its strength makes over the background.
+    const auto reddish = [](const QImage &image) {
+        int found = 0;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                const QColor c = image.pixelColor(x, y);
+                found += (c.red() > c.green() + 25 && c.red() > c.blue() + 25) ? 1 : 0;
+            }
+        }
+        return found;
+    };
+    m_container->setViewMode(DolphinView::DetailsView);
+    waitForViewReady(m_container);
+    m_container->resize(900, 500);
+    m_container->show();
+    QVERIFY(QTest::qWaitForWindowExposed(m_container));
+
+    KItemListWidget::setBadgesShown(false);
+    m_container->view()->reload();
+    QTest::qWait(1500); // UNAVOIDABLE: the rows are painted after the roles arrive; no signal says that a grab shows them
+    const int plain = reddish(m_container->grab().toImage());
+    KItemListWidget::setBadgesShown(true);
+    m_container->view()->reload();
+    QTest::qWait(1500); // UNAVOIDABLE: the rows are painted after the roles arrive; no signal says that a grab shows them
+    const int badged = reddish(m_container->grab().toImage());
+    KItemListWidget::setBadgesShown(false);
+    QVERIFY2(badged > plain + 100, qPrintable(QStringLiteral("reddish pixels %1 without badges, %2 with").arg(plain).arg(badged)));
 }
 
 void DolphinCommanderFeaturesTest::testTheDetailsPaneDescribesTheSelectedFile()

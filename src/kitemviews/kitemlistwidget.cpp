@@ -115,6 +115,17 @@ bool KItemListWidget::isToDoName(const QString &name)
 }
 
 static bool s_ageStripes = false;
+static bool s_badges = false;
+
+void KItemListWidget::setBadgesShown(bool shown)
+{
+    s_badges = shown;
+}
+
+bool KItemListWidget::badgesShown()
+{
+    return s_badges;
+}
 
 void KItemListWidget::setAgeStripesShown(bool shown)
 {

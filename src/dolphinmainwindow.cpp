@@ -3607,6 +3607,22 @@ void DolphinMainWindow::setupActions()
         }
     });
 
+    QAction *badges = actionCollection()->addAction(QStringLiteral("colored_badges"));
+    badges->setText(i18nc("@action:inmenu", "Colored Badges for Dates and Sizes"));
+    badges->setToolTip(i18nc("@info:tooltip", "Draw the dates on a badge by age (red today, blue a year ago) and the sizes on one from green to red."));
+    badges->setIcon(QIcon::fromTheme(QStringLiteral("color-management")));
+    badges->setCheckable(true);
+    const bool badgesOn = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ColoredBadges", true);
+    badges->setChecked(badgesOn);
+    KItemListWidget::setBadgesShown(badgesOn);
+    connect(badges, &QAction::toggled, this, [this](bool on) {
+        KItemListWidget::setBadgesShown(on);
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ColoredBadges", on);
+        for (QWidget *w : findChildren<QWidget *>()) {
+            w->update();
+        }
+    });
+
     auto *layoutMenu = actionCollection()->add<KActionMenu>(QStringLiteral("commander_layouts"));
     layoutMenu->setText(i18nc("@action:inmenu", "Layout"));
     layoutMenu->setIcon(QIcon::fromTheme(QStringLiteral("view-split-left-right")));

@@ -68,6 +68,9 @@ public:
     static QRectF todoCheckboxRect(const QRectF &row);
     static bool isToDoName(const QString &name);
     static void setAgeStripesShown(bool shown);
+    /** The dates and sizes of the details columns are drawn on colored badges: by age, and by size. */
+    static void setBadgesShown(bool shown);
+    static bool badgesShown();
     static bool ageStripesShown();
     QVariant value(const QByteArray &key) const;
 
