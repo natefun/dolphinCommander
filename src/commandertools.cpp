@@ -198,6 +198,29 @@ QString CommanderTools::saveLinkAsFile(const QUrl &url, const QString &folder)
     return path;
 }
 
+QStringList CommanderTools::pasteAsLinks(const QList<QUrl> &urls, const QString &folder)
+{
+    QStringList made;
+    for (const QUrl &url : urls) {
+        if (!url.isLocalFile()) {
+            continue;
+        }
+        const QFileInfo target(url.toLocalFile());
+        if (!target.exists()) {
+            continue;
+        }
+        QString path = folder + QLatin1Char('/') + target.fileName();
+        for (int i = 2; QFileInfo::exists(path) || QFileInfo(path).isSymLink(); ++i) {
+            path = folder + QLatin1Char('/') + target.completeBaseName() + QLatin1String(" - link")
+                + (i > 2 ? QLatin1Char(' ') + QString::number(i) : QString()) + (target.suffix().isEmpty() ? QString() : QLatin1Char('.') + target.suffix());
+        }
+        if (QFile::link(target.absoluteFilePath(), path)) {
+            made << path;
+        }
+    }
+    return made;
+}
+
 std::optional<QPointF> CommanderTools::photoLocation(const QString &path)
 {
     const QMimeType mime = QMimeDatabase().mimeTypeForFile(path);

@@ -30,8 +30,14 @@ public:
     /** "7 d", "9 M" or "2 y": how long ago @p time was. */
     static QString ageText(const QDateTime &time, const QDateTime &now = QDateTime::currentDateTime());
 
+    /** What the file says about itself, such as "Width: 4032 · Height: 3024" for a photo or "Artist: …" for a song, as short "name: value" texts. Empty if the
+     * extractors know nothing. */
+    static QStringList metadataSummary(const QString &path);
+
     /** The text of the line with the counts, such as "11 items, 1 selected, 2.3 MiB". */
     QString summaryText() const;
+    /** The line with what the file says about itself (size of a picture, artist of a song), empty if there is none. */
+    QString metadataText() const;
     /** The text of one row ("Name", "Type", "Created", "Modified", "Age", "Size"), empty if there is none. */
     QString valueOf(const QString &key) const;
 
@@ -40,6 +46,7 @@ public:
 private:
     QLabel *m_picture;
     QLabel *m_summary;
+    QLabel *m_metadata;
     QList<QPair<QLabel *, QLabel *>> m_rows;
     quint64 m_generation = 0;
 };

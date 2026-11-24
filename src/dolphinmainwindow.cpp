@@ -3091,12 +3091,24 @@ void DolphinMainWindow::fillScriptsMenu(QMenu *menu)
                     args << item.localPath();
                 }
             }
+            // The scripts are told where the settings and the scripts are, as OneCommander's OC_SETTINGS_DIR and OC_SCRIPTS_DIR do.
+            QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+            const QString scriptsDir = QFileInfo(scriptPath).absolutePath();
+            environment.insert(QStringLiteral("DOLPHINCOMMANDER_SCRIPTS_DIR"), scriptsDir);
+            environment.insert(QStringLiteral("DOLPHINCOMMANDER_SETTINGS_DIR"), QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation));
+            environment.insert(QStringLiteral("OC_SCRIPTS_DIR"), scriptsDir);
+            environment.insert(QStringLiteral("OC_SETTINGS_DIR"), QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation));
+            QProcess process;
+            process.setProcessEnvironment(environment);
+            process.setWorkingDirectory(m_activeViewContainer->url().toLocalFile());
             if (!executable) {
                 args.prepend(scriptPath);
-                QProcess::startDetached(interpreter, args, m_activeViewContainer->url().toLocalFile());
+                process.setProgram(interpreter);
             } else {
-                QProcess::startDetached(scriptPath, args, m_activeViewContainer->url().toLocalFile());
+                process.setProgram(scriptPath);
             }
+            process.setArguments(args);
+            process.startDetached();
         });
     }
     if (scripts.isEmpty()) {
@@ -3935,6 +3947,34 @@ void DolphinMainWindow::setupActions()
                 }
             }
         }
+    });
+
+    // F2 on several files opens the batch rename window, as OneCommander opens its File Automator.
+    DolphinView::setMultiRenameHandler([]() {
+        if (auto *window = qobject_cast<DolphinMainWindow *>(QApplication::activeWindow())) {
+            window->showBatchRename();
+        }
+    });
+
+    QAction *pasteAsLinks = actionCollection()->addAction(QStringLiteral("paste_as_links"));
+    pasteAsLinks->setText(i18nc("@action:inmenu", "Paste as Symbolic Links"));
+    pasteAsLinks->setToolTip(i18nc("@info:tooltip", "Make a symbolic link in this folder to each file or folder on the clipboard."));
+    pasteAsLinks->setIcon(QIcon::fromTheme(QStringLiteral("edit-paste")));
+    actionCollection()->setDefaultShortcut(pasteAsLinks, Qt::CTRL | Qt::SHIFT | Qt::Key_V);
+    connect(pasteAsLinks, &QAction::triggered, this, [this]() {
+        const QUrl folder = m_activeViewContainer->url();
+        const QList<QUrl> urls = QApplication::clipboard()->mimeData() ? QApplication::clipboard()->mimeData()->urls() : QList<QUrl>();
+        const QStringList made = folder.isLocalFile() ? CommanderTools::pasteAsLinks(urls, folder.toLocalFile()) : QStringList();
+        if (made.isEmpty()) {
+            m_activeViewContainer->showMessage(i18nc("@info", "There are no files on the clipboard to link to, or this folder is not on this computer."),
+                                               KMessageWidget::Information);
+            return;
+        }
+        QList<QUrl> madeUrls;
+        for (const QString &path : made) {
+            madeUrls << QUrl::fromLocalFile(path);
+        }
+        m_activeViewContainer->view()->markUrlsAsSelected(madeUrls);
     });
 
     QAction *copySelectedPath = actionCollection()->addAction(QStringLiteral("copy_selected_path"));

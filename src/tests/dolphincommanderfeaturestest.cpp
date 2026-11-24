@@ -145,6 +145,9 @@ private Q_SLOTS:
     void testStaleTabsAreThoseNotShownForADay();
     void testAWebAddressBecomesALinkFile();
     void testPathsAreCopiedInTheChosenFormat();
+    void testRenamingSeveralFilesOpensTheBatchRename();
+    void testLinksAreMadeFromTheClipboard();
+    void testAFileTellsItsMetadata();
     void testAWorkspaceRemembersTheLayoutAndPosition();
     void testTheDetailsPaneHasItsButtons();
     void testTheRichFileViewShowsPreviewsInTallRows();
@@ -449,6 +452,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "save_as_template",
                                "copy_path_as",
                                "copy_selected_path",
+                               "paste_as_links",
                                "dock_window",
                                "thin_scrollbars",
                                "auto_thumbs_details",
@@ -698,6 +702,54 @@ void DolphinCommanderFeaturesTest::testPathsAreCopiedInTheChosenFormat()
     QCOMPARE(CommanderTools::formattedPath(path, CommanderTools::PathFormat::Quoted), QStringLiteral("\"/home/me/My Files/a&b.txt\""));
     QCOMPARE(CommanderTools::formattedPath(path, CommanderTools::PathFormat::ShellEscaped), QStringLiteral("/home/me/My\\ Files/a\\&b.txt"));
     QCOMPARE(CommanderTools::formattedPath(path, CommanderTools::PathFormat::FileUrl), QStringLiteral("file:///home/me/My%20Files/a&b.txt"));
+}
+
+void DolphinCommanderFeaturesTest::testRenamingSeveralFilesOpensTheBatchRename()
+{
+    int calls = 0;
+    DolphinView::setMultiRenameHandler([&calls]() {
+        ++calls;
+    });
+    m_container->view()->selectItems(QRegularExpression(QStringLiteral("^file")), true);
+    QTRY_COMPARE_WITH_TIMEOUT(m_container->view()->selectedItemsCount(), 2, 3000);
+    m_container->view()->renameSelectedItems();
+    QCOMPARE(calls, 1);
+    DolphinView::setMultiRenameHandler(nullptr);
+}
+
+void DolphinCommanderFeaturesTest::testLinksAreMadeFromTheClipboard()
+{
+    TestDir dir;
+    dir.createFile("a.txt", "x");
+    dir.createDir("sub");
+    const QString target = dir.path() + QStringLiteral("/sub");
+    const QStringList first =
+        CommanderTools::pasteAsLinks({QUrl::fromLocalFile(dir.path() + QStringLiteral("/a.txt")), QUrl::fromLocalFile(QStringLiteral("/does/not/exist"))},
+                                     target);
+    QCOMPARE(first, QStringList({target + QStringLiteral("/a.txt")}));
+    QVERIFY(QFileInfo(first.first()).isSymLink());
+    QCOMPARE(QFileInfo(first.first()).symLinkTarget(), dir.path() + QStringLiteral("/a.txt"));
+    // The same file again gets a name of its own.
+    const QStringList second = CommanderTools::pasteAsLinks({QUrl::fromLocalFile(dir.path() + QStringLiteral("/a.txt"))}, target);
+    QCOMPARE(second.size(), 1);
+    QVERIFY(second.first() != first.first());
+    QVERIFY(QFileInfo(second.first()).isSymLink());
+}
+
+void DolphinCommanderFeaturesTest::testAFileTellsItsMetadata()
+{
+    TestDir dir;
+    QImage image(8, 6, QImage::Format_RGB32);
+    image.fill(Qt::green);
+    const QString path = dir.path() + QStringLiteral("/p.png");
+    QVERIFY(image.save(path));
+    const QStringList summary = ItemDetailsPane::metadataSummary(path);
+    if (summary.isEmpty()) {
+        QSKIP("No metadata extractor for pictures is installed here.");
+    }
+    const QString joined = summary.join(QLatin1Char('|'));
+    QVERIFY2(joined.contains(QStringLiteral("8")) && joined.contains(QStringLiteral("6")), qPrintable(joined));
+    QVERIFY(ItemDetailsPane::metadataSummary(dir.path() + QStringLiteral("/missing")).isEmpty());
 }
 
 void DolphinCommanderFeaturesTest::testAWorkspaceRemembersTheLayoutAndPosition()

@@ -23,6 +23,7 @@
 #include <QPointer>
 #include <QUrl>
 #include <QWidget>
+#include <functional>
 
 #include <memory>
 #include <optional>
@@ -486,6 +487,9 @@ public Q_SLOTS:
      * the user must input a new name for the items.
      */
     void renameSelectedItems();
+
+    /** Called instead of renaming one by one when several items are renamed (F2 on many files). Without a handler Dolphin's own dialog is shown. */
+    static void setMultiRenameHandler(std::function<void()> handler);
 
     /**
      * Moves all selected items to the trash.

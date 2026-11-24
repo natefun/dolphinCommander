@@ -43,6 +43,7 @@ Dock the window (global key Meta+Alt+\`, set through KGlobalAccel): the window c
 Thumbnails for Folders of Pictures (View > Appearance and Behavior, off by default): a folder of mostly pictures (at least three items, 60 percent images) with no style of its own is shown with larger rows and previews when it is read. Make This the Default File Manager sets the handler of inode/directory with xdg-mime.
 The details pane has OneCommander's buttons beside its counts: cut, copy, rename and move to trash, which trigger the actions of the window.
 Named windows: a workspace (Sides > Workspaces) now also keeps the layout and the position and size of the window, so opening it brings those back as OneCommander's named windows do.
+F2 on several selected files opens the batch rename window (OneCommander opens its File Automator). Paste as Symbolic Links (Ctrl+Shift+V; OneCommander pastes shortcuts). Scripts get the environment variables DOLPHINCOMMANDER_SCRIPTS_DIR and DOLPHINCOMMANDER_SETTINGS_DIR (and OC_SCRIPTS_DIR and OC_SETTINGS_DIR, the names OneCommander uses). The details pane shows what the file says about itself: size of a picture, artist of a song, pages of a PDF.
 
 ## Dolphin already does (found while checking the list)
 Tab aliases (Rename Tab), new tab after the last tab or the current one, remembering tabs and a start
@@ -92,5 +93,5 @@ schemes recolor them in a real desktop session is not verified.
 - Ctrl+Shift+Enter (run with arguments), Ctrl+Enter (open with), F8 (lock the dividers of the Miller columns), Ctrl+F10 (terminal as administrator) and Ctrl+Shift+F12 are there. The last two go through pkexec (konsole for the terminal), were not tried with a real password prompt, and Ctrl+Shift+F12 opens a root copy of the window and leaves this one open.
 
 ## How this was tested
-`build/bin/dolphincommanderfeaturestest` (77 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
+`build/bin/dolphincommanderfeaturestest` (80 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
 `fork/check-tests.py` shows one test of Dolphin's columns view (`testTheContentWidthFollowsInsertedAndRemovedNames`) that fails under load and passes alone.

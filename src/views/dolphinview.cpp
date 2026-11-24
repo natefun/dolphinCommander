@@ -902,10 +902,21 @@ void DolphinView::scrollToItemOnceResorted(const QUrl &url)
     });
 }
 
+static std::function<void()> s_multiRenameHandler;
+
+void DolphinView::setMultiRenameHandler(std::function<void()> handler)
+{
+    s_multiRenameHandler = std::move(handler);
+}
+
 void DolphinView::renameSelectedItems()
 {
     const KFileItemList items = selectedItems();
     if (items.isEmpty()) {
+        return;
+    }
+    if (items.count() > 1 && s_multiRenameHandler) {
+        s_multiRenameHandler();
         return;
     }
 

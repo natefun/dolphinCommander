@@ -5,6 +5,10 @@
 #include "itemdetailspane.h"
 
 #include <KActionCollection>
+#include <KFileMetaData/Extractor>
+#include <KFileMetaData/ExtractorCollection>
+#include <KFileMetaData/PropertyInfo>
+#include <KFileMetaData/SimpleExtractionResult>
 #include <KFormat>
 #include <KIO/PreviewJob>
 #include <KIconLoader>
@@ -17,6 +21,7 @@
 #include <QIcon>
 #include <QLabel>
 #include <QLocale>
+#include <QMimeDatabase>
 #include <QPointer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -25,6 +30,43 @@ namespace
 {
 constexpr int PictureSize = 72;
 const char *const Keys[] = {"Name", "Type", "Created", "Modified", "Age", "Size"};
+}
+
+QStringList ItemDetailsPane::metadataSummary(const QString &path)
+{
+    using KFileMetaData::Property::Property;
+    static const QList<Property> wanted = {KFileMetaData::Property::Width,
+                                           KFileMetaData::Property::Height,
+                                           KFileMetaData::Property::Duration,
+                                           KFileMetaData::Property::Artist,
+                                           KFileMetaData::Property::Title,
+                                           KFileMetaData::Property::Album,
+                                           KFileMetaData::Property::Genre,
+                                           KFileMetaData::Property::BitRate,
+                                           KFileMetaData::Property::PageCount,
+                                           KFileMetaData::Property::Manufacturer,
+                                           KFileMetaData::Property::Model};
+    const QMimeType mime = QMimeDatabase().mimeTypeForFile(path);
+    QStringList summary;
+    KFileMetaData::ExtractorCollection extractors;
+    QMap<KFileMetaData::Property::Property, QVariant> all;
+    for (KFileMetaData::Extractor *extractor : extractors.fetchExtractors(mime.name())) {
+        KFileMetaData::SimpleExtractionResult result(path, mime.name(), KFileMetaData::ExtractionResult::ExtractMetaData);
+        extractor->extract(&result);
+        const auto properties = result.properties();
+        for (auto it = properties.cbegin(); it != properties.cend(); ++it) {
+            all.insert(it.key(), it.value());
+        }
+    }
+    for (const Property property : wanted) {
+        const auto found = all.constFind(property);
+        if (found == all.cend() || found->toString().isEmpty()) {
+            continue;
+        }
+        const KFileMetaData::PropertyInfo info(property);
+        summary << info.displayName() + QLatin1String(": ") + info.formatAsDisplayString(*found);
+    }
+    return summary;
 }
 
 ItemDetailsPane::ItemDetailsPane(QWidget *parent)
@@ -94,6 +136,12 @@ ItemDetailsPane::ItemDetailsPane(QWidget *parent)
     grid->setColumnStretch(3, 2);
     grid->setColumnMinimumWidth(2, 12);
     text->addLayout(grid);
+    m_metadata = new QLabel(this);
+    m_metadata->setEnabled(false);
+    m_metadata->setTextFormat(Qt::PlainText);
+    m_metadata->setWordWrap(false);
+    m_metadata->setMinimumWidth(10);
+    text->addWidget(m_metadata);
     outer->addLayout(text, 1);
 }
 
@@ -120,6 +168,11 @@ QString ItemDetailsPane::ageText(const QDateTime &time, const QDateTime &now)
 QString ItemDetailsPane::summaryText() const
 {
     return m_summary->text();
+}
+
+QString ItemDetailsPane::metadataText() const
+{
+    return m_metadata->text();
 }
 
 QString ItemDetailsPane::valueOf(const QString &key) const
@@ -159,6 +212,7 @@ void ItemDetailsPane::setContents(const KFileItem &folder, int itemCount, const 
             row.second->clear();
         }
         m_picture->clear();
+        m_metadata->clear();
         return;
     }
     const QLocale locale;
@@ -176,6 +230,8 @@ void ItemDetailsPane::setContents(const KFileItem &folder, int itemCount, const 
     }
 
     // A file gets its thumbnail; until it comes, and for everything without one, the icon of its kind.
+    m_metadata->setText(item.isFile() && item.isLocalFile() ? metadataSummary(item.localPath()).join(QString::fromUtf8(" · ")) : QString());
+    m_metadata->setToolTip(m_metadata->text());
     m_picture->setPixmap(QIcon::fromTheme(item.iconName()).pixmap(QSize(PictureSize / 2, PictureSize / 2), devicePixelRatioF()));
     if (item.isFile() && !selection.isEmpty()) {
         auto *job = new KIO::PreviewJob(KFileItemList{item}, QSize(PictureSize, PictureSize) * devicePixelRatioF());
