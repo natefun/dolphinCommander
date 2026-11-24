@@ -40,6 +40,7 @@ Copy Path of the Selected File (Ctrl+Shift+C; one path per line for several file
 Tab menu: Copy Tab to the Other Side and Close Stale Tabs (those not shown for a day, counted from when they were made or last shown in this run).
 Favorites panel: a History group (the last 20 folders opened in any tab, each once, newest first; Clear History in its menu), aliases for favorites (Change Alias…), and dragging favorites up and down or into another group.
 Dock the window (global key Meta+Alt+\`, set through KGlobalAccel): the window comes to the lower half of its screen, as wide as the screen; once more, it is minimized. Thin Scrollbars (View > Appearance and Behavior) are style sheet rules added after the user's own sheet.
+Thumbnails for Folders of Pictures (View > Appearance and Behavior, off by default): a folder of mostly pictures (at least three items, 60 percent images) with no style of its own is shown with larger rows and previews when it is read. Make This the Default File Manager sets the handler of inode/directory with xdg-mime.
 
 ## Dolphin already does (found while checking the list)
 Tab aliases (Rename Tab), new tab after the last tab or the current one, remembering tabs and a start
@@ -89,5 +90,5 @@ schemes recolor them in a real desktop session is not verified.
 - Ctrl+Shift+Enter (run with arguments), Ctrl+Enter (open with), F8 (lock the dividers of the Miller columns), Ctrl+F10 (terminal as administrator) and Ctrl+Shift+F12 are there. The last two go through pkexec (konsole for the terminal), were not tried with a real password prompt, and Ctrl+Shift+F12 opens a root copy of the window and leaves this one open.
 
 ## How this was tested
-`build/bin/dolphincommanderfeaturestest` (74 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
+`build/bin/dolphincommanderfeaturestest` (75 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
 `fork/check-tests.py` shows one test of Dolphin's columns view (`testTheContentWidthFollowsInsertedAndRemovedNames`) that fails under load and passes alone.

@@ -8,6 +8,7 @@
 #include "views/columnsstrip.h"
 #include "views/itemdetailspane.h"
 #include "views/viewheader.h"
+#include "views/zoomlevelinfo.h"
 
 #include "admin/bar.h"
 #include "admin/workerintegration.h"
@@ -50,6 +51,7 @@
 #include <QDropEvent>
 #include <QGridLayout>
 #include <QGuiApplication>
+#include <QMimeDatabase>
 #include <QRegularExpression>
 #include <QScrollBar>
 #include <QStyle>
@@ -951,8 +953,51 @@ void DolphinViewContainer::slotDirectoryLoadingStarted()
     }
 }
 
+static bool s_autoThumbsDetails = false;
+
+void DolphinViewContainer::setAutoThumbsDetails(bool enabled)
+{
+    s_autoThumbsDetails = enabled;
+}
+
+bool DolphinViewContainer::autoThumbsDetails()
+{
+    return s_autoThumbsDetails;
+}
+
+bool DolphinViewContainer::areMostlyPictures(const QStringList &names)
+{
+    if (names.size() < 3) {
+        return false;
+    }
+    int pictures = 0;
+    const QMimeDatabase database;
+    for (const QString &name : names) {
+        pictures += database.mimeTypeForFile(name, QMimeDatabase::MatchExtension).name().startsWith(QLatin1String("image/")) ? 1 : 0;
+    }
+    return pictures * 100 >= names.size() * 60;
+}
+
 void DolphinViewContainer::slotDirectoryLoadingCompleted()
 {
+    // A folder of pictures, with no style chosen for it yet, is shown with thumbnails (OneCommander's auto-switch to Thumbs + Details).
+    if (s_autoThumbsDetails && m_view->url().isLocalFile() && !isSearchUrl(m_view->url())) {
+        ViewProperties props(m_view->url());
+        props.setAutoSaveEnabled(false);
+        if (props.isDefaults()) {
+            QStringList names;
+            for (const KFileItem &item : m_view->items()) {
+                if (item.isFile()) {
+                    names << item.name();
+                }
+            }
+            if (areMostlyPictures(names)) {
+                m_view->setPreviewsShown(true);
+                m_view->setZoomLevel(qMin(ZoomLevelInfo::minimumLevel() + 4, ZoomLevelInfo::maximumLevel()));
+            }
+        }
+    }
+
     m_statusBar->showProgress(QString(), 100);
 
     if (isSearchUrl(url()) && m_view->itemsCount() == 0) {

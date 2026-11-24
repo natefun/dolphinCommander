@@ -304,6 +304,12 @@ public Q_SLOTS:
 
     /** Shows or hides the pane under the list that describes the selected file (OneCommander's details pane). */
     void setDetailsPaneShown(bool shown);
+
+    /** While on, a folder with a style of its own not yet chosen that holds mostly pictures is shown as Thumbs + Details when it has been read. */
+    static void setAutoThumbsDetails(bool enabled);
+    static bool autoThumbsDetails();
+    /** Whether @p names are mostly pictures: three items or more, and at least 60 percent of them images. */
+    static bool areMostlyPictures(const QStringList &names);
     bool isDetailsPaneShown() const;
     ItemDetailsPane *detailsPane() const;
     void updateDetailsPane();

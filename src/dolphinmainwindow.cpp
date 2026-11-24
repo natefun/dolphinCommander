@@ -4196,6 +4196,33 @@ void DolphinMainWindow::setupActions()
     KGlobalAccel::self()->setShortcut(dockAction, {QKeySequence(Qt::META | Qt::ALT | Qt::Key_QuoteLeft)});
     connect(dockAction, &QAction::triggered, this, &DolphinMainWindow::dockToBottomHalf);
 
+    QAction *autoThumbs = actionCollection()->addAction(QStringLiteral("auto_thumbs_details"));
+    autoThumbs->setText(i18nc("@action:inmenu", "Thumbnails for Folders of Pictures"));
+    autoThumbs->setToolTip(i18nc("@info:tooltip", "A folder of mostly pictures that has no style of its own yet is shown with thumbnails when it is opened."));
+    autoThumbs->setIcon(QIcon::fromTheme(QStringLiteral("view-preview")));
+    autoThumbs->setCheckable(true);
+    const bool autoThumbsOn = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("AutoThumbsDetails", false);
+    autoThumbs->setChecked(autoThumbsOn);
+    DolphinViewContainer::setAutoThumbsDetails(autoThumbsOn);
+    connect(autoThumbs, &QAction::toggled, this, [](bool on) {
+        DolphinViewContainer::setAutoThumbsDetails(on);
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("AutoThumbsDetails", on);
+    });
+
+    QAction *defaultManager = actionCollection()->addAction(QStringLiteral("make_default_file_manager"));
+    defaultManager->setText(i18nc("@action:inmenu", "Make This the Default File Manager"));
+    defaultManager->setToolTip(i18nc("@info:tooltip", "Open folders from other programs in dolphinCommander (sets the handler of inode/directory)."));
+    defaultManager->setIcon(QIcon::fromTheme(QStringLiteral("system-file-manager")));
+    connect(defaultManager, &QAction::triggered, this, [this]() {
+        const bool started =
+            QProcess::execute(QStringLiteral("xdg-mime"),
+                              {QStringLiteral("default"), QStringLiteral("org.kde.dolphincommander.desktop"), QStringLiteral("inode/directory")})
+            == 0;
+        m_activeViewContainer->showMessage(started ? i18nc("@info", "dolphinCommander now opens the folders that other programs ask for.")
+                                                   : i18nc("@info", "The default file manager could not be set (xdg-mime is needed)."),
+                                           started ? KMessageWidget::Positive : KMessageWidget::Error);
+    });
+
     QAction *thinScrollbars = actionCollection()->addAction(QStringLiteral("thin_scrollbars"));
     thinScrollbars->setText(i18nc("@action:inmenu", "Thin Scrollbars"));
     thinScrollbars->setIcon(QIcon::fromTheme(QStringLiteral("view-list-details")));

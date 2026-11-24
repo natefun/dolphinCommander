@@ -140,6 +140,7 @@ private Q_SLOTS:
     void testTheMainToolbarHasOneCommandersButtons();
     void testNewFilesComeFromTemplates();
     void testTheFavoritesPanelKeepsAHistoryAndAliases();
+    void testAFolderOfPicturesIsShownWithThumbnails();
     void testTheWindowDocksIntoTheLowerHalfOfTheScreen();
     void testStaleTabsAreThoseNotShownForADay();
     void testAWebAddressBecomesALinkFile();
@@ -448,6 +449,8 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "copy_selected_path",
                                "dock_window",
                                "thin_scrollbars",
+                               "auto_thumbs_details",
+                               "make_default_file_manager",
                                "cycle_layout",
                                "add_to_favorites",
                                "show_favorites_panel",
@@ -588,6 +591,39 @@ void DolphinCommanderFeaturesTest::testTheFavoritesPanelKeepsAHistoryAndAliases(
     }
     KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("CommanderFavorites")).deleteGroup();
     KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("CommanderFavoriteAliases")).deleteGroup();
+}
+
+void DolphinCommanderFeaturesTest::testAFolderOfPicturesIsShownWithThumbnails()
+{
+    QVERIFY(!DolphinViewContainer::areMostlyPictures({QStringLiteral("a.jpg"), QStringLiteral("b.png")}));
+    QVERIFY(DolphinViewContainer::areMostlyPictures(
+        {QStringLiteral("a.jpg"), QStringLiteral("b.png"), QStringLiteral("c.txt"), QStringLiteral("d.JPG"), QStringLiteral("e.webp")}));
+    QVERIFY(!DolphinViewContainer::areMostlyPictures({QStringLiteral("a.jpg"), QStringLiteral("b.txt"), QStringLiteral("c.txt"), QStringLiteral("d.odt")}));
+
+    // A folder of pictures that has no style of its own gets larger rows with previews, and without the setting nothing changes.
+    TestDir pictures;
+    QImage image(8, 8, QImage::Format_RGB32);
+    image.fill(Qt::blue);
+    for (const char *name : {"1.png", "2.png", "3.png", "4.png"}) {
+        QVERIFY(image.save(pictures.path() + QLatin1Char('/') + QLatin1String(name)));
+    }
+    DolphinViewContainer::setAutoThumbsDetails(false);
+    int plainZoom = 0;
+    {
+        DolphinViewContainer plain(pictures.url(), nullptr);
+        plain.show();
+        waitForViewReady(&plain);
+        QTest::qWait(500); // UNAVOIDABLE: the folder is read and the view reacts after that; no signal is left to wait for
+        plainZoom = plain.view()->zoomLevel();
+    }
+    QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/view_properties")).removeRecursively();
+    DolphinViewContainer::setAutoThumbsDetails(true);
+    DolphinViewContainer container(pictures.url(), nullptr);
+    container.show();
+    waitForViewReady(&container);
+    QTRY_VERIFY_WITH_TIMEOUT(container.view()->zoomLevel() > plainZoom, 5000);
+    QVERIFY(container.view()->previewsShown());
+    DolphinViewContainer::setAutoThumbsDetails(false);
 }
 
 void DolphinCommanderFeaturesTest::testTheWindowDocksIntoTheLowerHalfOfTheScreen()
