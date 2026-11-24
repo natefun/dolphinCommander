@@ -145,6 +145,7 @@ private Q_SLOTS:
     void testStaleTabsAreThoseNotShownForADay();
     void testAWebAddressBecomesALinkFile();
     void testPathsAreCopiedInTheChosenFormat();
+    void testTheDetailsPaneHasItsButtons();
     void testTheRichFileViewShowsPreviewsInTallRows();
     void testUserIconsReplaceTheIconsOfAKind();
     void testFavoritesAreKeptInGroups();
@@ -696,6 +697,39 @@ void DolphinCommanderFeaturesTest::testPathsAreCopiedInTheChosenFormat()
     QCOMPARE(CommanderTools::formattedPath(path, CommanderTools::PathFormat::Quoted), QStringLiteral("\"/home/me/My Files/a&b.txt\""));
     QCOMPARE(CommanderTools::formattedPath(path, CommanderTools::PathFormat::ShellEscaped), QStringLiteral("/home/me/My\\ Files/a\\&b.txt"));
     QCOMPARE(CommanderTools::formattedPath(path, CommanderTools::PathFormat::FileUrl), QStringLiteral("file:///home/me/My%20Files/a&b.txt"));
+}
+
+void DolphinCommanderFeaturesTest::testTheDetailsPaneHasItsButtons()
+{
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.openDirectories({m_testDir->url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    auto *pane = window.activeViewContainer()->detailsPane();
+    QVERIFY(pane);
+    // Each button triggers the action of the window with the same name.
+    for (const QString &name : {QStringLiteral("edit_cut"), QStringLiteral("edit_copy"), QStringLiteral("renamefile"), QStringLiteral("movetotrash")}) {
+        auto *button = pane->findChild<QToolButton *>(name);
+        QVERIFY2(button, qPrintable(name));
+        QAction *action = window.actionCollection()->action(name);
+        QVERIFY2(action, qPrintable(name));
+        QSignalSpy spy(action, &QAction::triggered);
+        const bool wasEnabled = action->isEnabled();
+        action->setEnabled(true);
+        button->click();
+        QCOMPARE(spy.count(), 1);
+        action->setEnabled(wasEnabled);
+    }
 }
 
 void DolphinCommanderFeaturesTest::testTheRichFileViewShowsPreviewsInTallRows()

@@ -4,10 +4,12 @@
 
 #include "itemdetailspane.h"
 
+#include <KActionCollection>
 #include <KFormat>
 #include <KIO/PreviewJob>
 #include <KIconLoader>
 #include <KLocalizedString>
+#include <KXmlGuiWindow>
 
 #include <QDateTime>
 #include <QGridLayout>
@@ -16,6 +18,7 @@
 #include <QLabel>
 #include <QLocale>
 #include <QPointer>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 namespace
@@ -40,7 +43,37 @@ ItemDetailsPane::ItemDetailsPane(QWidget *parent)
     QFont bold = m_summary->font();
     bold.setBold(true);
     m_summary->setFont(bold);
-    text->addWidget(m_summary);
+    // The summary line has OneCommander's buttons beside it: cut, copy, rename and delete the selection.
+    auto *summaryRow = new QHBoxLayout;
+    summaryRow->setContentsMargins(0, 0, 0, 0);
+    summaryRow->addWidget(m_summary, 1);
+    const struct {
+        const char *action;
+        const char *icon;
+        const char *tip;
+    } buttons[] = {{"edit_cut", "edit-cut", "Cut"},
+                   {"edit_copy", "edit-copy", "Copy"},
+                   {"renamefile", "edit-rename", "Rename"},
+                   {"movetotrash", "edit-delete", "Move to Trash"}};
+    for (const auto &entry : buttons) {
+        auto *button = new QToolButton(this);
+        button->setObjectName(QString::fromLatin1(entry.action));
+        button->setAutoRaise(true);
+        button->setIcon(QIcon::fromTheme(QString::fromLatin1(entry.icon)));
+        button->setIconSize(QSize(14, 14));
+        button->setToolTip(i18nc("@info:tooltip", entry.tip));
+        const QString name = QString::fromLatin1(entry.action);
+        connect(button, &QToolButton::clicked, this, [this, name]() {
+            // The action of the main window that has this name does the work, on the selection of the side that is active.
+            if (auto *window = qobject_cast<KXmlGuiWindow *>(this->window())) {
+                if (QAction *action = window->actionCollection()->action(name)) {
+                    action->trigger();
+                }
+            }
+        });
+        summaryRow->addWidget(button);
+    }
+    text->addLayout(summaryRow);
     auto *grid = new QGridLayout;
     grid->setHorizontalSpacing(10);
     grid->setVerticalSpacing(0);
