@@ -2562,7 +2562,7 @@ void KItemListView::updateGroupHeaderForIndex(int firstItemIndex)
 {
     Q_ASSERT(m_grouped);
 
-    const QList<QPair<int, QVariant>> groups = model()->groups();
+    const QList<std::pair<int, QVariant>> groups = model()->groups();
     if (groups.isEmpty() || !groupHeaderCreator()) {
         return;
     }
@@ -2635,7 +2635,7 @@ int KItemListView::groupIndexForItem(int index) const
 {
     Q_ASSERT(m_grouped);
 
-    const QList<QPair<int, QVariant>> groups = model()->groups();
+    const QList<std::pair<int, QVariant>> groups = model()->groups();
     if (groups.isEmpty()) {
         return -1;
     }
@@ -2697,7 +2697,7 @@ void KItemListView::updateAlternateBackgroundForWidget(KItemListWidget *widget)
         if (m_grouped) {
             const int groupIndex = groupIndexForItem(index);
             if (groupIndex >= 0) {
-                const QList<QPair<int, QVariant>> groups = model()->groups();
+                const QList<std::pair<int, QVariant>> groups = model()->groups();
                 const int indexOfFirstGroupItem = groups[groupIndex].first;
                 const int relativeIndex = index - indexOfFirstGroupItem;
                 enabled = (relativeIndex & 0x1) > 0;
