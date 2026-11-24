@@ -23,10 +23,15 @@
 #include <KLocalizedString>
 #include <KProtocolManager>
 
+#include <KFormat>
+
+#include <QHelpEvent>
 #include <QIcon>
 #include <QMenu>
 #include <QMimeData>
 #include <QShowEvent>
+#include <QStorageInfo>
+#include <QToolTip>
 
 #include <Solid/StorageAccess>
 
@@ -276,6 +281,40 @@ void PlacesPanel::connectDeviceSignals(const QModelIndex &index)
     }
 
     connect(storageAccess, &Solid::StorageAccess::teardownRequested, this, &PlacesPanel::slotTearDownRequestedExternally);
+}
+
+QString PlacesPanel::usageText(const QString &path)
+{
+    const QStorageInfo info(path);
+    if (!info.isValid() || !info.isReady() || info.bytesTotal() <= 0) {
+        return QString();
+    }
+    const KFormat format;
+    const int used = int(100.0 * double(info.bytesTotal() - info.bytesAvailable()) / double(info.bytesTotal()) + 0.5);
+    return i18nc("@info:tooltip %1 percent, %2 and %3 sizes",
+                 "%1% used, %2 free of %3",
+                 used,
+                 format.formatByteSize(info.bytesAvailable()),
+                 format.formatByteSize(info.bytesTotal()));
+}
+
+bool PlacesPanel::viewportEvent(QEvent *event)
+{
+    // A drive says how full it is, as OneCommander's drives panel does.
+    if (event->type() == QEvent::ToolTip) {
+        const auto *help = static_cast<QHelpEvent *>(event);
+        const QModelIndex index = indexAt(help->pos());
+        auto *placesModel = qobject_cast<KFilePlacesModel *>(model());
+        if (index.isValid() && placesModel && placesModel->isDevice(index)) {
+            const QString path = placesModel->url(index).toLocalFile();
+            const QString usage = path.isEmpty() ? QString() : usageText(path);
+            if (!usage.isEmpty()) {
+                QToolTip::showText(help->globalPos(), placesModel->text(index) + QLatin1Char('\n') + usage, this);
+                return true;
+            }
+        }
+    }
+    return KFilePlacesView::viewportEvent(event);
 }
 
 #include "moc_placespanel.cpp"

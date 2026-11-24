@@ -22,6 +22,7 @@
 #include "kitemviews/kitemlistview.h"
 #include "kitemviews/kitemlistwidget.h"
 #include "panels/favorites/favoritespanel.h"
+#include "panels/places/placespanel.h"
 #include "testdir.h"
 #include "views/columnsstrip.h"
 #include "views/dolphincolumnsview.h"
@@ -135,6 +136,7 @@ private Q_SLOTS:
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
     void testFavoritesAreKeptInGroups();
+    void testADriveSaysHowFullItIs();
     void testTheNordThemeHasItsColors();
     void testTheDatesAreDrawnOnBadges();
     void testTheDetailsPaneDescribesTheSelectedFile();
@@ -451,6 +453,13 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
         QVERIFY2(action, qPrintable(name));
         QVERIFY2(action->shortcuts().contains(key), qPrintable(name + QStringLiteral(" lacks ") + key.toString()));
     }
+}
+
+void DolphinCommanderFeaturesTest::testADriveSaysHowFullItIs()
+{
+    const QString text = PlacesPanel::usageText(QStringLiteral("/"));
+    QVERIFY(!text.isEmpty());
+    QVERIFY2(text.contains(QRegularExpression(QStringLiteral("^\\d+% "))), qPrintable(text));
 }
 
 void DolphinCommanderFeaturesTest::testFavoritesAreKeptInGroups()
