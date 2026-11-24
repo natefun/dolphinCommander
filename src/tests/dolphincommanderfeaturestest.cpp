@@ -139,6 +139,7 @@ private Q_SLOTS:
     void testJobsRunOneAfterAnother();
     void testTheMainToolbarHasOneCommandersButtons();
     void testNewFilesComeFromTemplates();
+    void testAWebAddressBecomesALinkFile();
     void testPathsAreCopiedInTheChosenFormat();
     void testTheRichFileViewShowsPreviewsInTallRows();
     void testUserIconsReplaceTheIconsOfAKind();
@@ -441,6 +442,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "new_file_from_template",
                                "save_as_template",
                                "copy_path_as",
+                               "copy_selected_path",
                                "cycle_layout",
                                "add_to_favorites",
                                "show_favorites_panel",
@@ -541,6 +543,26 @@ void DolphinCommanderFeaturesTest::testNewFilesComeFromTemplates()
 
     QFile::remove(saved);
     QFile::remove(second);
+}
+
+void DolphinCommanderFeaturesTest::testAWebAddressBecomesALinkFile()
+{
+    QVERIFY(CommanderTools::webLinkIn(QStringLiteral("not a link")).isEmpty());
+    QVERIFY(CommanderTools::webLinkIn(QStringLiteral("/home/me/file")).isEmpty());
+    QVERIFY(CommanderTools::webLinkIn(QStringLiteral("two words https://a.org")).isEmpty());
+    const QUrl web = CommanderTools::webLinkIn(QStringLiteral("  https://www.example.org/a/b?c=1  "));
+    QCOMPARE(web, QUrl(QStringLiteral("https://www.example.org/a/b?c=1")));
+
+    TestDir dir;
+    const QString path = CommanderTools::saveLinkAsFile(web, dir.path());
+    QCOMPARE(path, dir.path() + QStringLiteral("/www.example.org.desktop"));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray content = file.readAll();
+    QVERIFY(content.contains("Type=Link"));
+    QVERIFY(content.contains("URL=https://www.example.org/a/b?c=1"));
+    // A second link to the same site gets a name of its own.
+    QVERIFY(CommanderTools::saveLinkAsFile(web, dir.path()) != path);
 }
 
 void DolphinCommanderFeaturesTest::testPathsAreCopiedInTheChosenFormat()

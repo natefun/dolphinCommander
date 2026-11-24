@@ -124,6 +124,7 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
+#include <QMessageBox>
 #include <QPixmapCache>
 #include <QPlainTextEdit>
 #include <QProcess>
@@ -2691,7 +2692,31 @@ void DolphinMainWindow::saveFileView()
 void DolphinMainWindow::pasteClipboardAsFile()
 {
     const QUrl folder = m_activeViewContainer->url();
-    const QString path = folder.isLocalFile() ? CommanderTools::saveClipboardAsFile(QApplication::clipboard()->mimeData(), folder.toLocalFile()) : QString();
+    // A web address can be kept as a link file or as the text, or the file it points to can be downloaded (what OneCommander offers).
+    const QUrl web = CommanderTools::webLinkIn(QApplication::clipboard()->text());
+    QString path;
+    if (web.isValid() && folder.isLocalFile()) {
+        QMessageBox box(QMessageBox::Question,
+                        i18nc("@title:window", "Paste Web Address"),
+                        i18nc("@info", "The clipboard has the address %1.", web.toString()),
+                        QMessageBox::Cancel,
+                        this);
+        QPushButton *link = box.addButton(i18nc("@action:button", "Link File"), QMessageBox::AcceptRole);
+        QPushButton *text = box.addButton(i18nc("@action:button", "Text File"), QMessageBox::AcceptRole);
+        QPushButton *download = box.addButton(i18nc("@action:button", "Download"), QMessageBox::AcceptRole);
+        box.exec();
+        if (box.clickedButton() == link) {
+            path = CommanderTools::saveLinkAsFile(web, folder.toLocalFile());
+        } else if (box.clickedButton() == download) {
+            KIO::copy({web}, folder)->start();
+            return;
+        } else if (box.clickedButton() != text) {
+            return;
+        }
+    }
+    if (path.isEmpty()) {
+        path = folder.isLocalFile() ? CommanderTools::saveClipboardAsFile(QApplication::clipboard()->mimeData(), folder.toLocalFile()) : QString();
+    }
     if (path.isEmpty()) {
         m_activeViewContainer->showMessage(
             i18nc("@info", "There is no image or text on the clipboard to make a file of, or this folder is not on this computer."),
@@ -3849,6 +3874,20 @@ void DolphinMainWindow::setupActions()
                     }
                 }
             }
+        }
+    });
+
+    QAction *copySelectedPath = actionCollection()->addAction(QStringLiteral("copy_selected_path"));
+    copySelectedPath->setText(i18nc("@action:inmenu", "Copy Path of the Selected File"));
+    copySelectedPath->setIcon(QIcon::fromTheme(QStringLiteral("edit-copy-path")));
+    actionCollection()->setDefaultShortcut(copySelectedPath, Qt::CTRL | Qt::SHIFT | Qt::Key_C);
+    connect(copySelectedPath, &QAction::triggered, this, [this]() {
+        QStringList paths;
+        for (const KFileItem &item : m_activeViewContainer->view()->selectedItems()) {
+            paths << (item.isLocalFile() ? item.localPath() : item.url().toDisplayString());
+        }
+        if (!paths.isEmpty()) {
+            QApplication::clipboard()->setText(paths.join(QLatin1Char('\n')));
         }
     });
 

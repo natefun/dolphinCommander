@@ -79,6 +79,11 @@ enum class PathFormat {
 };
 QString formattedPath(const QString &path, PathFormat format);
 
+/** The address when @p text is one web address (http, https or ftp) and nothing else, an invalid URL otherwise. */
+QUrl webLinkIn(const QString &text);
+/** Writes a link file (a .desktop file of Type=Link) to @p url into @p folder, named after the site. Returns its path, empty on failure. */
+QString saveLinkAsFile(const QUrl &url, const QString &folder);
+
 /** Where a photo was taken, from its metadata: x is the longitude and y the latitude. Empty if the file has no position. */
 std::optional<QPointF> photoLocation(const QString &path);
 

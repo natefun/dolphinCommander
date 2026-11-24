@@ -163,6 +163,41 @@ QString CommanderTools::saveClipboardAsFile(const QMimeData *clipboard, const QS
     return QString();
 }
 
+QUrl CommanderTools::webLinkIn(const QString &text)
+{
+    const QString trimmed = text.trimmed();
+    if (trimmed.isEmpty() || trimmed.contains(QLatin1Char('\n')) || trimmed.contains(QLatin1Char(' '))) {
+        return QUrl();
+    }
+    const QUrl url(trimmed, QUrl::StrictMode);
+    if (!url.isValid() || url.host().isEmpty()
+        || !(url.scheme() == QLatin1String("http") || url.scheme() == QLatin1String("https") || url.scheme() == QLatin1String("ftp"))) {
+        return QUrl();
+    }
+    return url;
+}
+
+QString CommanderTools::saveLinkAsFile(const QUrl &url, const QString &folder)
+{
+    if (!url.isValid()) {
+        return QString();
+    }
+    const QString name = url.host();
+    QString path = folder + QLatin1Char('/') + name + QLatin1String(".desktop");
+    for (int i = 2; QFile::exists(path); ++i) {
+        path = folder + QLatin1Char('/') + name + QLatin1Char(' ') + QString::number(i) + QLatin1String(".desktop");
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        return QString();
+    }
+    file.write("[Desktop Entry]\nType=Link\nName=" + name.toUtf8() + "\nURL=" + url.toString(QUrl::FullyEncoded).toUtf8() + "\nIcon=text-html\n");
+    file.close();
+    // A link file is shown by what it points to; it needs to be executable for some desktops to trust it.
+    file.setPermissions(file.permissions() | QFileDevice::ExeOwner);
+    return path;
+}
+
 std::optional<QPointF> CommanderTools::photoLocation(const QString &path)
 {
     const QMimeType mime = QMimeDatabase().mimeTypeForFile(path);
