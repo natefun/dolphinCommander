@@ -1,7 +1,8 @@
 # OneCommander parity: where dolphinCommander stands
 
-Wine was tried for a side-by-side run: the program is a .NET Framework WPF one and needs a real .NET 4.8 in the prefix, which
-was not installed (the sandbox refused to run the installers). The look below comes from OneCommander's own screenshots and help instead.
+Wine was tried for a side-by-side run (Wine 11.22, .NET 4.8 installed by the user with winetricks): OneCommander 3.108 starts, shows its cloud-folder
+warning (a false alarm: Wine has no NTFS transactions) and then dies with an unhandled .NET exception (0xe0434352) while it loads its ModernWpf theme.
+It reports "Windows 7 or 8 detected" when the prefix says Windows 7 and crashes at the same point on Windows 10, so no window of it was seen. The look below comes from OneCommander's own screenshots and help instead.
 Compiled from OneCommander's own help (onecommander.com/help2: Folder Columns and Navigation Pane,
 Folder Pane, File Views, Browsers and Layouts, Sidebar, Details Pane, Main Window, Settings, Search,
 Favorites, File Automator). Its Shortcut keys page (Shortcutkeys.html) has been read.
