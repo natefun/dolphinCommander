@@ -3207,7 +3207,7 @@ void DolphinMainWindow::fillWorkspacesMenu(QMenu *menu)
 {
     menu->clear();
     KConfigGroup group(KSharedConfig::openConfig(), QStringLiteral("Workspaces"));
-    QAction *save = menu->addAction(QIcon::fromTheme(QStringLiteral("document-save")), i18nc("@action:inmenu", "Save Tabs as Workspace…"));
+    QAction *save = menu->addAction(QIcon::fromTheme(QStringLiteral("document-save")), i18nc("@action:inmenu", "Save Tabs, Layout and Position as Workspace…"));
     connect(save, &QAction::triggered, this, [this]() {
         bool ok = false;
         const QString name =
@@ -3251,6 +3251,9 @@ void DolphinMainWindow::saveWorkspace(const QString &name)
         }
         group.writeEntry(side.first, urls);
     }
+    // OneCommander's named windows also remember the layout and where the window was.
+    group.writeEntry("Layout", int(m_commanderLayout));
+    group.writeEntry("Geometry", isMaximized() || isFullScreen() ? normalGeometry() : geometry());
     KSharedConfig::openConfig()->sync();
 }
 
@@ -3265,6 +3268,20 @@ void DolphinMainWindow::openWorkspace(const QString &name)
         }
     }
     m_sidesSplitter->showBothSides();
+    if (group.hasKey("Layout")) {
+        setCommanderLayout(CommanderLayout(qBound(0, group.readEntry("Layout", 0), 2)));
+    }
+    // The window goes back to where it was, if that place is on a screen that is still there.
+    const QRect saved = group.readEntry("Geometry", QRect());
+    if (saved.isValid()) {
+        for (QScreen *screen : QGuiApplication::screens()) {
+            if (screen->availableGeometry().intersects(saved)) {
+                showNormal();
+                setGeometry(saved);
+                break;
+            }
+        }
+    }
 }
 
 void DolphinMainWindow::compareDirectories()

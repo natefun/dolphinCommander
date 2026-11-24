@@ -145,6 +145,7 @@ private Q_SLOTS:
     void testStaleTabsAreThoseNotShownForADay();
     void testAWebAddressBecomesALinkFile();
     void testPathsAreCopiedInTheChosenFormat();
+    void testAWorkspaceRemembersTheLayoutAndPosition();
     void testTheDetailsPaneHasItsButtons();
     void testTheRichFileViewShowsPreviewsInTallRows();
     void testUserIconsReplaceTheIconsOfAKind();
@@ -697,6 +698,38 @@ void DolphinCommanderFeaturesTest::testPathsAreCopiedInTheChosenFormat()
     QCOMPARE(CommanderTools::formattedPath(path, CommanderTools::PathFormat::Quoted), QStringLiteral("\"/home/me/My Files/a&b.txt\""));
     QCOMPARE(CommanderTools::formattedPath(path, CommanderTools::PathFormat::ShellEscaped), QStringLiteral("/home/me/My\\ Files/a\\&b.txt"));
     QCOMPARE(CommanderTools::formattedPath(path, CommanderTools::PathFormat::FileUrl), QStringLiteral("file:///home/me/My%20Files/a&b.txt"));
+}
+
+void DolphinCommanderFeaturesTest::testAWorkspaceRemembersTheLayoutAndPosition()
+{
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.resize(700, 450);
+    window.move(30, 40);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Workspaces")).deleteGroup(QStringLiteral("layout-test"));
+    QMetaObject::invokeMethod(&window, "setCommanderLayout", Qt::DirectConnection, Q_ARG(CommanderLayout, CommanderLayout::Columns));
+    const QRect before = window.geometry();
+    QMetaObject::invokeMethod(&window, "saveWorkspace", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("layout-test")));
+    const KConfigGroup saved = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Workspaces")).group(QStringLiteral("layout-test"));
+    QCOMPARE(saved.readEntry("Layout", -1), int(CommanderLayout::Columns));
+    QCOMPARE(saved.readEntry("Geometry", QRect()), before);
+
+    // Another layout and place, then the workspace: the layout is back.
+    QMetaObject::invokeMethod(&window, "setCommanderLayout", Qt::DirectConnection, Q_ARG(CommanderLayout, CommanderLayout::Classic));
+    window.resize(500, 300);
+    QMetaObject::invokeMethod(&window, "openWorkspace", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("layout-test")));
+    QTRY_COMPARE_WITH_TIMEOUT(window.size(), before.size(), 3000);
+    KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Workspaces")).deleteGroup(QStringLiteral("layout-test"));
 }
 
 void DolphinCommanderFeaturesTest::testTheDetailsPaneHasItsButtons()
