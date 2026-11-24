@@ -3394,6 +3394,8 @@ void DolphinMainWindow::setupActions()
     });
 
     QAction *newWindow = KStandardAction::openNew(this, &DolphinMainWindow::openNewMainWindow, actionCollection());
+    // OneCommander keeps Ctrl+N for the new file from a template.
+    actionCollection()->setDefaultShortcut(newWindow, Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_N);
     newWindow->setText(i18nc("@action:inmenu File", "New &Window"));
     newWindow->setToolTip(i18nc("@info", "Open a new Dolphin window"));
     newWindow->setWhatsThis(xi18nc("@info:whatsthis",
@@ -3848,6 +3850,79 @@ void DolphinMainWindow::setupActions()
                 }
             }
         }
+    });
+
+    QAction *newFromTemplate = actionCollection()->addAction(QStringLiteral("new_file_from_template"));
+    newFromTemplate->setText(i18nc("@action:inmenu", "New File from Template…"));
+    newFromTemplate->setToolTip(i18nc("@info:tooltip", "Copy a file from the templates folder into this folder, under the name you give it."));
+    newFromTemplate->setIcon(QIcon::fromTheme(QStringLiteral("document-new")));
+    actionCollection()->setDefaultShortcut(newFromTemplate, Qt::CTRL | Qt::Key_N);
+    connect(newFromTemplate, &QAction::triggered, this, [this]() {
+        const QUrl folder = m_activeViewContainer->url();
+        if (!folder.isLocalFile()) {
+            m_activeViewContainer->showMessage(i18nc("@info", "Files can only be made from templates in folders on this computer."),
+                                               KMessageWidget::Information);
+            return;
+        }
+        NewFromTemplateDialog dialog(this);
+        if (dialog.exec() != QDialog::Accepted) {
+            return;
+        }
+        if (dialog.editRequested()) {
+            changeUrl(QUrl::fromLocalFile(CommanderTools::templatesFolder()));
+            return;
+        }
+        const QString path = CommanderTools::createFromTemplate(dialog.selectedTemplate(), folder.toLocalFile(), dialog.fileName());
+        if (path.isEmpty()) {
+            m_activeViewContainer->showMessage(i18nc("@info", "The file could not be made: the name is empty or already used."), KMessageWidget::Error);
+            return;
+        }
+        m_activeViewContainer->view()->markUrlsAsSelected({QUrl::fromLocalFile(path)});
+        if (dialog.openAfterwards()) {
+            auto *job = new KIO::OpenUrlJob(QUrl::fromLocalFile(path), this);
+            job->start();
+        }
+    });
+
+    QAction *saveAsTemplate = actionCollection()->addAction(QStringLiteral("save_as_template"));
+    saveAsTemplate->setText(i18nc("@action:inmenu", "Save as File Template"));
+    saveAsTemplate->setToolTip(i18nc("@info:tooltip", "Copy the selected file into the templates folder, to make new files from it."));
+    saveAsTemplate->setIcon(QIcon::fromTheme(QStringLiteral("document-save-as")));
+    connect(saveAsTemplate, &QAction::triggered, this, [this]() {
+        int saved = 0;
+        for (const KFileItem &item : m_activeViewContainer->view()->selectedItems()) {
+            saved += CommanderTools::saveAsTemplate(item.localPath()).isEmpty() ? 0 : 1;
+        }
+        m_activeViewContainer->showMessage(saved > 0 ? i18ncp("@info", "%1 file is now a template.", "%1 files are now templates.", saved)
+                                                     : i18nc("@info", "Select a file on this computer to make a template of it."),
+                                           saved > 0 ? KMessageWidget::Positive : KMessageWidget::Information);
+    });
+
+    auto *copyPathMenu = actionCollection()->add<KActionMenu>(QStringLiteral("copy_path_as"));
+    copyPathMenu->setText(i18nc("@action:inmenu", "Copy Path of This Folder As"));
+    copyPathMenu->setIcon(QIcon::fromTheme(QStringLiteral("edit-copy-path")));
+    const struct {
+        const char *label;
+        CommanderTools::PathFormat format;
+    } pathFormats[] = {{"Plain", CommanderTools::PathFormat::Plain},
+                       {"In Quotes", CommanderTools::PathFormat::Quoted},
+                       {"Escaped for the Shell", CommanderTools::PathFormat::ShellEscaped},
+                       {"As a file:// Address", CommanderTools::PathFormat::FileUrl}};
+    for (const auto &entry : pathFormats) {
+        auto *formatAction = new QAction(i18nc("@action:inmenu", entry.label), copyPathMenu);
+        copyPathMenu->addAction(formatAction);
+        const CommanderTools::PathFormat format = entry.format;
+        connect(formatAction, &QAction::triggered, this, [this, format]() {
+            const QUrl url = m_activeViewContainer->url();
+            const QString path = url.isLocalFile() ? url.toLocalFile() : url.toDisplayString();
+            QApplication::clipboard()->setText(CommanderTools::formattedPath(path, format));
+        });
+    }
+    // OneCommander's Ctrl+Shift+Alt+C copies the path of the folder at once.
+    actionCollection()->setDefaultShortcut(copyPathMenu, Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_C);
+    connect(copyPathMenu, &QAction::triggered, this, [this]() {
+        const QUrl url = m_activeViewContainer->url();
+        QApplication::clipboard()->setText(url.isLocalFile() ? url.toLocalFile() : url.toDisplayString());
     });
 
     QAction *lockColumns = actionCollection()->addAction(QStringLiteral("lock_column_resizing"));

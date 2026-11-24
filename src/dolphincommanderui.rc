@@ -1,12 +1,13 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="57">
+<gui name="dolphin" version="58">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
             <Action name="file_new" />
             <Action name="new_tab" />
             <Action name="new_tab_from_clipboard" />
+            <Action name="new_file_from_template" />
             <Action name="file_close" />
             <Action name="undo_close_tab" />
             <Separator/>
@@ -15,6 +16,7 @@
             <Action name="renamefile" />
             <Action name="duplicate" />
             <Action name="color_label" />
+            <Action name="save_as_template" />
             <Action name="movetotrash" />
             <Action name="deletefile" />
             <Separator/>
@@ -34,6 +36,7 @@
             <Action name="edit_cut" />
             <Action name="edit_copy" />
             <Action name="copy_location" />
+            <Action name="copy_path_as" />
             <Action name="edit_paste" />
             <Separator />
             <Action name="show_filter_bar" />

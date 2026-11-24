@@ -32,10 +32,12 @@
 #include <QFutureWatcher>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QIcon>
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMediaPlayer>
 #include <QMimeData>
 #include <QMimeDatabase>
@@ -45,6 +47,7 @@
 #include <QRegularExpression>
 #include <QSet>
 #include <QSpinBox>
+#include <QStandardPaths>
 #include <QTableWidget>
 #include <QThread>
 #include <QTreeWidget>
@@ -662,6 +665,136 @@ void BatchRenameDialog::rename()
         KIO::moveAs(m_items.at(i).url(), target, KIO::HideProgressInfo);
     }
     accept();
+}
+
+QString CommanderTools::templatesFolder()
+{
+    QString dir = QStandardPaths::writableLocation(QStandardPaths::TemplatesLocation);
+    if (dir.isEmpty()) {
+        dir = QDir::homePath() + QStringLiteral("/Templates");
+    }
+    QDir().mkpath(dir);
+    return dir;
+}
+
+QStringList CommanderTools::templateNames()
+{
+    return QDir(templatesFolder()).entryList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name | QDir::IgnoreCase);
+}
+
+QString CommanderTools::createFromTemplate(const QString &templatePath, const QString &folder, const QString &name)
+{
+    if (name.isEmpty() || name.contains(QLatin1Char('/')) || !QFileInfo(templatePath).isFile()) {
+        return QString();
+    }
+    const QString target = folder + QLatin1Char('/') + name;
+    if (QFileInfo::exists(target) || !QFile::copy(templatePath, target)) {
+        return QString();
+    }
+    return target;
+}
+
+QString CommanderTools::saveAsTemplate(const QString &filePath)
+{
+    const QFileInfo info(filePath);
+    if (!info.isFile()) {
+        return QString();
+    }
+    const QString folder = templatesFolder();
+    QString target = folder + QLatin1Char('/') + info.fileName();
+    const QString base = info.completeBaseName();
+    const QString suffix = info.suffix().isEmpty() ? QString() : QLatin1Char('.') + info.suffix();
+    for (int i = 2; QFileInfo::exists(target); ++i) {
+        target = folder + QLatin1Char('/') + base + QLatin1Char(' ') + QString::number(i) + suffix;
+    }
+    return QFile::copy(filePath, target) ? target : QString();
+}
+
+QString CommanderTools::formattedPath(const QString &path, PathFormat format)
+{
+    switch (format) {
+    case PathFormat::Plain:
+        return path;
+    case PathFormat::Quoted:
+        return QLatin1Char('"') + path + QLatin1Char('"');
+    case PathFormat::ShellEscaped: {
+        QString escaped;
+        for (const QChar c : path) {
+            if (!(c.isLetterOrNumber() || QStringLiteral("/._-+,:@%").contains(c))) {
+                escaped += QLatin1Char('\\');
+            }
+            escaped += c;
+        }
+        return escaped;
+    }
+    case PathFormat::FileUrl:
+        return QUrl::fromLocalFile(path).toString(QUrl::FullyEncoded);
+    }
+    return path;
+}
+
+NewFromTemplateDialog::NewFromTemplateDialog(QWidget *parent)
+    : QDialog(parent)
+{
+    setWindowTitle(i18nc("@title:window", "New File from Template"));
+    auto *layout = new QVBoxLayout(this);
+    m_list = new QListWidget(this);
+    m_list->setObjectName(QStringLiteral("templateList"));
+    for (const QString &name : CommanderTools::templateNames()) {
+        auto *item = new QListWidgetItem(QIcon::fromTheme(QMimeDatabase().mimeTypeForFile(name, QMimeDatabase::MatchExtension).iconName()), name, m_list);
+        item->setData(Qt::UserRole, QString(CommanderTools::templatesFolder() + QLatin1Char('/') + name));
+    }
+    layout->addWidget(m_list);
+    m_name = new QLineEdit(this);
+    m_name->setObjectName(QStringLiteral("templateFileName"));
+    m_name->setPlaceholderText(i18nc("@info:placeholder", "File name"));
+    layout->addWidget(m_name);
+    connect(m_list, &QListWidget::currentItemChanged, this, [this](QListWidgetItem *item) {
+        if (item) {
+            m_name->setText(item->text());
+            m_name->selectAll();
+        }
+    });
+    auto *buttons = new QDialogButtonBox(this);
+    auto *create = buttons->addButton(i18nc("@action:button", "Create"), QDialogButtonBox::AcceptRole);
+    auto *createOpen = buttons->addButton(i18nc("@action:button", "Create and Open"), QDialogButtonBox::AcceptRole);
+    auto *edit = buttons->addButton(i18nc("@action:button", "Edit Templates"), QDialogButtonBox::ActionRole);
+    buttons->addButton(QDialogButtonBox::Cancel);
+    create->setDefault(true);
+    layout->addWidget(buttons);
+    connect(createOpen, &QPushButton::clicked, this, [this]() {
+        m_open = true;
+    });
+    connect(edit, &QPushButton::clicked, this, [this]() {
+        m_edit = true;
+        accept();
+    });
+    connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    if (m_list->count() > 0) {
+        m_list->setCurrentRow(0);
+    }
+    m_name->setFocus();
+}
+
+QString NewFromTemplateDialog::selectedTemplate() const
+{
+    return m_list->currentItem() ? m_list->currentItem()->data(Qt::UserRole).toString() : QString();
+}
+
+QString NewFromTemplateDialog::fileName() const
+{
+    return m_name->text().trimmed();
+}
+
+bool NewFromTemplateDialog::openAfterwards() const
+{
+    return m_open;
+}
+
+bool NewFromTemplateDialog::editRequested() const
+{
+    return m_edit;
 }
 
 QuickViewDialog::QuickViewDialog(QWidget *parent)

@@ -138,6 +138,8 @@ private Q_SLOTS:
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
     void testTheMainToolbarHasOneCommandersButtons();
+    void testNewFilesComeFromTemplates();
+    void testPathsAreCopiedInTheChosenFormat();
     void testTheRichFileViewShowsPreviewsInTallRows();
     void testUserIconsReplaceTheIconsOfAKind();
     void testFavoritesAreKeptInGroups();
@@ -436,6 +438,9 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "show_details_pane",
                                "colored_badges",
                                "compact_rows",
+                               "new_file_from_template",
+                               "save_as_template",
+                               "copy_path_as",
                                "cycle_layout",
                                "add_to_favorites",
                                "show_favorites_panel",
@@ -493,6 +498,58 @@ void DolphinCommanderFeaturesTest::testTheMainToolbarHasOneCommandersButtons()
         together = together || all;
     }
     QVERIFY(together);
+}
+
+void DolphinCommanderFeaturesTest::testNewFilesComeFromTemplates()
+{
+    const QString templates = CommanderTools::templatesFolder();
+    const QString mine = templates + QStringLiteral("/letter-test-template.txt");
+    QFile::remove(mine);
+    TestDir dir;
+    dir.createFile("draft.txt", "Dear Sir");
+
+    // A file becomes a template, under a free name when that name is taken.
+    const QString saved = CommanderTools::saveAsTemplate(dir.path() + QStringLiteral("/draft.txt"));
+    QVERIFY(!saved.isEmpty());
+    QVERIFY(CommanderTools::templateNames().contains(QStringLiteral("draft.txt")));
+    const QString second = CommanderTools::saveAsTemplate(dir.path() + QStringLiteral("/draft.txt"));
+    QVERIFY(!second.isEmpty() && second != saved);
+
+    // A new file is a copy of the template, and an existing name is not overwritten.
+    const QString made = CommanderTools::createFromTemplate(saved, dir.path(), QStringLiteral("letter.txt"));
+    QCOMPARE(made, dir.path() + QStringLiteral("/letter.txt"));
+    QFile file(made);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QCOMPARE(file.readAll(), QByteArray("Dear Sir"));
+    QVERIFY(CommanderTools::createFromTemplate(saved, dir.path(), QStringLiteral("letter.txt")).isEmpty());
+    QVERIFY(CommanderTools::createFromTemplate(saved, dir.path(), QString()).isEmpty());
+
+    // The window lists the templates and names the file after the one that is chosen.
+    NewFromTemplateDialog dialog(nullptr);
+    auto *list = dialog.findChild<QListWidget *>(QStringLiteral("templateList"));
+    QVERIFY(list);
+    bool found = false;
+    for (int i = 0; i < list->count(); ++i) {
+        if (list->item(i)->text() == QLatin1String("draft.txt")) {
+            list->setCurrentRow(i);
+            found = true;
+        }
+    }
+    QVERIFY(found);
+    QCOMPARE(dialog.fileName(), QStringLiteral("draft.txt"));
+    QCOMPARE(dialog.selectedTemplate(), saved);
+
+    QFile::remove(saved);
+    QFile::remove(second);
+}
+
+void DolphinCommanderFeaturesTest::testPathsAreCopiedInTheChosenFormat()
+{
+    const QString path = QStringLiteral("/home/me/My Files/a&b.txt");
+    QCOMPARE(CommanderTools::formattedPath(path, CommanderTools::PathFormat::Plain), path);
+    QCOMPARE(CommanderTools::formattedPath(path, CommanderTools::PathFormat::Quoted), QStringLiteral("\"/home/me/My Files/a&b.txt\""));
+    QCOMPARE(CommanderTools::formattedPath(path, CommanderTools::PathFormat::ShellEscaped), QStringLiteral("/home/me/My\\ Files/a\\&b.txt"));
+    QCOMPARE(CommanderTools::formattedPath(path, CommanderTools::PathFormat::FileUrl), QStringLiteral("file:///home/me/My%20Files/a&b.txt"));
 }
 
 void DolphinCommanderFeaturesTest::testTheRichFileViewShowsPreviewsInTallRows()

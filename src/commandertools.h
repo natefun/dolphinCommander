@@ -30,6 +30,7 @@ class QPlainTextEdit;
 class QTableWidget;
 class QCheckBox;
 class QDialogButtonBox;
+class QListWidget;
 
 /** What dolphinCommander adds beyond Dolphin: helpers and dialogs for checksums, batch renaming and quick view. */
 namespace CommanderTools
@@ -59,6 +60,24 @@ QString toggledToDoName(const QString &fileName);
 /** Writes the clipboard's image as a dated .png, or its text as a dated .txt, into @p folder, and returns the path (empty if the clipboard has neither or it
  * failed). */
 QString saveClipboardAsFile(const QMimeData *clipboard, const QString &folder);
+
+/** The folder that holds the file templates: the templates folder of the user (~/Templates), made if it is missing. */
+QString templatesFolder();
+/** The templates, by file name. */
+QStringList templateNames();
+/** Copies the template @p templatePath into @p folder as @p name. Returns the path of the new file, empty if the name is empty or taken, or the copy failed. */
+QString createFromTemplate(const QString &templatePath, const QString &folder, const QString &name);
+/** Copies the file into the templates folder, under a free name. Returns the path of the template, empty if it failed. */
+QString saveAsTemplate(const QString &filePath);
+
+/** How a path is written when it is copied. OneCommander offers backslashes, quotes, doubled backslashes and forward slashes; here: */
+enum class PathFormat {
+    Plain, ///< /home/me/My Files
+    Quoted, ///< "/home/me/My Files"
+    ShellEscaped, ///< /home/me/My\ Files
+    FileUrl ///< file:///home/me/My%20Files
+};
+QString formattedPath(const QString &path, PathFormat format);
 
 /** Where a photo was taken, from its metadata: x is the longitude and y the latitude. Empty if the file has no position. */
 std::optional<QPointF> photoLocation(const QString &path);
@@ -155,6 +174,27 @@ private:
     QLineEdit *m_pattern;
     QTableWidget *m_table;
     QDialogButtonBox *m_buttons;
+};
+
+/** OneCommander's New File window (Ctrl+N): pick a template, give the file a name and create it, and open it if wanted. */
+class NewFromTemplateDialog : public QDialog
+{
+    Q_OBJECT
+public:
+    explicit NewFromTemplateDialog(QWidget *parent);
+    /** The path of the chosen template, empty if there is none. */
+    QString selectedTemplate() const;
+    QString fileName() const;
+    /** True after "Create and Open". */
+    bool openAfterwards() const;
+    /** True after "Edit Templates". */
+    bool editRequested() const;
+
+private:
+    QListWidget *m_list;
+    QLineEdit *m_name;
+    bool m_open = false;
+    bool m_edit = false;
 };
 
 /** A small window that shows what is in a file: a preview of an image, or the start of a text. */
