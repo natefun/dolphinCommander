@@ -1058,8 +1058,20 @@ void DolphinView::moveSelectedItems(const KFileItemList &selection, const QUrl &
     KIO::FileUndoManager::self()->recordCopyJob(job);
 }
 
+static std::function<void()> s_pasteNonFilesHandler;
+
+void DolphinView::setPasteNonFilesHandler(std::function<void()> handler)
+{
+    s_pasteNonFilesHandler = std::move(handler);
+}
+
 void DolphinView::paste()
 {
+    const QMimeData *clipboard = QApplication::clipboard()->mimeData();
+    if (s_pasteNonFilesHandler && clipboard && !clipboard->hasUrls() && (clipboard->hasImage() || clipboard->hasText())) {
+        s_pasteNonFilesHandler();
+        return;
+    }
     pasteToUrl(url());
 }
 

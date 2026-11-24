@@ -206,6 +206,32 @@ private:
     bool m_edit = false;
 };
 
+/** OneCommander's New Folder window (Ctrl+Shift+N): a name, and Enter makes the folder, Ctrl+Enter makes it and opens it, Shift+Enter makes it and moves the
+ * selected files into it. */
+class NewFolderDialog : public QDialog
+{
+    Q_OBJECT
+public:
+    enum class Result {
+        Create,
+        CreateAndOpen,
+        CreateAndMoveSelected
+    };
+    /** @p hasSelection tells whether files are selected, which the third way needs. */
+    NewFolderDialog(bool hasSelection, QWidget *parent);
+    QString folderName() const;
+    Result result() const;
+    void setFolderName(const QString &name);
+
+protected:
+    void keyPressEvent(QKeyEvent *event) override;
+
+private:
+    QLineEdit *m_name;
+    QPushButton *m_moveButton;
+    Result m_result = Result::Create;
+};
+
 /** A small window that shows what is in a file: a preview of an image, or the start of a text. */
 class QuickViewDialog : public QDialog
 {

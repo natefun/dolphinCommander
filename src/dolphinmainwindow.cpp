@@ -293,6 +293,9 @@ DolphinMainWindow::DolphinMainWindow()
     QAction *newDirAction = actionCollection()->action(QStringLiteral("create_dir"));
     Q_ASSERT(newDirAction);
     m_newFileMenu->setNewFolderShortcutAction(newDirAction);
+    // Ctrl+Shift+N belongs to the New Folder window now (OneCommander's), not to the plain "Create Folder".
+    actionCollection()->setDefaultShortcuts(newDirAction, {});
+    newDirAction->setShortcuts({});
 
     QAction *newFileAction = actionCollection()->action(QStringLiteral("create_file"));
     Q_ASSERT(newFileAction);
@@ -3890,7 +3893,6 @@ void DolphinMainWindow::setupActions()
         const char *action;
         QKeySequence key;
     } extraKeys[] = {{"duplicate", QKeySequence(Qt::CTRL | Qt::Key_D)},
-                     {"create_dir", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N)},
                      {"focus_inactive_split_view", QKeySequence(Qt::ALT | Qt::Key_F)},
                      {"color_label", QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_T)}};
     for (const auto &extra : extraKeys) {
@@ -3966,6 +3968,13 @@ void DolphinMainWindow::setupActions()
         }
     });
 
+    // Ctrl+V with text or a picture on the clipboard makes a file of it, as OneCommander does.
+    DolphinView::setPasteNonFilesHandler([]() {
+        if (auto *window = qobject_cast<DolphinMainWindow *>(QApplication::activeWindow())) {
+            window->pasteClipboardAsFile();
+        }
+    });
+
     QAction *pasteAsLinks = actionCollection()->addAction(QStringLiteral("paste_as_links"));
     pasteAsLinks->setText(i18nc("@action:inmenu", "Paste as Symbolic Links"));
     pasteAsLinks->setToolTip(i18nc("@info:tooltip", "Make a symbolic link in this folder to each file or folder on the clipboard."));
@@ -4009,9 +4018,47 @@ void DolphinMainWindow::setupActions()
         for (const KFileItem &item : m_activeViewContainer->view()->selectedItems()) {
             paths << (item.isLocalFile() ? item.localPath() : item.url().toDisplayString());
         }
-        if (!paths.isEmpty()) {
-            QApplication::clipboard()->setText(paths.join(QLatin1Char('\n')));
+        if (paths.isEmpty()) {
+            // With nothing selected it is the path of the folder, as in OneCommander.
+            const QUrl url = m_activeViewContainer->url();
+            paths << (url.isLocalFile() ? url.toLocalFile() : url.toDisplayString());
         }
+        QApplication::clipboard()->setText(paths.join(QLatin1Char('\n')));
+    });
+
+    QAction *newFolderDialog = actionCollection()->addAction(QStringLiteral("new_folder_dialog"));
+    newFolderDialog->setText(i18nc("@action:inmenu", "New Folder…"));
+    newFolderDialog->setToolTip(i18nc("@info:tooltip", "Make a folder; Ctrl+Enter also opens it, Shift+Enter also moves the selected files into it."));
+    newFolderDialog->setIcon(QIcon::fromTheme(QStringLiteral("folder-new")));
+    actionCollection()->setDefaultShortcut(newFolderDialog, Qt::CTRL | Qt::SHIFT | Qt::Key_N);
+    connect(newFolderDialog, &QAction::triggered, this, [this]() {
+        const QUrl folder = m_activeViewContainer->url();
+        if (!folder.isLocalFile()) {
+            m_activeViewContainer->showMessage(i18nc("@info", "Folders can only be made here in folders on this computer."), KMessageWidget::Information);
+            return;
+        }
+        const KFileItemList selected = m_activeViewContainer->view()->selectedItems();
+        NewFolderDialog dialog(!selected.isEmpty(), this);
+        if (dialog.exec() != QDialog::Accepted || dialog.folderName().isEmpty()) {
+            return;
+        }
+        const QString path = folder.toLocalFile() + QLatin1Char('/') + dialog.folderName();
+        if (QFileInfo::exists(path) || !QDir().mkdir(path)) {
+            m_activeViewContainer->showMessage(i18nc("@info", "The folder could not be made: the name is already used or not allowed."), KMessageWidget::Error);
+            return;
+        }
+        const QUrl created = QUrl::fromLocalFile(path);
+        if (dialog.result() == NewFolderDialog::Result::CreateAndMoveSelected) {
+            QList<QUrl> urls;
+            for (const KFileItem &item : selected) {
+                urls << item.url();
+            }
+            KIO::move(urls, created)->start();
+        } else if (dialog.result() == NewFolderDialog::Result::CreateAndOpen) {
+            changeUrl(created);
+            return;
+        }
+        m_activeViewContainer->view()->markUrlsAsSelected({created});
     });
 
     QAction *newFromTemplate = actionCollection()->addAction(QStringLiteral("new_file_from_template"));

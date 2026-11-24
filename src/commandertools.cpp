@@ -857,6 +857,69 @@ bool NewFromTemplateDialog::editRequested() const
     return m_edit;
 }
 
+NewFolderDialog::NewFolderDialog(bool hasSelection, QWidget *parent)
+    : QDialog(parent)
+{
+    setWindowTitle(i18nc("@title:window", "New Folder"));
+    auto *layout = new QVBoxLayout(this);
+    m_name = new QLineEdit(this);
+    m_name->setObjectName(QStringLiteral("folderName"));
+    m_name->setPlaceholderText(i18nc("@info:placeholder", "Folder name"));
+    layout->addWidget(m_name);
+    auto *buttons = new QDialogButtonBox(this);
+    auto *create = buttons->addButton(i18nc("@action:button", "Create"), QDialogButtonBox::AcceptRole);
+    auto *open = buttons->addButton(i18nc("@action:button", "Create and Open  (Ctrl+Enter)"), QDialogButtonBox::AcceptRole);
+    m_moveButton = buttons->addButton(i18nc("@action:button", "Create and Move Selected Files Inside  (Shift+Enter)"), QDialogButtonBox::AcceptRole);
+    m_moveButton->setEnabled(hasSelection);
+    buttons->addButton(QDialogButtonBox::Cancel);
+    create->setDefault(true);
+    layout->addWidget(buttons);
+    connect(create, &QPushButton::clicked, this, [this]() {
+        m_result = Result::Create;
+    });
+    connect(open, &QPushButton::clicked, this, [this]() {
+        m_result = Result::CreateAndOpen;
+    });
+    connect(m_moveButton, &QPushButton::clicked, this, [this]() {
+        m_result = Result::CreateAndMoveSelected;
+    });
+    connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    m_name->setFocus();
+}
+
+QString NewFolderDialog::folderName() const
+{
+    return m_name->text().trimmed();
+}
+
+void NewFolderDialog::setFolderName(const QString &name)
+{
+    m_name->setText(name);
+}
+
+NewFolderDialog::Result NewFolderDialog::result() const
+{
+    return m_result;
+}
+
+void NewFolderDialog::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+        if (event->modifiers() & Qt::ControlModifier) {
+            m_result = Result::CreateAndOpen;
+            accept();
+            return;
+        }
+        if ((event->modifiers() & Qt::ShiftModifier) && m_moveButton->isEnabled()) {
+            m_result = Result::CreateAndMoveSelected;
+            accept();
+            return;
+        }
+    }
+    QDialog::keyPressEvent(event);
+}
+
 QuickViewDialog::QuickViewDialog(QWidget *parent)
     : QDialog(parent)
 {

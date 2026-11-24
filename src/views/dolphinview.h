@@ -490,6 +490,8 @@ public Q_SLOTS:
 
     /** Called instead of renaming one by one when several items are renamed (F2 on many files). Without a handler Dolphin's own dialog is shown. */
     static void setMultiRenameHandler(std::function<void()> handler);
+    /** Called instead of pasting when the clipboard holds text or a picture but no files (Ctrl+V): the program makes a file of it. */
+    static void setPasteNonFilesHandler(std::function<void()> handler);
 
     /**
      * Moves all selected items to the trash.

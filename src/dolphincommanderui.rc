@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="63">
+<gui name="dolphin" version="64">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
@@ -8,6 +8,7 @@
             <Action name="new_tab" />
             <Action name="new_tab_from_clipboard" />
             <Action name="close_other_tabs" />
+            <Action name="new_folder_dialog" />
             <Action name="new_file_from_template" />
             <Action name="file_close" />
             <Action name="undo_close_tab" />

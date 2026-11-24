@@ -147,6 +147,8 @@ private Q_SLOTS:
     void testStaleTabsAreThoseNotShownForADay();
     void testAWebAddressBecomesALinkFile();
     void testPathsAreCopiedInTheChosenFormat();
+    void testTheNewFolderWindowHasThreeWays();
+    void testPastingTextMakesAFile();
     void testRenamingSeveralFilesOpensTheBatchRename();
     void testLinksAreMadeFromTheClipboard();
     void testAFileTellsItsMetadata();
@@ -455,6 +457,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "copy_path_as",
                                "copy_selected_path",
                                "paste_as_links",
+                               "new_folder_dialog",
                                "close_other_tabs",
                                "dock_window",
                                "thin_scrollbars",
@@ -472,7 +475,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                                       {"move_to_inactive_split_view", QKeySequence(Qt::ALT | Qt::Key_M)},
                                                       {"show_places_panel", QKeySequence(Qt::ALT | Qt::Key_S)},
                                                       {"duplicate", QKeySequence(Qt::CTRL | Qt::Key_D)},
-                                                      {"create_dir", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N)},
+                                                      {"new_folder_dialog", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N)},
                                                       {"focus_inactive_split_view", QKeySequence(Qt::ALT | Qt::Key_F)},
                                                       {"replace_location", QKeySequence(Qt::ALT | Qt::Key_D)},
                                                       {"lock_column_resizing", QKeySequence(Qt::Key_F8)},
@@ -766,6 +769,52 @@ void DolphinCommanderFeaturesTest::testPathsAreCopiedInTheChosenFormat()
     QCOMPARE(CommanderTools::formattedPath(path, CommanderTools::PathFormat::Quoted), QStringLiteral("\"/home/me/My Files/a&b.txt\""));
     QCOMPARE(CommanderTools::formattedPath(path, CommanderTools::PathFormat::ShellEscaped), QStringLiteral("/home/me/My\\ Files/a\\&b.txt"));
     QCOMPARE(CommanderTools::formattedPath(path, CommanderTools::PathFormat::FileUrl), QStringLiteral("file:///home/me/My%20Files/a&b.txt"));
+}
+
+void DolphinCommanderFeaturesTest::testTheNewFolderWindowHasThreeWays()
+{
+    {
+        NewFolderDialog dialog(true, nullptr);
+        dialog.show();
+        dialog.setFolderName(QStringLiteral("Photos"));
+        QTest::keyClick(&dialog, Qt::Key_Return, Qt::ControlModifier);
+        QCOMPARE(dialog.result(), NewFolderDialog::Result::CreateAndOpen);
+        QCOMPARE(dialog.folderName(), QStringLiteral("Photos"));
+    }
+    {
+        NewFolderDialog dialog(true, nullptr);
+        dialog.show();
+        dialog.setFolderName(QStringLiteral("Archive"));
+        QTest::keyClick(&dialog, Qt::Key_Return, Qt::ShiftModifier);
+        QCOMPARE(dialog.result(), NewFolderDialog::Result::CreateAndMoveSelected);
+    }
+    {
+        // With nothing selected there is nothing to move: Shift+Enter makes the folder only.
+        NewFolderDialog dialog(false, nullptr);
+        dialog.show();
+        dialog.setFolderName(QStringLiteral("Empty"));
+        QTest::keyClick(&dialog, Qt::Key_Return, Qt::ShiftModifier);
+        QCOMPARE(dialog.result(), NewFolderDialog::Result::Create);
+    }
+}
+
+void DolphinCommanderFeaturesTest::testPastingTextMakesAFile()
+{
+    int calls = 0;
+    DolphinView::setPasteNonFilesHandler([&calls]() {
+        ++calls;
+    });
+    QApplication::clipboard()->setText(QStringLiteral("some text"));
+    m_container->view()->paste();
+    QCOMPARE(calls, 1);
+
+    // Files on the clipboard are pasted as before.
+    auto *mime = new QMimeData;
+    mime->setUrls({QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/file1.txt"))});
+    QApplication::clipboard()->setMimeData(mime);
+    m_container->view()->paste();
+    QCOMPARE(calls, 1);
+    DolphinView::setPasteNonFilesHandler(nullptr);
 }
 
 void DolphinCommanderFeaturesTest::testRenamingSeveralFilesOpensTheBatchRename()

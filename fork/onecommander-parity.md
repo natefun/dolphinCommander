@@ -46,6 +46,7 @@ Named windows: a workspace (Sides > Workspaces) now also keeps the layout and th
 F2 on several selected files opens the batch rename window (OneCommander opens its File Automator). Paste as Symbolic Links (Ctrl+Shift+V; OneCommander pastes shortcuts). Scripts get the environment variables DOLPHINCOMMANDER_SCRIPTS_DIR and DOLPHINCOMMANDER_SETTINGS_DIR (and OC_SCRIPTS_DIR and OC_SETTINGS_DIR, the names OneCommander uses). The details pane shows what the file says about itself: size of a picture, artist of a song, pages of a PDF.
 Alt+P shows or hides the details pane, Ctrl+Alt+Shift+W closes all tabs but the current one, the color labels have the numbers 1 to 6 as accelerators in their menu, and a path on the clipboard that leads to a file opens its folder in a new tab and selects the file (Ctrl+Alt+Shift+T).
 Files dropped on a favorite of the Favorites panel are moved into that folder (copied while Ctrl is held); they do not make a favorite. A folder dropped on a group's title or on the panel does.
+Ctrl+V with text or a picture on the clipboard makes a dated file of it (with files on it, it pastes them as before). Ctrl+Shift+C with nothing selected copies the folder's path. New Folder… (Ctrl+Shift+N): a name, Enter makes the folder, Ctrl+Enter makes it and opens it, Shift+Enter makes it and moves the selected files into it. OneCommander's F10 for the terminal is not used: F10 is the menu key of KDE; Shift+F4 opens the terminal.
 
 ## Dolphin already does (found while checking the list)
 Tab aliases (Rename Tab), new tab after the last tab or the current one, remembering tabs and a start
@@ -95,5 +96,5 @@ schemes recolor them in a real desktop session is not verified.
 - Ctrl+Shift+Enter (run with arguments), Ctrl+Enter (open with), F8 (lock the dividers of the Miller columns), Ctrl+F10 (terminal as administrator) and Ctrl+Shift+F12 are there. The last two go through pkexec (konsole for the terminal), were not tried with a real password prompt, and Ctrl+Shift+F12 opens a root copy of the window and leaves this one open.
 
 ## How this was tested
-`build/bin/dolphincommanderfeaturestest` (82 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
+`build/bin/dolphincommanderfeaturestest` (84 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
 `fork/check-tests.py` shows one test of Dolphin's columns view (`testTheContentWidthFollowsInsertedAndRemovedNames`) that fails under load and passes alone.
