@@ -4890,6 +4890,7 @@ void DolphinMainWindow::setupDockWidgets()
     m_favoritesPanel->setObjectName(QStringLiteral("favoritesPanel"));
     favoritesDock->setWidget(m_favoritesPanel);
     connect(m_favoritesPanel, &FavoritesPanel::urlActivated, this, &DolphinMainWindow::slotPlaceActivated);
+    connect(this, &DolphinMainWindow::urlChanged, m_favoritesPanel, &FavoritesPanel::addHistory);
     connect(m_favoritesPanel, &FavoritesPanel::urlActivatedInNewTab, this, &DolphinMainWindow::openNewTab);
     createPanelAction(QIcon::fromTheme(QStringLiteral("folder-favorites")),
                       Qt::CTRL | Qt::ALT | Qt::Key_F,

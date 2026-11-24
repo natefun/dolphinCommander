@@ -38,6 +38,7 @@ New File from Template (Ctrl+N; New Window moved to Ctrl+Alt+Shift+N): a window 
 Copy Path of This Folder As (Edit menu; Ctrl+Alt+Shift+C copies it at once): plain, in quotes, escaped for the shell, or as a file:// address (OneCommander's backslash variants are Windows ones).
 Copy Path of the Selected File (Ctrl+Shift+C; one path per line for several files). Paste Clipboard as File (Ctrl+Alt+V) asks what to do with a web address: a link file (.desktop), a text file or a download into the folder.
 Tab menu: Copy Tab to the Other Side and Close Stale Tabs (those not shown for a day, counted from when they were made or last shown in this run).
+Favorites panel: a History group (the last 20 folders opened in any tab, each once, newest first; Clear History in its menu), aliases for favorites (Change Alias…), and dragging favorites up and down or into another group.
 
 ## Dolphin already does (found while checking the list)
 Tab aliases (Rename Tab), new tab after the last tab or the current one, remembering tabs and a start
@@ -87,5 +88,5 @@ schemes recolor them in a real desktop session is not verified.
 - Ctrl+Shift+Enter (run with arguments), Ctrl+Enter (open with), F8 (lock the dividers of the Miller columns), Ctrl+F10 (terminal as administrator) and Ctrl+Shift+F12 are there. The last two go through pkexec (konsole for the terminal), were not tried with a real password prompt, and Ctrl+Shift+F12 opens a root copy of the window and leaves this one open.
 
 ## How this was tested
-`build/bin/dolphincommanderfeaturestest` (72 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
+`build/bin/dolphincommanderfeaturestest` (73 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
 `fork/check-tests.py` shows one test of Dolphin's columns view (`testTheContentWidthFollowsInsertedAndRemovedNames`) that fails under load and passes alone.

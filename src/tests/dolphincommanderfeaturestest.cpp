@@ -139,6 +139,7 @@ private Q_SLOTS:
     void testJobsRunOneAfterAnother();
     void testTheMainToolbarHasOneCommandersButtons();
     void testNewFilesComeFromTemplates();
+    void testTheFavoritesPanelKeepsAHistoryAndAliases();
     void testStaleTabsAreThoseNotShownForADay();
     void testAWebAddressBecomesALinkFile();
     void testPathsAreCopiedInTheChosenFormat();
@@ -544,6 +545,46 @@ void DolphinCommanderFeaturesTest::testNewFilesComeFromTemplates()
 
     QFile::remove(saved);
     QFile::remove(second);
+}
+
+void DolphinCommanderFeaturesTest::testTheFavoritesPanelKeepsAHistoryAndAliases()
+{
+    KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("CommanderFavorites")).deleteGroup();
+    KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("CommanderFavoriteAliases")).deleteGroup();
+    const QUrl a = QUrl::fromLocalFile(QStringLiteral("/tmp/a"));
+    const QUrl b = QUrl::fromLocalFile(QStringLiteral("/tmp/b"));
+    {
+        FavoritesPanel panel;
+        panel.addHistory(a);
+        panel.addHistory(b);
+        panel.addHistory(a); // an old one goes to the top, once
+        QCOMPARE(panel.history(), QList<QUrl>({a, b}));
+        QVERIFY(panel.groups().isEmpty()); // the history is not a group of favorites
+        for (int i = 0; i < 30; ++i) {
+            panel.addHistory(QUrl::fromLocalFile(QStringLiteral("/tmp/many%1").arg(i)));
+        }
+        QCOMPARE(panel.history().size(), 20);
+        QCOMPARE(panel.history().first(), QUrl::fromLocalFile(QStringLiteral("/tmp/many29")));
+
+        panel.addFavorite(a, QStringLiteral("Work"));
+        panel.setAlias(a, QStringLiteral("Alpha"));
+        QCOMPARE(panel.aliasOf(a), QStringLiteral("Alpha"));
+        QCOMPARE(panel.topLevelItem(0)->child(0)->text(0), QStringLiteral("Alpha"));
+    }
+    {
+        // What was kept comes back, and a group made later goes in front of the history.
+        FavoritesPanel panel;
+        QCOMPARE(panel.history().size(), 20);
+        QCOMPARE(panel.topLevelItem(0)->child(0)->text(0), QStringLiteral("Alpha"));
+        panel.addGroup(QStringLiteral("Home"));
+        QCOMPARE(panel.groups(), QStringList({QStringLiteral("Work"), QStringLiteral("Home")}));
+        panel.setAlias(a, QString());
+        QCOMPARE(panel.topLevelItem(0)->child(0)->text(0), QStringLiteral("a"));
+        panel.clearHistory();
+        QVERIFY(panel.history().isEmpty());
+    }
+    KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("CommanderFavorites")).deleteGroup();
+    KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("CommanderFavoriteAliases")).deleteGroup();
 }
 
 void DolphinCommanderFeaturesTest::testStaleTabsAreThoseNotShownForADay()
