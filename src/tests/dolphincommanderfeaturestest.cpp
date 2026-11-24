@@ -139,6 +139,7 @@ private Q_SLOTS:
     void testJobsRunOneAfterAnother();
     void testTheMainToolbarHasOneCommandersButtons();
     void testNewFilesComeFromTemplates();
+    void testFilesDroppedOnAFavoriteAreMovedIntoIt();
     void testTheFavoritesPanelKeepsAHistoryAndAliases();
     void testAFolderOfPicturesIsShownWithThumbnails();
     void testTheWindowDocksIntoTheLowerHalfOfTheScreen();
@@ -558,6 +559,42 @@ void DolphinCommanderFeaturesTest::testNewFilesComeFromTemplates()
 
     QFile::remove(saved);
     QFile::remove(second);
+}
+
+void DolphinCommanderFeaturesTest::testFilesDroppedOnAFavoriteAreMovedIntoIt()
+{
+    KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("CommanderFavorites")).deleteGroup();
+    TestDir dir;
+    dir.createDir("target");
+    dir.createFile("moved.txt", "m");
+    dir.createFile("copied.txt", "c");
+    FavoritesPanel panel;
+    panel.resize(300, 300);
+    panel.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&panel));
+    panel.addFavorite(QUrl::fromLocalFile(dir.path() + QStringLiteral("/target")), QStringLiteral("Work"));
+    QTreeWidgetItem *favorite = panel.topLevelItem(0)->child(0);
+    const QPoint where = panel.visualItemRect(favorite).center();
+
+    const auto drop = [&](const QString &file, Qt::KeyboardModifiers modifiers, Qt::DropAction action) {
+        QMimeData mime;
+        mime.setUrls({QUrl::fromLocalFile(dir.path() + QLatin1Char('/') + file)});
+        QDragEnterEvent enter(where, action, &mime, Qt::LeftButton, modifiers);
+        QApplication::sendEvent(panel.viewport(), &enter);
+        QDragMoveEvent move(where, action, &mime, Qt::LeftButton, modifiers);
+        QApplication::sendEvent(panel.viewport(), &move);
+        QDropEvent event(where, action, &mime, Qt::LeftButton, modifiers);
+        QApplication::sendEvent(panel.viewport(), &event);
+    };
+    drop(QStringLiteral("moved.txt"), Qt::NoModifier, Qt::MoveAction);
+    QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(dir.path() + QStringLiteral("/target/moved.txt")), 5000);
+    QVERIFY(!QFile::exists(dir.path() + QStringLiteral("/moved.txt")));
+    drop(QStringLiteral("copied.txt"), Qt::ControlModifier, Qt::CopyAction);
+    QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(dir.path() + QStringLiteral("/target/copied.txt")), 5000);
+    QVERIFY(QFile::exists(dir.path() + QStringLiteral("/copied.txt")));
+    // No new favorite was made by the drops.
+    QCOMPARE(panel.favorites(QStringLiteral("Work")).size(), 1);
+    KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("CommanderFavorites")).deleteGroup();
 }
 
 void DolphinCommanderFeaturesTest::testTheFavoritesPanelKeepsAHistoryAndAliases()

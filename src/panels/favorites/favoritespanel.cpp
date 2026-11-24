@@ -5,6 +5,7 @@
 #include "favoritespanel.h"
 
 #include <KConfigGroup>
+#include <KIO/CopyJob>
 #include <KLocalizedString>
 #include <KSharedConfig>
 
@@ -391,8 +392,18 @@ void FavoritesPanel::dropEvent(QDropEvent *event)
     if (!event->mimeData()->hasUrls()) {
         return;
     }
-    // A folder dropped on a group goes into it; dropped on the panel it goes into the first group, which is made if there is none.
     QTreeWidgetItem *target = itemAt(event->position().toPoint());
+    // Files dropped on a favorite go into that folder, as OneCommander does: moved, or copied while Ctrl is held. It makes no new favorite.
+    if (target && target->parent() && !target->parent()->data(0, HistoryRole).toBool()) {
+        const QUrl destination = target->data(0, UrlRole).toUrl();
+        const QList<QUrl> urls = event->mimeData()->urls();
+        KIO::CopyJob *job = (event->modifiers() & Qt::ControlModifier) || event->proposedAction() == Qt::CopyAction ? KIO::copy(urls, destination)
+                                                                                                                    : KIO::move(urls, destination);
+        job->start();
+        event->acceptProposedAction();
+        return;
+    }
+    // A folder dropped on a group goes into it; dropped on the panel it goes into the first group, which is made if there is none.
     if (target && target->parent()) {
         target = target->parent();
     }
