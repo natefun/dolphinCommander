@@ -2599,13 +2599,13 @@ void DolphinCommanderFeaturesTest::testTheQuickViewSeeksAndStepsThroughSound()
     QVERIFY(qAbs(quick.mediaDuration() - 20000) < 500);
     QCOMPARE(quick.shownName(), QStringLiteral("silence.wav"));
 
-    // Right and Left seek by five seconds, Shift by a tenth of the length, [ and ] by a frame.
+    // Right and Left seek by five seconds, Shift by an eighth of the length, [ and ] by a frame.
     QTest::keyClick(&quick, Qt::Key_Right);
     QTRY_COMPARE_WITH_TIMEOUT(quick.mediaPosition(), qint64(5000), 3000);
     QTest::keyClick(&quick, Qt::Key_Right, Qt::ShiftModifier);
-    QTRY_VERIFY_WITH_TIMEOUT(qAbs(quick.mediaPosition() - 7000) < 200, 3000);
+    QTRY_VERIFY_WITH_TIMEOUT(qAbs(quick.mediaPosition() - 7500) < 200, 3000);
     QTest::keyClick(&quick, Qt::Key_Left);
-    QTRY_VERIFY_WITH_TIMEOUT(qAbs(quick.mediaPosition() - 2000) < 200, 3000);
+    QTRY_VERIFY_WITH_TIMEOUT(qAbs(quick.mediaPosition() - 2500) < 200, 3000);
     QTest::keyClick(&quick, Qt::Key_Left);
     QTRY_COMPARE_WITH_TIMEOUT(quick.mediaPosition(), qint64(0), 3000); // not before the start
     QTest::keyClick(&quick, Qt::Key_BracketRight);

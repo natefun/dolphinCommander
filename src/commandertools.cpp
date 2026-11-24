@@ -963,9 +963,9 @@ QString QuickViewDialog::shownName() const
 
 void QuickViewDialog::keyPressEvent(QKeyEvent *event)
 {
-    // Video and sound: Space plays and pauses, Left and Right seek (Shift: a tenth of the length), [ and ] step by frames.
+    // Video and sound: Space plays and pauses, Left and Right seek (Shift: an eighth of the length, as OneCommander), [ and ] step by frames.
     if (m_player->duration() > 0) {
-        const qint64 jump = (event->modifiers() & Qt::ShiftModifier) ? qMax<qint64>(1000, m_player->duration() / 10) : 5000;
+        const qint64 jump = (event->modifiers() & Qt::ShiftModifier) ? qMax<qint64>(1000, m_player->duration() / 8) : 5000;
         switch (event->key()) {
         case Qt::Key_Space:
             togglePlayback();

@@ -70,7 +70,7 @@ covered by `testSeveralSelectedItemsShowNoFolder` in `dolphincolumnsviewtest`), 
 - "Apply to the current folder and close, without saving": the designer has an "Apply Without Saving" button; the folder's own settings stay as they were.
 - Preview Window: Space opens it in OneCommander, here it is Alt+F3 (Space selects); Up/Down step through the files and Esc closes it, as there.
   Word (.docx), Excel (.xlsx) and OpenDocument (.odt, .ods, .odp) files show their text in the preview (it needs KArchive, which is now a dependency).
-  Quick view plays video and sound: Space plays and pauses, Left and Right seek by five seconds (Shift: a tenth of the length), [ and ] step by
+  Quick view plays video and sound: Space plays and pauses, Left and Right seek by five seconds (Shift: an eighth of the length, so that seven presses review the whole video), [ and ] step by
   about one frame. A photo with a position in its metadata has a Show on Map button (OpenStreetMap). A picture can be shown Fit, Fill Width or at Actual Size
   (OneCommander has three viewing modes in its preview window, shown as buttons whose names its pages do not give, so these three are my reading of them). Like OneCommander, the quick view guesses the mode that suits a picture (its own size if it fits, as wide as the window for a very wide or tall one, else all of it) and its buttons show the guess. A checkbox makes videos and sounds play at once.
 - Collapsing a side by dragging its divider: the fork's two sides do it (Ctrl+F3 and the splitter), the same as OneCommander's single-browser layout.
