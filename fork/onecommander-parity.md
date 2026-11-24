@@ -63,7 +63,7 @@ covered by `testSeveralSelectedItemsShowNoFolder` in `dolphincolumnsviewtest`), 
 - Copy and move queue: copy, move and paste from a view, a drop (drag and drop) and Update the Other Side are queued (the drop is not covered by a test; it needs a drag)
 - Column hover-expand tuning: does not apply here. The Miller columns of the fork scroll sideways instead of shrinking
   the columns farther back in the path, so there is no compressed column to expand
-- OneCommander's plain ~ for the notifications (Ctrl+Shift+~ opens the panel, Ctrl+Alt+N the menu); Ctrl+` toggles the Miller columns
+- OneCommander's plain ~ for the notifications (Ctrl+Shift+~ opens the panel, Ctrl+Alt+Shift+~ the menu); Ctrl+` toggles the Miller columns
 
 ## From the later help pages (File View Designer, Resizing panes, Network drives, Phone storage, Preview, first start)
 - Removal Order and Minwidth of a column: the designer's "Hide below" width per column does the same job, in pixels of the view instead of an order.
