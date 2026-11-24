@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="59">
+<gui name="dolphin" version="60">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
@@ -86,6 +86,8 @@
                 <Action name="cycle_layout" />
                 <Action name="reload_theme" />
                 <Action name="center_window" />
+                <Action name="dock_window" />
+                <Action name="thin_scrollbars" />
             </Menu>
             <Separator/>
             <Action name="redisplay" />

@@ -140,6 +140,7 @@ private Q_SLOTS:
     void testTheMainToolbarHasOneCommandersButtons();
     void testNewFilesComeFromTemplates();
     void testTheFavoritesPanelKeepsAHistoryAndAliases();
+    void testTheWindowDocksIntoTheLowerHalfOfTheScreen();
     void testStaleTabsAreThoseNotShownForADay();
     void testAWebAddressBecomesALinkFile();
     void testPathsAreCopiedInTheChosenFormat();
@@ -445,6 +446,8 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "save_as_template",
                                "copy_path_as",
                                "copy_selected_path",
+                               "dock_window",
+                               "thin_scrollbars",
                                "cycle_layout",
                                "add_to_favorites",
                                "show_favorites_panel",
@@ -585,6 +588,31 @@ void DolphinCommanderFeaturesTest::testTheFavoritesPanelKeepsAHistoryAndAliases(
     }
     KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("CommanderFavorites")).deleteGroup();
     KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("CommanderFavoriteAliases")).deleteGroup();
+}
+
+void DolphinCommanderFeaturesTest::testTheWindowDocksIntoTheLowerHalfOfTheScreen()
+{
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.resize(500, 300);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    QScreen *screen = QGuiApplication::primaryScreen();
+    QVERIFY(screen);
+    const QRect area = screen->availableGeometry();
+    QMetaObject::invokeMethod(&window, "dockToBottomHalf", Qt::DirectConnection);
+    // As wide as the screen, in its lower half.
+    QTRY_VERIFY2(qAbs(window.frameGeometry().width() - area.width()) <= 2, qPrintable(QString::number(window.frameGeometry().width())));
+    QVERIFY2(qAbs(window.frameGeometry().top() - (area.top() + area.height() / 2)) <= 2, qPrintable(QString::number(window.frameGeometry().top())));
+    QVERIFY2(qAbs(window.frameGeometry().height() - area.height() / 2) <= 2, qPrintable(QString::number(window.frameGeometry().height())));
 }
 
 void DolphinCommanderFeaturesTest::testStaleTabsAreThoseNotShownForADay()

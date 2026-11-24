@@ -720,6 +720,7 @@ private Q_SLOTS:
     void bringBack();
     /** Puts the window in the middle of the main screen (for a window that was lost when a monitor was detached). */
     void centerOnMainScreen();
+    void dockToBottomHalf();
     /** Reads the theme, the text size, the icons and the style sheet from the settings again. */
     void reloadTheme();
     /** Moves the quick view to the previous (-1) or next (+1) file of the view it looks into, and selects it there. */
@@ -936,6 +937,7 @@ private:
     PlacesPanel *m_placesPanel;
     FavoritesPanel *m_favoritesPanel = nullptr;
     CommanderLayout m_commanderLayout = CommanderLayout::Standard;
+    bool m_docked = false;
     /** The dock with the places and the button for the settings below them. */
     DolphinDockWidget *m_placesDock = nullptr;
     /// The row below the places with the buttons for the menu, refresh, search and the settings.

@@ -1202,6 +1202,34 @@ void DolphinMainWindow::hideToTray()
     hide();
 }
 
+void DolphinMainWindow::dockToBottomHalf()
+{
+    // OneCommander's Ctrl+`: the window comes to the screen it is on, as wide as the screen and in its lower half; once more, it is minimized.
+    if (m_docked && isActiveWindow() && !isMinimized()) {
+        m_docked = false;
+        showMinimized();
+        return;
+    }
+    m_hiddenToTray = false;
+    QScreen *screen = windowHandle() && windowHandle()->screen() ? windowHandle()->screen() : QGuiApplication::primaryScreen();
+    if (!screen) {
+        return;
+    }
+    showNormal();
+    const QRect area = screen->availableGeometry();
+    const QMargins frame(frameGeometry().left() - geometry().left(),
+                         frameGeometry().top() - geometry().top(),
+                         frameGeometry().right() - geometry().right(),
+                         frameGeometry().bottom() - geometry().bottom());
+    setGeometry(area.left() - frame.left(),
+                area.top() + area.height() / 2 - frame.top(),
+                area.width() + frame.left() - frame.right(),
+                area.height() / 2 + frame.top() - frame.bottom());
+    m_docked = true;
+    raise();
+    QWidget::activateWindow();
+}
+
 void DolphinMainWindow::bringBack()
 {
     m_hiddenToTray = false;
@@ -2923,7 +2951,16 @@ void DolphinMainWindow::editTextAndIcons()
 
 void DolphinMainWindow::applyStyleSheet(const QString &styleSheet)
 {
-    qApp->setStyleSheet(styleSheet);
+    // The thin scrollbars are style sheet rules of their own that go after the sheet of the user.
+    static const QString thinScrollbars = QStringLiteral(
+        "QScrollBar:vertical { width: 7px; background: transparent; margin: 0; }"
+        "QScrollBar:horizontal { height: 7px; background: transparent; margin: 0; }"
+        "QScrollBar::handle:vertical { background: palette(mid); border-radius: 3px; min-height: 24px; }"
+        "QScrollBar::handle:horizontal { background: palette(mid); border-radius: 3px; min-width: 24px; }"
+        "QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }"
+        "QScrollBar::add-page, QScrollBar::sub-page { background: none; }");
+    const bool thin = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ThinScrollbars", false);
+    qApp->setStyleSheet(thin ? styleSheet + QLatin1Char('\n') + thinScrollbars : styleSheet);
     KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("StyleSheet", styleSheet);
 }
 
@@ -4150,6 +4187,24 @@ void DolphinMainWindow::setupActions()
     KGlobalAccel::self()->setDefaultShortcut(bringBackAction, {QKeySequence(Qt::META | Qt::ALT | Qt::Key_E)});
     KGlobalAccel::self()->setShortcut(bringBackAction, {QKeySequence(Qt::META | Qt::ALT | Qt::Key_E)});
     connect(bringBackAction, &QAction::triggered, this, &DolphinMainWindow::bringBack);
+
+    QAction *dockAction = actionCollection()->addAction(QStringLiteral("dock_window"));
+    dockAction->setText(i18nc("@action:inmenu", "Show the Window in the Lower Half of the Screen"));
+    dockAction->setToolTip(i18nc("@info:tooltip", "From any program: brings the window to the lower half of the screen; once more, it is minimized."));
+    dockAction->setIcon(QIcon::fromTheme(QStringLiteral("window-duplicate")));
+    KGlobalAccel::self()->setDefaultShortcut(dockAction, {QKeySequence(Qt::META | Qt::ALT | Qt::Key_QuoteLeft)});
+    KGlobalAccel::self()->setShortcut(dockAction, {QKeySequence(Qt::META | Qt::ALT | Qt::Key_QuoteLeft)});
+    connect(dockAction, &QAction::triggered, this, &DolphinMainWindow::dockToBottomHalf);
+
+    QAction *thinScrollbars = actionCollection()->addAction(QStringLiteral("thin_scrollbars"));
+    thinScrollbars->setText(i18nc("@action:inmenu", "Thin Scrollbars"));
+    thinScrollbars->setIcon(QIcon::fromTheme(QStringLiteral("view-list-details")));
+    thinScrollbars->setCheckable(true);
+    thinScrollbars->setChecked(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ThinScrollbars", false));
+    connect(thinScrollbars, &QAction::toggled, this, [this](bool on) {
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ThinScrollbars", on);
+        applyStyleSheet(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("StyleSheet", QString()));
+    });
 
     QAction *keepRunning = actionCollection()->addAction(QStringLiteral("keep_running_when_closed"));
     keepRunning->setText(i18nc("@action:inmenu", "Keep Running When the Window Is Closed"));
