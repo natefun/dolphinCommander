@@ -48,6 +48,7 @@ Alt+P shows or hides the details pane, Ctrl+Alt+Shift+W closes all tabs but the 
 Files dropped on a favorite of the Favorites panel are moved into that folder (copied while Ctrl is held); they do not make a favorite. A folder dropped on a group's title or on the panel does.
 Ctrl+V with text or a picture on the clipboard makes a dated file of it (with files on it, it pastes them as before). Ctrl+Shift+C with nothing selected copies the folder's path. New Folder… (Ctrl+Shift+N): a name, Enter makes the folder, Ctrl+Enter makes it and opens it, Shift+Enter makes it and moves the selected files into it. OneCommander's F10 for the terminal is not used: F10 is the menu key of KDE; Shift+F4 opens the terminal.
 OneCommander's -b1 and -b2 (open a path in the first or second browser) are covered by `dolphincommander --split <path1> <path2>`: with two folders and --split, the first goes to the left side and the second to the right side, in a window that is already running too.
+Variable scroll speed while dragging: Dolphin's list view already does it (the nearer the cursor is to the edge, the faster it scrolls, between a minimum and a maximum speed, building up gradually; KItemListView::calculateAutoScrollingIncrement).
 
 ## Dolphin already does (found while checking the list)
 Tab aliases (Rename Tab), new tab after the last tab or the current one, remembering tabs and a start
