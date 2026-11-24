@@ -3747,6 +3747,25 @@ void DolphinMainWindow::setupActions()
         KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("QueueJobs", on);
     });
 
+    QAction *detailsPane = actionCollection()->addAction(QStringLiteral("show_details_pane"));
+    detailsPane->setText(i18nc("@action:inmenu", "Details Pane"));
+    detailsPane->setToolTip(i18nc("@info:tooltip", "Show a picture and the details of the selected file under each list."));
+    detailsPane->setIcon(QIcon::fromTheme(QStringLiteral("view-right-close")));
+    detailsPane->setCheckable(true);
+    detailsPane->setChecked(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ShowDetailsPane", true));
+    connect(detailsPane, &QAction::toggled, this, [this](bool on) {
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ShowDetailsPane", on);
+        for (DolphinTabWidget *tabs : {m_leftTabs, m_rightTabs}) {
+            for (int i = 0; i < tabs->count(); ++i) {
+                for (DolphinViewContainer *container : {tabs->tabPageAt(i)->primaryViewContainer(), tabs->tabPageAt(i)->secondaryViewContainer()}) {
+                    if (container) {
+                        container->setDetailsPaneShown(on);
+                    }
+                }
+            }
+        }
+    });
+
     QAction *lockColumns = actionCollection()->addAction(QStringLiteral("lock_column_resizing"));
     lockColumns->setText(i18nc("@action:inmenu", "Lock Column Resizing"));
     lockColumns->setToolTip(i18nc("@info:tooltip", "Stop the dividers between the Miller columns from being dragged."));

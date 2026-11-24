@@ -26,6 +26,7 @@
 #include "views/dolphincolumnsview.h"
 #include "views/dolphinview.h"
 #include "views/filepreviewwidget.h"
+#include "views/itemdetailspane.h"
 #include "views/viewheader.h"
 #include "views/viewproperties.h"
 
@@ -59,6 +60,7 @@
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScrollArea>
 #include <QSignalSpy>
 #include <QSpinBox>
@@ -131,6 +133,7 @@ private Q_SLOTS:
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
+    void testTheDetailsPaneDescribesTheSelectedFile();
     void testLockedColumnDividersCannotBeDragged();
     void testClipboardAsFile();
     void testTheMainWindowHasTheOneCommanderActions();
@@ -419,6 +422,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "new_tab_from_clipboard",
                                "run_with_arguments",
                                "lock_column_resizing",
+                               "show_details_pane",
                                "open_terminal_as_administrator",
                                "restart_as_administrator"};
     for (const QString &name : names) {
@@ -439,6 +443,33 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
         QVERIFY2(action, qPrintable(name));
         QVERIFY2(action->shortcuts().contains(key), qPrintable(name + QStringLiteral(" lacks ") + key.toString()));
     }
+}
+
+void DolphinCommanderFeaturesTest::testTheDetailsPaneDescribesTheSelectedFile()
+{
+    ItemDetailsPane *pane = m_container->detailsPane();
+    QVERIFY(pane);
+    QVERIFY(m_container->isDetailsPaneShown());
+
+    // With nothing selected it counts the items of the folder.
+    QTRY_COMPARE_WITH_TIMEOUT(pane->summaryText(), QStringLiteral("3 items"), 5000);
+
+    // One selected file is described by name, and the counts mention the selection.
+    m_container->view()->selectItems(QRegularExpression(QStringLiteral("^file1\\.txt$")), true);
+    QTRY_COMPARE_WITH_TIMEOUT(pane->valueOf(QStringLiteral("Name")), QStringLiteral("file1.txt"), 5000);
+    QVERIFY2(pane->summaryText().contains(QStringLiteral("1 selected")), qPrintable(pane->summaryText()));
+    QVERIFY(!pane->valueOf(QStringLiteral("Modified")).isEmpty());
+    QCOMPARE(pane->valueOf(QStringLiteral("Age")), QStringLiteral("0 d"));
+
+    m_container->setDetailsPaneShown(false);
+    QVERIFY(!m_container->isDetailsPaneShown());
+    m_container->setDetailsPaneShown(true);
+
+    // The age as OneCommander shows it: days, then months, then years.
+    const QDateTime now(QDate(2026, 11, 23), QTime(12, 0));
+    QCOMPARE(ItemDetailsPane::ageText(now.addDays(-7), now), QStringLiteral("7 d"));
+    QCOMPARE(ItemDetailsPane::ageText(now.addDays(-270), now), QStringLiteral("9 M"));
+    QCOMPARE(ItemDetailsPane::ageText(now.addDays(-800), now), QStringLiteral("2 y"));
 }
 
 void DolphinCommanderFeaturesTest::testLockedColumnDividersCannotBeDragged()

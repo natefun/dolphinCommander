@@ -6,6 +6,7 @@
 
 #include "dolphinviewcontainer.h"
 #include "views/columnsstrip.h"
+#include "views/itemdetailspane.h"
 #include "views/viewheader.h"
 
 #include "admin/bar.h"
@@ -29,6 +30,7 @@
 
 #include <KActionCollection>
 #include <KApplicationTrader>
+#include <KConfigGroup>
 #include <KFileItemActions>
 #include <KFilePlacesModel>
 #include <KIO/JobUiDelegateFactory>
@@ -36,6 +38,7 @@
 #include <KIO/OpenUrlJob>
 #include <KLocalizedString>
 #include <KProtocolManager>
+#include <KSharedConfig>
 #include <KShell>
 #include <kio_version.h>
 
@@ -72,8 +75,9 @@ struct LayoutStructure {
     int viewHeader = 6;
     int filterBar = 7;
     int view = 8;
-    int selectionModeBottomBar = 9;
-    int statusBar = 10;
+    int detailsPane = 9;
+    int selectionModeBottomBar = 10;
+    int statusBar = 11;
 };
 constexpr LayoutStructure positionFor;
 
@@ -193,6 +197,9 @@ DolphinViewContainer::DolphinViewContainer(const QUrl &url, QWidget *parent)
     installEventFilter(this);
     m_topLayout->addWidget(m_view, positionFor.view, 0);
     m_topLayout->addWidget(m_filterBar, positionFor.filterBar, 0);
+    m_detailsPane = new ItemDetailsPane(this);
+    m_topLayout->addWidget(m_detailsPane, positionFor.detailsPane, 0);
+    setDetailsPaneShown(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ShowDetailsPane", true));
     if (GeneralSettings::showStatusBar() == GeneralSettings::EnumShowStatusBar::FullWidth) {
         m_topLayout->addWidget(m_statusBar, positionFor.statusBar, 0);
     }
@@ -277,8 +284,37 @@ void DolphinViewContainer::connectViewSignals()
     connect(ContentDisplaySettings::self(), &KCoreConfigSkeleton::configChanged, m_view, &DolphinView::reload);
 }
 
+void DolphinViewContainer::setDetailsPaneShown(bool shown)
+{
+    m_detailsPane->setVisible(shown);
+    if (shown) {
+        updateDetailsPane();
+    }
+}
+
+bool DolphinViewContainer::isDetailsPaneShown() const
+{
+    return m_detailsPane->isVisibleTo(this);
+}
+
+ItemDetailsPane *DolphinViewContainer::detailsPane() const
+{
+    return m_detailsPane;
+}
+
+void DolphinViewContainer::updateDetailsPane()
+{
+    if (m_detailsPane && m_detailsPane->isVisibleTo(this)) {
+        m_detailsPane->setContents(KFileItem(m_view->url()), m_view->itemsCount(), m_view->selectedItems());
+    }
+}
+
 void DolphinViewContainer::connectForkViewSignals()
 {
+    connect(m_view, &DolphinView::selectionChanged, this, &DolphinViewContainer::updateDetailsPane);
+    connect(m_view, &DolphinView::urlChanged, this, &DolphinViewContainer::updateDetailsPane);
+    connect(m_view, &DolphinView::itemCountChanged, this, &DolphinViewContainer::updateDetailsPane);
+    connect(m_view, &DolphinView::directoryLoadingCompleted, this, &DolphinViewContainer::updateDetailsPane);
     // Kept apart from connectViewSignals() so that a merge of Dolphin touches as little of it as possible.
     connect(m_view, &DolphinView::typedText, this, &DolphinViewContainer::startFiltering);
     connect(m_view, &DolphinView::escapePressed, this, [this]() {

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="52">
+<gui name="dolphin" version="53">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
@@ -58,6 +58,7 @@
             <Action name="additional_info" />
             <Action name="show_preview" />
             <Action name="show_hidden_files" />
+            <Action name="show_details_pane" />
             <Action name="act_as_admin" />
             <Separator/>
             <Action name="restore_view_settings_default" />

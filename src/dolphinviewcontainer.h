@@ -30,6 +30,7 @@ namespace Admin
 class Bar;
 }
 class ColumnsStrip;
+class ItemDetailsPane;
 class ViewHeader;
 class FilterBar;
 class QAction;
@@ -300,6 +301,12 @@ public Q_SLOTS:
 
     /** Shows or hides the Miller columns of this view only, and updates the arrow that does the same. */
     void setMillerColumnsShown(bool shown);
+
+    /** Shows or hides the pane under the list that describes the selected file (OneCommander's details pane). */
+    void setDetailsPaneShown(bool shown);
+    bool isDetailsPaneShown() const;
+    ItemDetailsPane *detailsPane() const;
+    void updateDetailsPane();
 
     /** Gives this view the state of the Miller columns that the settings say. */
     void applyMillerColumnsSetting();
@@ -599,6 +606,7 @@ private:
     DolphinView *m_view;
     ColumnsStrip *m_columnsStrip = nullptr;
     QToolButton *m_columnsToggle = nullptr;
+    ItemDetailsPane *m_detailsPane = nullptr;
     ViewHeader *m_viewHeader = nullptr;
 
     FilterBar *m_filterBar;
