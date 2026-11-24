@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="55">
+<gui name="dolphin" version="56">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
@@ -88,6 +88,7 @@
             <Separator/>
             <Action name="panels" />
             <Action name="show_notifications_panel" />
+            <Action name="show_favorites_panel" />
             <Menu name="location_bar" icon="edit-select-text">
                 <text context="@title:menu">Location Bar</text>
                 <Action name="editable_location" />
@@ -109,6 +110,7 @@
             <Action name="unpack_to_other_side" />
             <Separator/>
             <Action name="folder_hotlist" />
+            <Action name="add_to_favorites" />
             <Action name="workspaces_menu" />
             <Action name="split_stash" />
         </Menu>

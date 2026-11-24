@@ -31,6 +31,7 @@
 #include "global.h"
 #include "jobqueue.h"
 #include "middleclickactioneventfilter.h"
+#include "panels/favorites/favoritespanel.h"
 #include "panels/places/placespanel.h"
 #include "panels/terminal/terminalpanel.h"
 #include "search/dolphinquery.h"
@@ -4719,6 +4720,33 @@ void DolphinMainWindow::setupDockWidgets()
                       QStringLiteral("show_notifications_panel"));
     addDockWidget(Qt::BottomDockWidgetArea, notificationsDock);
     notificationsDock->hide();
+
+    // The favorites: folders in named groups, under the places.
+    auto *favoritesDock = new DolphinDockWidget(i18nc("@title:window", "Favorites"));
+    favoritesDock->setLocked(lock);
+    favoritesDock->setObjectName(QStringLiteral("favoritesDock"));
+    favoritesDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_favoritesPanel = new FavoritesPanel(favoritesDock);
+    m_favoritesPanel->setObjectName(QStringLiteral("favoritesPanel"));
+    favoritesDock->setWidget(m_favoritesPanel);
+    connect(m_favoritesPanel, &FavoritesPanel::urlActivated, this, &DolphinMainWindow::slotPlaceActivated);
+    connect(m_favoritesPanel, &FavoritesPanel::urlActivatedInNewTab, this, &DolphinMainWindow::openNewTab);
+    createPanelAction(QIcon::fromTheme(QStringLiteral("folder-favorites")),
+                      Qt::CTRL | Qt::ALT | Qt::Key_F,
+                      favoritesDock,
+                      QStringLiteral("show_favorites_panel"));
+    addDockWidget(Qt::LeftDockWidgetArea, favoritesDock);
+    favoritesDock->hide();
+
+    QAction *addToFavorites = actionCollection()->addAction(QStringLiteral("add_to_favorites"));
+    addToFavorites->setText(i18nc("@action:inmenu", "Add This Folder to Favorites"));
+    addToFavorites->setIcon(QIcon::fromTheme(QStringLiteral("bookmark-new")));
+    actionCollection()->setDefaultShortcut(addToFavorites, Qt::CTRL | Qt::ALT | Qt::Key_D);
+    connect(addToFavorites, &QAction::triggered, this, [this, favoritesDock]() {
+        const QStringList groups = m_favoritesPanel->groups();
+        m_favoritesPanel->addFavorite(m_activeViewContainer->url(), groups.isEmpty() ? i18nc("@item default group", "Favorites") : groups.first());
+        favoritesDock->show();
+    });
 
     addDockWidget(Qt::LeftDockWidgetArea, placesDock);
     connect(m_placesPanel, &PlacesPanel::placeActivated, this, &DolphinMainWindow::slotPlaceActivated);

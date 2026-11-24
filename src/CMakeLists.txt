@@ -117,6 +117,7 @@ target_sources(dolphinprivate PRIVATE
     views/columnsstrip.cpp
     views/filepreviewwidget.cpp
     views/itemdetailspane.cpp
+    panels/favorites/favoritespanel.cpp
     jobqueue.cpp
     views/viewheader.cpp
     views/dolphinremoteencoding.cpp

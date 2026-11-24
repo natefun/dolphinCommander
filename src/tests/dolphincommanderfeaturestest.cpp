@@ -21,6 +21,7 @@
 #include "kitemviews/kitemlistcontroller.h"
 #include "kitemviews/kitemlistview.h"
 #include "kitemviews/kitemlistwidget.h"
+#include "panels/favorites/favoritespanel.h"
 #include "testdir.h"
 #include "views/columnsstrip.h"
 #include "views/dolphincolumnsview.h"
@@ -133,6 +134,7 @@ private Q_SLOTS:
     void testAFolderImageIsPaintedBehindTheItems();
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
+    void testFavoritesAreKeptInGroups();
     void testTheNordThemeHasItsColors();
     void testTheDatesAreDrawnOnBadges();
     void testTheDetailsPaneDescribesTheSelectedFile();
@@ -427,6 +429,8 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "show_details_pane",
                                "colored_badges",
                                "compact_rows",
+                               "add_to_favorites",
+                               "show_favorites_panel",
                                "open_terminal_as_administrator",
                                "restart_as_administrator"};
     for (const QString &name : names) {
@@ -447,6 +451,40 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
         QVERIFY2(action, qPrintable(name));
         QVERIFY2(action->shortcuts().contains(key), qPrintable(name + QStringLiteral(" lacks ") + key.toString()));
     }
+}
+
+void DolphinCommanderFeaturesTest::testFavoritesAreKeptInGroups()
+{
+    KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("CommanderFavorites")).deleteGroup();
+    const QUrl music = QUrl::fromLocalFile(QStringLiteral("/tmp/music"));
+    const QUrl work = QUrl::fromLocalFile(QStringLiteral("/tmp/work"));
+    {
+        FavoritesPanel panel;
+        QVERIFY(panel.groups().isEmpty());
+        panel.addFavorite(music, QStringLiteral("Home"));
+        panel.addFavorite(music, QStringLiteral("Home")); // twice is once
+        panel.addFavorite(work, QStringLiteral("Jobs"));
+        QCOMPARE(panel.groups(), QStringList({QStringLiteral("Home"), QStringLiteral("Jobs")}));
+        QCOMPARE(panel.favorites(QStringLiteral("Home")), QList<QUrl>{music});
+        QSignalSpy opened(&panel, &FavoritesPanel::urlActivated);
+        QTreeWidgetItem *item = panel.topLevelItem(1)->child(0);
+        const QRect rect = panel.visualItemRect(item);
+        QTest::mouseClick(panel.viewport(), Qt::LeftButton, Qt::NoModifier, rect.center());
+        QCOMPARE(opened.count(), 1);
+        QCOMPARE(opened.first().first().toUrl(), work);
+    }
+    {
+        // A new panel has what the old one kept.
+        FavoritesPanel panel;
+        QCOMPARE(panel.groups(), QStringList({QStringLiteral("Home"), QStringLiteral("Jobs")}));
+        panel.renameGroup(QStringLiteral("Jobs"), QStringLiteral("Work"));
+        panel.removeFavorite(music, QStringLiteral("Home"));
+        panel.removeGroup(QStringLiteral("Home"));
+    }
+    FavoritesPanel panel;
+    QCOMPARE(panel.groups(), QStringList({QStringLiteral("Work")}));
+    QCOMPARE(panel.favorites(QStringLiteral("Work")), QList<QUrl>{work});
+    KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("CommanderFavorites")).deleteGroup();
 }
 
 void DolphinCommanderFeaturesTest::testTheNordThemeHasItsColors()
