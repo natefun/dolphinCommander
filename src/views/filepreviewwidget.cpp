@@ -175,6 +175,27 @@ void FilePreviewWidget::setItem(const KFileItem &item)
     }
 }
 
+FilePreviewWidget::ImageMode FilePreviewWidget::bestModeFor(const QSize &image, const QSize &room)
+{
+    if (image.isEmpty() || room.isEmpty()) {
+        return ImageMode::Fit;
+    }
+    if (image.width() <= room.width() && image.height() <= room.height()) {
+        return ImageMode::ActualSize;
+    }
+    const double ratio = double(image.width()) / image.height();
+    return (ratio > 2.2 || ratio < 0.45) ? ImageMode::FillWidth : ImageMode::Fit;
+}
+
+FilePreviewWidget::ImageMode FilePreviewWidget::guessImageMode()
+{
+    // Before the window is shown its room is not known yet: the size it opens with stands in.
+    const QSize room = isVisible() ? m_scroll->viewport()->size() : QSize(600, 400);
+    const ImageMode mode = bestModeFor(m_pixmap.size() / m_pixmap.devicePixelRatio(), room);
+    setImageMode(mode);
+    return mode;
+}
+
 void FilePreviewWidget::setImageMode(ImageMode mode)
 {
     m_imageMode = mode;

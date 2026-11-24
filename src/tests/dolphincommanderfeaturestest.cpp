@@ -139,6 +139,7 @@ private Q_SLOTS:
     void testJobsRunOneAfterAnother();
     void testTheMainToolbarHasOneCommandersButtons();
     void testNewFilesComeFromTemplates();
+    void testThePreviewGuessesHowToShowAPicture();
     void testFilesDroppedOnAFavoriteAreMovedIntoIt();
     void testTheFavoritesPanelKeepsAHistoryAndAliases();
     void testAFolderOfPicturesIsShownWithThumbnails();
@@ -559,6 +560,31 @@ void DolphinCommanderFeaturesTest::testNewFilesComeFromTemplates()
 
     QFile::remove(saved);
     QFile::remove(second);
+}
+
+void DolphinCommanderFeaturesTest::testThePreviewGuessesHowToShowAPicture()
+{
+    using Mode = FilePreviewWidget::ImageMode;
+    const QSize room(800, 600);
+    QCOMPARE(FilePreviewWidget::bestModeFor(QSize(64, 64), room), Mode::ActualSize); // an icon fits: its own size
+    QCOMPARE(FilePreviewWidget::bestModeFor(QSize(4000, 3000), room), Mode::Fit); // a photo
+    QCOMPARE(FilePreviewWidget::bestModeFor(QSize(8000, 1000), room), Mode::FillWidth); // a panorama
+    QCOMPARE(FilePreviewWidget::bestModeFor(QSize(900, 6000), room), Mode::FillWidth); // a long screenshot
+    QCOMPARE(FilePreviewWidget::bestModeFor(QSize(), room), Mode::Fit);
+
+    // The window of the quick view takes the guess and its buttons show it.
+    TestDir dir;
+    QImage small(32, 32, QImage::Format_RGB32);
+    small.fill(Qt::red);
+    QVERIFY(small.save(dir.path() + QStringLiteral("/icon.png")));
+    QuickViewDialog quick(nullptr);
+    quick.show(KFileItem(QUrl::fromLocalFile(dir.path() + QStringLiteral("/icon.png"))));
+    auto *modes = quick.findChild<QWidget *>(QStringLiteral("imageModes"));
+    QVERIFY(modes);
+    const auto buttons = modes->findChildren<QPushButton *>();
+    QCOMPARE(buttons.size(), 3);
+    QTRY_VERIFY_WITH_TIMEOUT(buttons.at(2)->isChecked(), 3000); // Actual Size
+    QVERIFY(quick.findChild<QCheckBox *>(QStringLiteral("autoplay")));
 }
 
 void DolphinCommanderFeaturesTest::testFilesDroppedOnAFavoriteAreMovedIntoIt()

@@ -44,6 +44,11 @@ public:
         FillWidth,
         ActualSize
     };
+    /** The mode that suits a picture of @p image pixels in a window of @p room pixels: its own size if it fits, as wide as the window if it is very wide or
+     * very tall, else all of it. */
+    static ImageMode bestModeFor(const QSize &image, const QSize &room);
+    /** Picks the mode that suits the picture that is shown (OneCommander guesses it too) and returns it. */
+    ImageMode guessImageMode();
     void setImageMode(ImageMode mode);
     ImageMode imageMode() const;
     /** True while a picture is shown. */

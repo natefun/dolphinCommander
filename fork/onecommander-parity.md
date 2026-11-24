@@ -72,7 +72,7 @@ covered by `testSeveralSelectedItemsShowNoFolder` in `dolphincolumnsviewtest`), 
   Word (.docx), Excel (.xlsx) and OpenDocument (.odt, .ods, .odp) files show their text in the preview (it needs KArchive, which is now a dependency).
   Quick view plays video and sound: Space plays and pauses, Left and Right seek by five seconds (Shift: a tenth of the length), [ and ] step by
   about one frame. A photo with a position in its metadata has a Show on Map button (OpenStreetMap). A picture can be shown Fit, Fill Width or at Actual Size
-  (OneCommander has three viewing modes in its preview window; its page does not say which, so these three are my reading of it).
+  (OneCommander has three viewing modes in its preview window, shown as buttons whose names its pages do not give, so these three are my reading of them). Like OneCommander, the quick view guesses the mode that suits a picture (its own size if it fits, as wide as the window for a very wide or tall one, else all of it) and its buttons show the guess. A checkbox makes videos and sounds play at once.
 - Collapsing a side by dragging its divider: the fork's two sides do it (Ctrl+F3 and the splitter), the same as OneCommander's single-browser layout.
 - Network drives and phones: OneCommander scans the Windows network and points to Phone Link; on Linux this is KIO (smb, sftp, ftp, mtp) in
   the Places panel and the location bar, which the fork inherits from Dolphin.
@@ -95,5 +95,5 @@ schemes recolor them in a real desktop session is not verified.
 - Ctrl+Shift+Enter (run with arguments), Ctrl+Enter (open with), F8 (lock the dividers of the Miller columns), Ctrl+F10 (terminal as administrator) and Ctrl+Shift+F12 are there. The last two go through pkexec (konsole for the terminal), were not tried with a real password prompt, and Ctrl+Shift+F12 opens a root copy of the window and leaves this one open.
 
 ## How this was tested
-`build/bin/dolphincommanderfeaturestest` (81 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
+`build/bin/dolphincommanderfeaturestest` (82 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
 `fork/check-tests.py` shows one test of Dolphin's columns view (`testTheContentWidthFollowsInsertedAndRemovedNames`) that fails under load and passes alone.

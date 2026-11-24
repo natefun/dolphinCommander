@@ -7,10 +7,12 @@
 #include "kitemviews/kfileitemmodel.h"
 #include "views/filepreviewwidget.h"
 
+#include <KConfigGroup>
 #include <KFileItem>
 #include <KIO/CopyJob>
 #include <KIO/PreviewJob>
 #include <KLocalizedString>
+#include <KSharedConfig>
 
 #include <KFileMetaData/Extractor>
 #include <KFileMetaData/ExtractorCollection>
@@ -893,6 +895,13 @@ QuickViewDialog::QuickViewDialog(QWidget *parent)
         QDesktopServices::openUrl(m_mapLink);
     });
     layout->addWidget(m_mapButton);
+    auto *autoplay = new QCheckBox(i18nc("@option:check", "Play videos and sounds at once"), this);
+    autoplay->setObjectName(QStringLiteral("autoplay"));
+    autoplay->setChecked(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("QuickViewAutoplay", false));
+    connect(autoplay, &QCheckBox::toggled, this, [](bool on) {
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("QuickViewAutoplay", on);
+    });
+    layout->addWidget(autoplay);
     m_video = new QVideoWidget(this);
     m_video->hide();
     layout->addWidget(m_video, 1);
@@ -1009,7 +1018,19 @@ void QuickViewDialog::show(const KFileItem &item)
         }
     }
     m_mapButton->setVisible(m_mapLink.isValid());
-    findChild<QWidget *>(QStringLiteral("imageModes"))->setVisible(m_preview->showsImage());
+    QWidget *imageModes = findChild<QWidget *>(QStringLiteral("imageModes"));
+    imageModes->setVisible(m_preview->showsImage());
+    if (m_preview->showsImage()) {
+        // The mode that suits the picture is chosen, and its button shows it; the others can still be pressed.
+        const int guessed = int(m_preview->guessImageMode());
+        const QList<QPushButton *> buttons = imageModes->findChildren<QPushButton *>();
+        for (int i = 0; i < buttons.size(); ++i) {
+            buttons.at(i)->setChecked(i == guessed);
+        }
+    }
+    if (isMedia && KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("QuickViewAutoplay", false)) {
+        m_player->play();
+    }
     QDialog::show();
     raise();
 }
