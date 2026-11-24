@@ -33,6 +33,7 @@ Drive usage: pointing at a drive in the Places panel shows how full it is ("79% 
 Main toolbar (bottom left of the sidebar, as OneCommander's): Change Layout (cycles Standard, Columns, Classic), File Automator (the Scripts menu), New Window and About.
 OneCommander has no menu bar; its commands are in this toolbar, its context menus and its shortcut keys, so the fork keeps the menu bar hidden by default and the menus are grouped for those who show it (Ctrl+M).
 User icons: a picture in ~/.config/dolphincommander/icons/ named after a suffix (txt.png) replaces the icon of those files, one named after a folder (Music.png, any case) replaces the icon of folders of that name, and folder.png the icon of all other folders (.png, .svg and .ico are read; the folder is read again when it changes).
+Rich file view (File Views > Rich): tall rows with previews, so a text file shows its first lines and a picture its thumbnail.
 
 ## Dolphin already does (found while checking the list)
 Tab aliases (Rename Tab), new tab after the last tab or the current one, remembering tabs and a start
@@ -82,5 +83,5 @@ schemes recolor them in a real desktop session is not verified.
 - Ctrl+Shift+Enter (run with arguments), Ctrl+Enter (open with), F8 (lock the dividers of the Miller columns), Ctrl+F10 (terminal as administrator) and Ctrl+Shift+F12 are there. The last two go through pkexec (konsole for the terminal), were not tried with a real password prompt, and Ctrl+Shift+F12 opens a root copy of the window and leaves this one open.
 
 ## How this was tested
-`build/bin/dolphincommanderfeaturestest` (67 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
+`build/bin/dolphincommanderfeaturestest` (68 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
 `fork/check-tests.py` shows one test of Dolphin's columns view (`testTheContentWidthFollowsInsertedAndRemovedNames`) that fails under load and passes alone.

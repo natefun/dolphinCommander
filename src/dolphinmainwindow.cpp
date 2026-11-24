@@ -2490,6 +2490,12 @@ void DolphinMainWindow::applyFileView(const QString &name)
                 view->readSettings();
             }
         }
+    } else if (name == QLatin1String("rich")) {
+        // OneCommander's rich file view: tall rows with the start of a text and a picture of the other files.
+        trigger("details");
+        view->setPreviewsShown(true);
+        view->setVisibleRoles({"text", "size", "modificationtime", "type"});
+        view->setZoomLevel(qMin(ZoomLevelInfo::minimumLevel() + 6, ZoomLevelInfo::maximumLevel()));
     } else if (name == QLatin1String("thumbs-details")) {
         trigger("details");
         view->setPreviewsShown(true);
@@ -3726,7 +3732,11 @@ void DolphinMainWindow::setupActions()
     const struct {
         const char *id;
         const char *label;
-    } fileViews[] = {{"name-only", "Name Only"}, {"details", "Details"}, {"thumbnail-grid", "Thumbnail Grid"}, {"thumbs-details", "Thumbs + Details"}};
+    } fileViews[] = {{"name-only", "Name Only"},
+                     {"details", "Details"},
+                     {"thumbnail-grid", "Thumbnail Grid"},
+                     {"thumbs-details", "Thumbs + Details"},
+                     {"rich", "Rich (Text and Pictures)"}};
     for (const auto &entry : fileViews) {
         auto *fileViewAction = new QAction(i18nc("@action:inmenu", entry.label), fileViewsMenu);
         fileViewsMenu->addAction(fileViewAction);

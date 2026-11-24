@@ -31,6 +31,7 @@
 #include "views/itemdetailspane.h"
 #include "views/viewheader.h"
 #include "views/viewproperties.h"
+#include "views/zoomlevelinfo.h"
 
 #include <KActionCollection>
 #include <KActionMenu>
@@ -137,6 +138,7 @@ private Q_SLOTS:
     void testColorLabelsAndAgeStripesArePainted();
     void testJobsRunOneAfterAnother();
     void testTheMainToolbarHasOneCommandersButtons();
+    void testTheRichFileViewShowsPreviewsInTallRows();
     void testUserIconsReplaceTheIconsOfAKind();
     void testFavoritesAreKeptInGroups();
     void testADriveSaysHowFullItIs();
@@ -491,6 +493,30 @@ void DolphinCommanderFeaturesTest::testTheMainToolbarHasOneCommandersButtons()
         together = together || all;
     }
     QVERIFY(together);
+}
+
+void DolphinCommanderFeaturesTest::testTheRichFileViewShowsPreviewsInTallRows()
+{
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.openDirectories({m_testDir->url().toString()}, false);
+    QTRY_VERIFY(window.activeViewContainer());
+    DolphinView *view = window.activeViewContainer()->view();
+    view->setPreviewsShown(false);
+    view->setZoomLevel(ZoomLevelInfo::minimumLevel());
+    QMetaObject::invokeMethod(&window, "applyFileView", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("rich")));
+    QVERIFY(view->previewsShown());
+    QVERIFY(view->zoomLevel() > ZoomLevelInfo::minimumLevel());
 }
 
 void DolphinCommanderFeaturesTest::testUserIconsReplaceTheIconsOfAKind()
