@@ -53,6 +53,8 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
+#include <QMenuBar>
 #include <QMimeData>
 #include <QPlainTextEdit>
 #include <QProcess>
@@ -2137,6 +2139,21 @@ void DolphinCommanderFeaturesTest::testTakeScreenshots()
     QTRY_VERIFY(window.activeViewContainer());
     window.actionCollection()->action(QStringLiteral("focus_inactive_split_view"))->trigger();
     window.openDirectories({right.url().toString()}, false);
+
+    // Every menu of the menu bar, opened and saved, so that the way the actions are grouped can be looked at.
+    if (QMenuBar *bar = window.menuBar()) {
+        bar->show();
+        const auto menus = bar->findChildren<QMenu *>(QString(), Qt::FindDirectChildrenOnly);
+        for (QAction *entry : bar->actions()) {
+            if (QMenu *menu = entry->menu()) {
+                menu->popup(QPoint(40, 40));
+                QTest::qWait(150); // UNAVOIDABLE: a popup is painted after it is shown; no signal says when
+                menu->grab().save(outDir + QStringLiteral("/menu-") + entry->text().remove(QLatin1Char('&')) + QStringLiteral(".png"));
+                menu->hide();
+            }
+        }
+        Q_UNUSED(menus)
+    }
     QTest::qWait(1500); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
     window.actionCollection()->action(QStringLiteral("age_stripes"))->trigger();
     QAction *notificationsPanel = window.actionCollection()->action(QStringLiteral("show_notifications_panel"));
