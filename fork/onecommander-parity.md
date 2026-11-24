@@ -44,6 +44,7 @@ Thumbnails for Folders of Pictures (View > Appearance and Behavior, off by defau
 The details pane has OneCommander's buttons beside its counts: cut, copy, rename and move to trash, which trigger the actions of the window.
 Named windows: a workspace (Sides > Workspaces) now also keeps the layout and the position and size of the window, so opening it brings those back as OneCommander's named windows do.
 F2 on several selected files opens the batch rename window (OneCommander opens its File Automator). Paste as Symbolic Links (Ctrl+Shift+V; OneCommander pastes shortcuts). Scripts get the environment variables DOLPHINCOMMANDER_SCRIPTS_DIR and DOLPHINCOMMANDER_SETTINGS_DIR (and OC_SCRIPTS_DIR and OC_SETTINGS_DIR, the names OneCommander uses). The details pane shows what the file says about itself: size of a picture, artist of a song, pages of a PDF.
+Alt+P shows or hides the details pane, Ctrl+Alt+Shift+W closes all tabs but the current one, the color labels have the numbers 1 to 6 as accelerators in their menu, and a path on the clipboard that leads to a file opens its folder in a new tab and selects the file (Ctrl+Alt+Shift+T).
 
 ## Dolphin already does (found while checking the list)
 Tab aliases (Rename Tab), new tab after the last tab or the current one, remembering tabs and a start

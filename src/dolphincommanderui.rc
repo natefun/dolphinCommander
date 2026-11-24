@@ -1,12 +1,13 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="62">
+<gui name="dolphin" version="63">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
             <Action name="file_new" />
             <Action name="new_tab" />
             <Action name="new_tab_from_clipboard" />
+            <Action name="close_other_tabs" />
             <Action name="new_file_from_template" />
             <Action name="file_close" />
             <Action name="undo_close_tab" />
@@ -107,7 +108,7 @@
             </Menu>
         </Menu>
         <Menu name="sides_menu">
-            <text context="@title:menu">&amp;Sides</text>
+            <text context="@title:menu">S&amp;ides</text>
             <Action name="split_view_menu" />
             <Action name="move_to_tabs_split_view" />
             <Action name="popout_split_view" />

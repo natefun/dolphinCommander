@@ -2768,6 +2768,13 @@ void DolphinMainWindow::newTabFromClipboard()
         m_activeViewContainer->showMessage(i18nc("@info", "The clipboard has no folder path."), KMessageWidget::Information);
         return;
     }
+    // A path to a file opens its folder and selects the file.
+    if (url.isLocalFile() && QFileInfo(url.toLocalFile()).isFile()) {
+        const QUrl folder = QUrl::fromLocalFile(QFileInfo(url.toLocalFile()).absolutePath());
+        openNewTabAndActivate(folder);
+        m_activeViewContainer->view()->markUrlsAsSelected({url});
+        return;
+    }
     openNewTab(url);
 }
 
@@ -3672,11 +3679,13 @@ void DolphinMainWindow::setupActions()
         const char *name;
         const char *label;
     } labelColors[] = {{"red", "Red"}, {"orange", "Orange"}, {"yellow", "Yellow"}, {"green", "Green"}, {"blue", "Blue"}, {"purple", "Purple"}};
+    int labelNumber = 0;
     for (const auto &entry : labelColors) {
         const QString name = QString::fromLatin1(entry.name);
         QPixmap swatch(16, 16);
         swatch.fill(QColor(name));
-        auto *colorAction = new QAction(QIcon(swatch), i18nc("@action:inmenu color label", entry.label), labelMenu);
+        // The colors have the numbers 1 to 6 as accelerators: Ctrl+Alt+T, then the number (OneCommander's tag popup).
+        auto *colorAction = new QAction(QIcon(swatch), QStringLiteral("&%1 ").arg(++labelNumber) + i18nc("@action:inmenu color label", entry.label), labelMenu);
         labelMenu->addAction(colorAction);
         connect(colorAction, &QAction::triggered, this, [this, name]() {
             setColorLabel(name);
@@ -3935,6 +3944,7 @@ void DolphinMainWindow::setupActions()
     detailsPane->setToolTip(i18nc("@info:tooltip", "Show a picture and the details of the selected file under each list."));
     detailsPane->setIcon(QIcon::fromTheme(QStringLiteral("view-right-close")));
     detailsPane->setCheckable(true);
+    actionCollection()->setDefaultShortcut(detailsPane, Qt::ALT | Qt::Key_P);
     detailsPane->setChecked(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ShowDetailsPane", true));
     connect(detailsPane, &QAction::toggled, this, [this](bool on) {
         KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ShowDetailsPane", on);
@@ -3975,6 +3985,19 @@ void DolphinMainWindow::setupActions()
             madeUrls << QUrl::fromLocalFile(path);
         }
         m_activeViewContainer->view()->markUrlsAsSelected(madeUrls);
+    });
+
+    QAction *closeOtherTabs = actionCollection()->addAction(QStringLiteral("close_other_tabs"));
+    closeOtherTabs->setText(i18nc("@action:inmenu", "Close All Tabs but This One"));
+    closeOtherTabs->setIcon(QIcon::fromTheme(QStringLiteral("tab-close-other")));
+    actionCollection()->setDefaultShortcut(closeOtherTabs, Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_W);
+    connect(closeOtherTabs, &QAction::triggered, this, [this]() {
+        DolphinTabWidget *tabs = m_tabWidget;
+        for (int i = tabs->count() - 1; i >= 0; --i) {
+            if (i != tabs->currentIndex() && !static_cast<DolphinTabBar *>(tabs->tabBar())->isPinned(i)) {
+                tabs->closeTab(i);
+            }
+        }
     });
 
     QAction *copySelectedPath = actionCollection()->addAction(QStringLiteral("copy_selected_path"));

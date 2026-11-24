@@ -453,6 +453,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "copy_path_as",
                                "copy_selected_path",
                                "paste_as_links",
+                               "close_other_tabs",
                                "dock_window",
                                "thin_scrollbars",
                                "auto_thumbs_details",
