@@ -71,6 +71,7 @@
 #include <QProcess>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QScopeGuard>
 #include <QScrollArea>
 #include <QSignalSpy>
 #include <QSpinBox>
@@ -516,6 +517,19 @@ void DolphinCommanderFeaturesTest::testDatesAndSizesFollowTheirFormats()
 
 void DolphinCommanderFeaturesTest::testANewFolderStartsWithTheChosenViewAndSorting()
 {
+    // The settings are taken away again whatever happens, and each folder has properties of its own for this test.
+    const bool globalProps = GeneralSettings::globalViewProps();
+    GeneralSettings::setGlobalViewProps(false);
+    const QStringList keys = {QStringLiteral("SortItemsBy"),
+                              QStringLiteral("SortDirection"),
+                              QStringLiteral("SortKeepFoldersOnTop"),
+                              QStringLiteral("FilesViewDefault")};
+    const auto cleanUp = qScopeGuard([&]() {
+        for (const QString &key : keys) {
+            CommanderSettings::remove(key);
+        }
+        GeneralSettings::setGlobalViewProps(globalProps);
+    });
     CommanderSettings::setValue(QStringLiteral("SortItemsBy"), QStringLiteral("size"));
     CommanderSettings::setValue(QStringLiteral("SortDirection"), QStringLiteral("descending"));
     CommanderSettings::setValue(QStringLiteral("SortKeepFoldersOnTop"), false);
@@ -528,8 +542,7 @@ void DolphinCommanderFeaturesTest::testANewFolderStartsWithTheChosenViewAndSorti
         QVERIFY(!props.sortFoldersFirst());
         QCOMPARE(int(props.viewMode()), int(DolphinView::CompactView));
     }
-    for (const QString &key :
-         {QStringLiteral("SortItemsBy"), QStringLiteral("SortDirection"), QStringLiteral("SortKeepFoldersOnTop"), QStringLiteral("FilesViewDefault")}) {
+    for (const QString &key : keys) {
         CommanderSettings::remove(key);
     }
     TestDir plain;
