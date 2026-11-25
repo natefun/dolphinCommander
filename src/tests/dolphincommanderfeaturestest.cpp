@@ -406,6 +406,24 @@ void DolphinCommanderFeaturesTest::testSettingsChangeWhatTheProgramDoes()
     CommanderSettings::remove(QStringLiteral("NewTab"));
     CommanderSettings::remove(QStringLiteral("NewTabOpenPath"));
 
+    // A middle-click on a folder opens a tab behind, or in front when asked to.
+    DolphinViewContainer *middleContainer = window.activeViewContainer();
+    QVERIFY(middleContainer);
+    DolphinTabWidget *activeTabs = nullptr;
+    for (DolphinTabWidget *tabs : tabWidgets) {
+        activeTabs = tabs->currentTabPage() && tabs->currentTabPage()->activeViewContainer() == middleContainer ? tabs : activeTabs;
+    }
+    QVERIFY(activeTabs);
+    const int tabsNow = activeTabs->count();
+    Q_EMIT middleContainer->view()->tabRequested(QUrl::fromLocalFile(QStringLiteral("/etc")));
+    QCOMPARE(activeTabs->count(), tabsNow + 1);
+    QVERIFY(activeTabs->currentTabPage()->activeViewContainer()->url().toLocalFile() != QStringLiteral("/etc"));
+    CommanderSettings::setValue(QStringLiteral("SwitchToNewTab"), true);
+    Q_EMIT middleContainer->view()->tabRequested(QUrl::fromLocalFile(QStringLiteral("/etc")));
+    QCOMPARE(activeTabs->count(), tabsNow + 2);
+    QCOMPARE(activeTabs->currentTabPage()->activeViewContainer()->url().toLocalFile(), QStringLiteral("/etc"));
+    CommanderSettings::remove(QStringLiteral("SwitchToNewTab"));
+
     // "Notification level: errors only" keeps the other messages out of the list of notifications.
     DolphinViewContainer *container = window.activeViewContainer();
     QVERIFY(container);

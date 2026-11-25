@@ -5875,7 +5875,14 @@ void DolphinMainWindow::connectViewSignals(DolphinViewContainer *container)
     connect(view, &DolphinView::selectionChanged, this, &DolphinMainWindow::slotSelectionChanged);
     connect(view, &DolphinView::requestItemInfo, this, &DolphinMainWindow::requestItemInfo);
     connect(view, &DolphinView::fileItemsChanged, this, &DolphinMainWindow::fileItemsChanged);
-    connect(view, &DolphinView::tabRequested, this, &DolphinMainWindow::openNewTab);
+    // OneCommander's "Switch to newly created tab on middle-click on folder".
+    connect(view, &DolphinView::tabRequested, this, [this](const QUrl &url) {
+        if (CommanderSettings::boolValue(QStringLiteral("SwitchToNewTab"), false)) {
+            openNewTabAndActivate(url);
+        } else {
+            openNewTab(url);
+        }
+    });
     connect(view, &DolphinView::activeTabRequested, this, &DolphinMainWindow::openNewTabAndActivate);
     connect(view, &DolphinView::windowRequested, this, &DolphinMainWindow::openNewWindow);
     connect(view, &DolphinView::requestContextMenu, this, &DolphinMainWindow::openContextMenu);

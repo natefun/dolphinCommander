@@ -236,7 +236,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("SwitchToNewTab"),
              i18nc("@option:check", "Switch to newly created tab on middle-click on folder"),
              false,
-             not_yet);
+             live);
         pick(general,
              tabsHeader,
              QStringLiteral("OpenArgsPath"),
