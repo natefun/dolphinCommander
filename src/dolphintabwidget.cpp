@@ -222,7 +222,15 @@ void DolphinTabWidget::openNewActivatedTab()
     const DolphinViewContainer *oldActiveViewContainer = currentTabPage()->activeViewContainer();
     Q_ASSERT(oldActiveViewContainer);
 
-    openNewActivatedTab(oldActiveViewContainer->url());
+    // OneCommander's "Creating a new tab should: open path / duplicate current".
+    QUrl newTabUrl = oldActiveViewContainer->url();
+    if (CommanderSettings::stringValue(QStringLiteral("NewTab")) == QLatin1String("path")) {
+        const QString path = CommanderSettings::stringValue(QStringLiteral("NewTabOpenPath")).trimmed();
+        if (!path.isEmpty()) {
+            newTabUrl = path.startsWith(QLatin1Char('/')) ? QUrl::fromLocalFile(path) : QUrl::fromUserInput(path);
+        }
+    }
+    openNewActivatedTab(newTabUrl);
 
     DolphinViewContainer *newActiveViewContainer = currentTabPage()->activeViewContainer();
     Q_ASSERT(newActiveViewContainer);

@@ -394,6 +394,16 @@ void DolphinCommanderFeaturesTest::testSettingsChangeWhatTheProgramDoes()
     QVERIFY2(tabsWithATab->tabText(0).startsWith(QLatin1Char('/')), qPrintable(tabsWithATab->tabText(0)));
     CommanderSettings::remove(QStringLiteral("TabsShow"));
 
+    // "Creating a new tab should open path".
+    CommanderSettings::setValue(QStringLiteral("NewTab"), QStringLiteral("path"));
+    CommanderSettings::setValue(QStringLiteral("NewTabOpenPath"), QStringLiteral("/usr"));
+    const int tabsBefore = tabsWithATab->count();
+    tabsWithATab->openNewActivatedTab();
+    QCOMPARE(tabsWithATab->count(), tabsBefore + 1);
+    QCOMPARE(tabsWithATab->currentTabPage()->activeViewContainer()->url().toLocalFile(), QStringLiteral("/usr"));
+    CommanderSettings::remove(QStringLiteral("NewTab"));
+    CommanderSettings::remove(QStringLiteral("NewTabOpenPath"));
+
     // "Notification level: errors only" keeps the other messages out of the list of notifications.
     DolphinViewContainer *container = window.activeViewContainer();
     QVERIFY(container);

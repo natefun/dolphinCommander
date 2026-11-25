@@ -2961,7 +2961,24 @@ void DolphinMainWindow::pasteClipboardAsFile()
         QPushButton *link = box.addButton(i18nc("@action:button", "Link File"), QMessageBox::AcceptRole);
         QPushButton *text = box.addButton(i18nc("@action:button", "Text File"), QMessageBox::AcceptRole);
         QPushButton *download = box.addButton(i18nc("@action:button", "Download"), QMessageBox::AcceptRole);
+        // OneCommander's "Download videos / Download Audio by pasting URL using following parameters" (yt-dlp, for instance).
+        const QString videoCommand = CommanderSettings::stringValue(QStringLiteral("VideoDownloadParameters")).trimmed();
+        const QString audioCommand = CommanderSettings::stringValue(QStringLiteral("AudioDownloadParameters")).trimmed();
+        QPushButton *video = videoCommand.isEmpty() ? nullptr : box.addButton(i18nc("@action:button", "Download Video"), QMessageBox::AcceptRole);
+        QPushButton *audio = audioCommand.isEmpty() ? nullptr : box.addButton(i18nc("@action:button", "Download Audio"), QMessageBox::AcceptRole);
         box.exec();
+        if ((video && box.clickedButton() == video) || (audio && box.clickedButton() == audio)) {
+            QStringList words = QProcess::splitCommand(box.clickedButton() == video ? videoCommand : audioCommand);
+            if (!words.isEmpty()) {
+                const QString program = words.takeFirst();
+                for (QString &word : words) {
+                    word.replace(QLatin1String("$CurrentDir"), folder.toLocalFile());
+                    word.replace(QLatin1String("$URL"), web.toString());
+                }
+                QProcess::startDetached(program, words, folder.toLocalFile());
+            }
+            return;
+        }
         if (box.clickedButton() == link) {
             path = CommanderTools::saveLinkAsFile(web, folder.toLocalFile());
         } else if (box.clickedButton() == download) {
@@ -3331,6 +3348,12 @@ void DolphinMainWindow::fillScriptsMenu(QMenu *menu)
             continue;
         }
         menu->addAction(script.completeBaseName(), this, [this, scriptPath, interpreter, executable = script.isExecutable()]() {
+            // OneCommander's "Show a dialog to confirm running script".
+            if (CommanderSettings::boolValue(QStringLiteral("ShowScriptRunConfirmationDialog"), false)
+                && QMessageBox::question(this, i18nc("@title:window", "Run Script"), i18nc("@info", "Run the script %1?", QFileInfo(scriptPath).fileName()))
+                    != QMessageBox::Yes) {
+                return;
+            }
             QStringList args;
             const KFileItemList selected = m_activeViewContainer->view()->selectedItems();
             for (const KFileItem &item : selected) {

@@ -217,14 +217,14 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              {{QStringLiteral("restore"), i18nc("@item:inlistbox", "Restore last used tabs")},
               {QStringLiteral("path"), i18nc("@item:inlistbox", "Create a single tab and open path:")}},
              live);
-        text(general, tabsHeader, QStringLiteral("OnStartOpenPath"), i18nc("@label", "Path to open on start:"), QString(), not_yet);
+        text(general, tabsHeader, QStringLiteral("OnStartOpenPath"), i18nc("@label", "Path to open on start:"), QString(), live);
         pick(general,
              tabsHeader,
              QStringLiteral("NewTab"),
              i18nc("@label", "Creating a new tab should:"),
-             {{QStringLiteral("path"), i18nc("@item:inlistbox", "Open path:")}, {QStringLiteral("duplicate"), i18nc("@item:inlistbox", "Duplicate current")}},
-             not_yet);
-        text(general, tabsHeader, QStringLiteral("NewTabOpenPath"), i18nc("@label", "Path for a new tab:"), QString(), not_yet);
+             {{QStringLiteral("duplicate"), i18nc("@item:inlistbox", "Duplicate current")}, {QStringLiteral("path"), i18nc("@item:inlistbox", "Open path:")}},
+             live);
+        text(general, tabsHeader, QStringLiteral("NewTabOpenPath"), i18nc("@label", "Path for a new tab:"), QString(), live);
         pick(general,
              tabsHeader,
              QStringLiteral("NewTabPlacement"),
@@ -879,21 +879,21 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              advancedHeader,
              QStringLiteral("ShowScriptRunConfirmationDialog"),
              i18nc("@option:check", "Show a dialog to confirm running script"),
-             true,
-             not_yet);
+             false,
+             live);
         text(advanced,
              advancedHeader,
              QStringLiteral("VideoDownloadParameters"),
              i18nc("@label", "Download videos by pasting URL using following parameters"),
              QString(),
-             not_yet,
+             live,
              i18nc("@info", "yt-dlp must be installed. The command must contain both $CurrentDir and $URL."));
         text(advanced,
              advancedHeader,
              QStringLiteral("AudioDownloadParameters"),
              i18nc("@label", "Download Audio by pasting URL using following parameters"),
              QString(),
-             not_yet);
+             live);
         flag(advanced, advancedHeader, QStringLiteral("LogDetailedMessages"), i18nc("@option:check", "Log detailed messages"), false, live);
         flag(advanced, advancedHeader, QStringLiteral("ShowErrorReportDialog"), i18nc("@option:check", "Show error report dialog on crash"), false, win);
         flag(advanced, advancedHeader, QStringLiteral("UseOldDragAndDropSystem"), i18nc("@option:check", "Use old Drag&Drop system"), false, win);

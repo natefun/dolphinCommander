@@ -7,6 +7,7 @@
  */
 
 #include "admin/workerintegration.h"
+#include "commandersettings.h"
 #include "config-dolphin.h"
 #include "dbusinterface.h"
 #include "dolphin_generalsettings.h"
@@ -240,7 +241,12 @@ int main(int argc, char **argv)
 
     if (!startedWithURLs) {
         // We need at least one URL to open Dolphin
-        urls.append(Dolphin::homeUrl());
+        // OneCommander's "On start: create a single tab and open path".
+        const QString startPath = CommanderSettings::stringValue(QStringLiteral("OnStart")) == QLatin1String("path")
+            ? CommanderSettings::stringValue(QStringLiteral("OnStartOpenPath")).trimmed()
+            : QString();
+        urls.append(startPath.isEmpty() ? Dolphin::homeUrl()
+                                        : (startPath.startsWith(QLatin1Char('/')) ? QUrl::fromLocalFile(startPath) : QUrl::fromUserInput(startPath)));
     }
 
     if (splitView && urls.size() < 2) {
