@@ -500,6 +500,19 @@ void ViewProperties::applyCommanderDefaults()
     } else if (mode == QLatin1String("icons")) {
         m_node->setViewMode(DolphinView::IconsView);
     }
+
+    // OneCommander's "Inherit files view": a folder with nothing saved takes the view and sorting of the nearest parent that has.
+    if (CommanderSettings::boolValue(QStringLiteral("InheritFilesView"), false) && m_url.isLocalFile()) {
+        QDir dir(m_url.toLocalFile());
+        while (dir.cdUp()) {
+            ViewProperties parent(QUrl::fromLocalFile(dir.path()));
+            parent.setAutoSaveEnabled(false);
+            if (parent.m_hasStoredProperties) {
+                setDirProperties(parent);
+                break;
+            }
+        }
+    }
 }
 
 ViewProperties::~ViewProperties()
@@ -740,7 +753,8 @@ QList<QByteArray> ViewProperties::visibleRoles() const
         && (m_node->viewMode() == DolphinView::DetailsView) && !visibleRoles.contains(CustomizedDetailsString);
     if (useDefaultValues) {
         roles.append("size");
-        roles.append("modificationtime");
+        // OneCommander's "Date shown in list of files".
+        roles.append(CommanderSettings::stringValue(QStringLiteral("DateShown")) == QLatin1String("created") ? "creationtime" : "modificationtime");
     }
 
     return roles;

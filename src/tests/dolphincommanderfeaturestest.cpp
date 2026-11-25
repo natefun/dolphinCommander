@@ -109,6 +109,9 @@ private Q_SLOTS:
     void testClickingOutsideARenameRenamesOrCancels();
     void testADropMovesOrCopiesByTheChosenBehavior();
     void testALongNameIsCutShortAndKeepsItsExtension();
+    void testOpeningItemsFollowsTheSetting();
+    void testFolderSizesFollowTheSetting();
+    void testAFolderCanInheritItsParentsViewAndShowTheCreationDate();
     void testTheHeaderHasAMenuButton();
     void testDetailsIsTheDefaultViewMode();
     void testTheHeaderSwitchesToColumnsAndBack();
@@ -612,6 +615,36 @@ void DolphinCommanderFeaturesTest::testANewFolderStartsWithTheChosenViewAndSorti
     QCOMPARE(unchanged.sortRole(), QByteArray("text"));
 }
 
+void DolphinCommanderFeaturesTest::testAFolderCanInheritItsParentsViewAndShowTheCreationDate()
+{
+    const bool globalProps = GeneralSettings::globalViewProps();
+    GeneralSettings::setGlobalViewProps(false);
+    const auto cleanUp = qScopeGuard([globalProps]() {
+        CommanderSettings::remove(QStringLiteral("InheritFilesView"));
+        CommanderSettings::remove(QStringLiteral("DateShown"));
+        GeneralSettings::setGlobalViewProps(globalProps);
+    });
+    TestDir parent;
+    parent.createDir("child");
+    {
+        ViewProperties props(QUrl::fromLocalFile(parent.path()));
+        props.setViewMode(DolphinView::CompactView);
+        props.save();
+    }
+    const QUrl child = QUrl::fromLocalFile(parent.path() + QStringLiteral("/child"));
+    QVERIFY(ViewProperties(child).viewMode() != DolphinView::CompactView);
+    CommanderSettings::setValue(QStringLiteral("InheritFilesView"), true);
+    QCOMPARE(int(ViewProperties(child).viewMode()), int(DolphinView::CompactView));
+
+    // The details view shows the date modified unless the date created is asked for.
+    TestDir fresh;
+    QVERIFY(ViewProperties(QUrl::fromLocalFile(fresh.path())).visibleRoles().contains("modificationtime"));
+    CommanderSettings::setValue(QStringLiteral("DateShown"), QStringLiteral("created"));
+    ViewProperties created(QUrl::fromLocalFile(fresh.path()));
+    created.setViewMode(DolphinView::DetailsView);
+    QVERIFY(created.visibleRoles().contains("creationtime"));
+}
+
 void DolphinCommanderFeaturesTest::testClickingOutsideARenameRenamesOrCancels()
 {
     KItemListRoleEditor editor(nullptr);
@@ -676,6 +709,56 @@ void DolphinCommanderFeaturesTest::testALongNameIsCutShortAndKeepsItsExtension()
     QVERIFY(shortened.endsWith(QStringLiteral(".txt")));
     editor.setPlainText(QStringLiteral("short.txt"));
     QCOMPARE(finish(), QStringLiteral("short.txt"));
+}
+
+void DolphinCommanderFeaturesTest::testOpeningItemsFollowsTheSetting()
+{
+    KItemListController *controller = m_container->view()->findChild<KItemListContainer *>()->controller();
+    KFileItemModel *model = static_cast<KFileItemModel *>(controller->model());
+    const int folder = model->index(QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/subdir")));
+    const int file = model->index(QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/file1.txt")));
+    QVERIFY(folder >= 0 && file >= 0);
+    const auto cleanUp = qScopeGuard([]() {
+        CommanderSettings::remove(QStringLiteral("OpeningItems"));
+    });
+
+    CommanderSettings::setValue(QStringLiteral("OpeningItems"), QStringLiteral("double"));
+    QVERIFY(!controller->singleClickActivationFor(folder));
+    QVERIFY(!controller->singleClickActivationFor(file));
+    CommanderSettings::setValue(QStringLiteral("OpeningItems"), QStringLiteral("folders"));
+    QVERIFY(controller->singleClickActivationFor(folder));
+    QVERIFY(!controller->singleClickActivationFor(file));
+    CommanderSettings::setValue(QStringLiteral("OpeningItems"), QStringLiteral("all"));
+    QVERIFY(controller->singleClickActivationFor(folder));
+    QVERIFY(controller->singleClickActivationFor(file));
+}
+
+void DolphinCommanderFeaturesTest::testFolderSizesFollowTheSetting()
+{
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.openDirectories(QList<QUrl>{m_testDir->url()}, false);
+    QTRY_VERIFY_WITH_TIMEOUT(window.activeViewContainer(), 5000);
+    const auto before = ContentDisplaySettings::directorySizeMode();
+    const auto cleanUp = qScopeGuard([before]() {
+        CommanderSettings::remove(QStringLiteral("ShowFolderSize"));
+        ContentDisplaySettings::setDirectorySizeMode(before);
+        ContentDisplaySettings::self()->save();
+    });
+    CommanderSettings::setValue(QStringLiteral("ShowFolderSize"), true);
+    QCOMPARE(int(ContentDisplaySettings::directorySizeMode()), int(ContentDisplaySettings::EnumDirectorySizeMode::ContentSize));
+    CommanderSettings::setValue(QStringLiteral("ShowFolderSize"), false);
+    QCOMPARE(int(ContentDisplaySettings::directorySizeMode()), int(ContentDisplaySettings::EnumDirectorySizeMode::None));
 }
 
 void DolphinCommanderFeaturesTest::testTheHeaderHasAMenuButton()

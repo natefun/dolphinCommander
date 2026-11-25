@@ -2157,6 +2157,12 @@ void DolphinMainWindow::applyCommanderSetting(const QString &key)
                                                                                                               : ContentDisplaySettings::ElidingMode::Right);
         ContentDisplaySettings::self()->save();
         refreshViews();
+    } else if (key == QLatin1String("ShowFolderSize")) {
+        // OneCommander's folder sizes: on counts what is inside, off shows nothing for folders.
+        ContentDisplaySettings::setDirectorySizeMode(on ? ContentDisplaySettings::EnumDirectorySizeMode::ContentSize
+                                                        : ContentDisplaySettings::EnumDirectorySizeMode::None);
+        ContentDisplaySettings::self()->save();
+        refreshViews();
     } else if (key == QLatin1String("TabsShow")) {
         m_leftTabs->refreshTabNames();
         m_rightTabs->refreshTabNames();

@@ -1389,7 +1389,9 @@ void KStandardItemListWidget::updateIconsLayoutTextCache()
     TextInfo *nameTextInfo = m_textInfo.value("text");
     QString shownName = values["text"].toString();
     // OneCommander's "Show file extensions": off hides what follows the last dot of a file's name.
-    if (!CommanderSettings::boolValue(QStringLiteral("ShowFileExtension"), true) && !values.value("isDir").toBool()) {
+    const bool extensionColumnHidesIt =
+        CommanderSettings::boolValue(QStringLiteral("HideExtensionIfExtensionColumnVisible"), false) && visibleRoles().contains("extension");
+    if ((!CommanderSettings::boolValue(QStringLiteral("ShowFileExtension"), true) || extensionColumnHidesIt) && !values.value("isDir").toBool()) {
         const qsizetype dot = shownName.lastIndexOf(QLatin1Char('.'));
         if (dot > 0) {
             shownName.truncate(dot);

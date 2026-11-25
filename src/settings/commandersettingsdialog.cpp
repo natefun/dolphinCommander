@@ -135,7 +135,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              {{QStringLiteral("double"), i18nc("@item:inlistbox", "Double-click opens items (single-click to select)")},
               {QStringLiteral("folders"), i18nc("@item:inlistbox", "Single click opens folders (Ctrl+click to select)")},
               {QStringLiteral("all"), i18nc("@item:inlistbox", "Single click also opens files")}},
-             not_yet);
+             live);
         flag(general,
              interaction,
              QStringLiteral("UseDoubleClickToOpenParent"),
@@ -147,13 +147,13 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("RenameItemsOnSecondClick"),
              i18nc("@option:check", "Rename items by clicking again without moving cursor"),
              false,
-             not_yet);
+             live);
         flag(general,
              interaction,
              QStringLiteral("ShowWarningOnExtensionChange"),
              i18nc("@option:check", "Show warning dialog when changing extension during rename"),
              true,
-             not_yet);
+             live);
         flag(general, interaction, QStringLiteral("ShowRenameSuggestions"), i18nc("@option:check", "Show rename suggestions popup"), false, not_yet);
         pick(general,
              interaction,
@@ -207,7 +207,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              i18nc("@label", "Double-click on an archive should:"),
              {{QStringLiteral("popup"), i18nc("@item:inlistbox", "Show popup asking to extract or open in a default program")},
               {QStringLiteral("default"), i18nc("@item:inlistbox", "Open in default program")}},
-             not_yet);
+             live);
 
         const QString tabsHeader = i18nc("@title:group", "Tabs");
         pick(general,
@@ -278,7 +278,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("InheritFilesView"),
              i18nc("@option:check", "Inherit files view"),
              false,
-             not_yet,
+             live,
              i18nc("@info", "Files view and sorting will be inherited from the parent folder."));
         flag(view, files, QStringLiteral("ShowFilesViewToolbar"), i18nc("@option:check", "Show Files View toolbar buttons"), true, live);
         flag(view,
@@ -368,8 +368,8 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("HideExtensionIfExtensionColumnVisible"),
              i18nc("@option:check", "Hide file extension after filename if extension column is visible"),
              false,
-             not_yet);
-        flag(view, visibility, QStringLiteral("ShowFolderSize"), i18nc("@option:check", "Show folder sizes"), false, not_yet);
+             live);
+        flag(view, visibility, QStringLiteral("ShowFolderSize"), i18nc("@option:check", "Show folder sizes"), false, live);
         flag(view,
              visibility,
              QStringLiteral("ShowFolderSizeOnNetwork"),
@@ -405,7 +405,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("DateShown"),
              i18nc("@label", "Date shown in list of files"),
              {{QStringLiteral("modified"), i18nc("@item:inlistbox", "Date modified")}, {QStringLiteral("created"), i18nc("@item:inlistbox", "Date created")}},
-             not_yet);
+             live);
         pick(view,
              itemProps,
              QStringLiteral("DateFormat"),

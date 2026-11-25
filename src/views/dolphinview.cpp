@@ -906,6 +906,22 @@ void DolphinView::scrollToItemOnceResorted(const QUrl &url)
 
 static std::function<void()> s_multiRenameHandler;
 
+// Asks whether a rename that changes the extension should go ahead. Tests replace it so no dialog blocks them.
+static std::function<bool(QWidget *, const QString &, const QString &)> s_extensionChangeAnswer =
+    [](QWidget *parent, const QString &oldName, const QString &newName) {
+        return KMessageBox::warningContinueCancel(
+                   parent,
+                   i18nc("@info", "Changing the extension of “%1” to “%2” may make the file unusable. Rename it anyway?", oldName, newName),
+                   i18nc("@title:window", "Change Extension"),
+                   KGuiItem(i18nc("@action:button", "Rename"), QStringLiteral("edit-rename")))
+            == KMessageBox::Continue;
+    };
+
+void DolphinView::setExtensionChangeAnswer(std::function<bool(QWidget *, const QString &, const QString &)> answer)
+{
+    s_extensionChangeAnswer = std::move(answer);
+}
+
 void DolphinView::setMultiRenameHandler(std::function<void()> handler)
 {
     s_multiRenameHandler = std::move(handler);
@@ -1775,7 +1791,8 @@ void DolphinView::slotMouseButtonPressed(int itemIndex, Qt::MouseButtons buttons
 
 void DolphinView::slotSelectedItemTextPressed(int index)
 {
-    if (GeneralSettings::renameInline() && !m_view->style()->styleHint(QStyle::SH_ItemView_ActivateItemOnSingleClick)) {
+    if (GeneralSettings::renameInline() && CommanderSettings::boolValue(QStringLiteral("RenameItemsOnSecondClick"), false)
+        && !m_container->controller()->singleClickActivationFor(index)) {
         const KFileItem item = m_model->fileItem(index);
         const KFileItemListProperties capabilities(KFileItemList() << item);
         if (capabilities.supportsMoving()) {
@@ -2619,6 +2636,12 @@ void DolphinView::slotRoleEditingFinished(int index, const QByteArray &role, con
         const QString newName = retVal.newName;
         if (!newName.isEmpty() && newName != oldItem.text() && newName != QLatin1Char('.') && newName != QLatin1String("..")) {
             const QUrl oldUrl = oldItem.url();
+
+            // OneCommander's "Show warning dialog when changing extension during rename".
+            if (!oldItem.isDir() && CommanderSettings::boolValue(QStringLiteral("ShowWarningOnExtensionChange"), true)
+                && QFileInfo(oldItem.name()).suffix() != QFileInfo(newName).suffix() && !s_extensionChangeAnswer(this, oldItem.name(), newName)) {
+                return;
+            }
 
             QUrl newUrl = oldUrl.adjusted(QUrl::RemoveFilename);
             newUrl.setPath(newUrl.path() + KIO::encodeFileName(newName));

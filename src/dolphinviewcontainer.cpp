@@ -1069,7 +1069,10 @@ void DolphinViewContainer::slotItemActivated(const KFileItem &item)
     // results in an active view.
     m_view->setActive(true);
 
-    const QUrl &url = DolphinView::openItemAsFolderUrl(item, GeneralSettings::browseThroughArchives());
+    // OneCommander's "Double-click on an archive should: Open in default program" keeps archives from being browsed like folders.
+    const bool browseArchives =
+        GeneralSettings::browseThroughArchives() && CommanderSettings::stringValue(QStringLiteral("DoubleClickArchive")) != QLatin1String("default");
+    const QUrl &url = DolphinView::openItemAsFolderUrl(item, browseArchives);
     if (!url.isEmpty()) {
         const auto modifiers = QGuiApplication::keyboardModifiers();
         // keep in sync with KUrlNavigator::slotNavigatorButtonClicked
