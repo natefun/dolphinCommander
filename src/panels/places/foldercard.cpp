@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "historycard.h"
+#include "foldercard.h"
 
 #include <KLocalizedString>
 
@@ -17,16 +17,39 @@ constexpr int TitleHeight = 28;
 constexpr int Margin = 8;
 }
 
-HistoryCard::HistoryCard(QWidget *parent)
+FolderCard::FolderCard(QWidget *parent)
     : QWidget(parent)
+    , m_title(i18nc("@title:group", "History"))
 {
     setCursor(Qt::PointingHandCursor);
 }
 
-void HistoryCard::setUrls(const QList<QUrl> &urls)
+void FolderCard::setTitle(const QString &title)
+{
+    m_title = title;
+    update();
+}
+
+QString FolderCard::title() const
+{
+    return m_title;
+}
+
+void FolderCard::setPlusShown(bool shown)
+{
+    m_plusShown = shown;
+    update();
+}
+
+void FolderCard::setMaxEntries(int count)
+{
+    m_maxEntries = count;
+}
+
+void FolderCard::setUrls(const QList<QUrl> &urls)
 {
     const int before = int(m_urls.size());
-    m_urls = urls.mid(0, MaxEntries);
+    m_urls = urls.mid(0, m_maxEntries);
     if (int(m_urls.size()) != before) {
         updateGeometry();
     }
@@ -34,22 +57,22 @@ void HistoryCard::setUrls(const QList<QUrl> &urls)
     update();
 }
 
-QList<QUrl> HistoryCard::urls() const
+QList<QUrl> FolderCard::urls() const
 {
     return m_urls;
 }
 
-QSize HistoryCard::sizeHint() const
+QSize FolderCard::sizeHint() const
 {
     return QSize(200, 2 * Margin + TitleHeight + LineHeight * int(m_urls.size()));
 }
 
-QRect HistoryCard::lineRect(int index) const
+QRect FolderCard::lineRect(int index) const
 {
     return QRect(Margin * 2, Margin + TitleHeight + index * LineHeight, width() - Margin * 4, LineHeight);
 }
 
-void HistoryCard::paintEvent(QPaintEvent *)
+void FolderCard::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
@@ -65,7 +88,10 @@ void HistoryCard::paintEvent(QPaintEvent *)
     titleFont.setPointSizeF(titleFont.pointSizeF() * 1.25);
     painter.setFont(titleFont);
     painter.setPen(colors.color(QPalette::WindowText));
-    painter.drawText(QRect(Margin * 2, Margin, width() - Margin * 4, TitleHeight), Qt::AlignVCenter | Qt::AlignLeft, i18nc("@title:group", "History"));
+    painter.drawText(QRect(Margin * 2, Margin, width() - Margin * 4, TitleHeight), Qt::AlignVCenter | Qt::AlignLeft, m_title);
+    if (m_plusShown) {
+        painter.drawText(QRect(width() - Margin * 2 - 20, Margin, 20, TitleHeight), Qt::AlignCenter, QStringLiteral("+"));
+    }
 
     painter.setFont(font());
     const QIcon folder = QIcon::fromTheme(QStringLiteral("folder"));
@@ -82,9 +108,13 @@ void HistoryCard::paintEvent(QPaintEvent *)
     }
 }
 
-void HistoryCard::mousePressEvent(QMouseEvent *event)
+void FolderCard::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
+        if (m_plusShown && QRect(width() - Margin * 2 - 24, Margin, 24, TitleHeight).contains(event->position().toPoint())) {
+            Q_EMIT plusClicked();
+            return;
+        }
         for (int i = 0; i < m_urls.size(); ++i) {
             if (lineRect(i).contains(event->position().toPoint())) {
                 Q_EMIT urlActivated(m_urls.at(i));

@@ -33,7 +33,7 @@
 #include "middleclickactioneventfilter.h"
 #include "panels/favorites/favoritespanel.h"
 #include "panels/places/drivescard.h"
-#include "panels/places/historycard.h"
+#include "panels/places/foldercard.h"
 #include "panels/places/placespanel.h"
 #include "panels/terminal/terminalpanel.h"
 #include "search/dolphinquery.h"
@@ -5297,14 +5297,46 @@ void DolphinMainWindow::setupDockWidgets()
     connect(m_favoritesPanel, &FavoritesPanel::urlActivated, this, &DolphinMainWindow::slotPlaceActivated);
     connect(this, &DolphinMainWindow::urlChanged, m_favoritesPanel, &FavoritesPanel::addHistory);
 
+    // OneCommander's favorite groups, a card for each, under the places. The "+" adds the current folder to the group.
+    auto *groupCards = new QWidget(m_placesDock->widget());
+    groupCards->setObjectName(QStringLiteral("commanderGroupCards"));
+    auto *groupCardsLayout = new QVBoxLayout(groupCards);
+    groupCardsLayout->setContentsMargins(0, 0, 0, 0);
+    groupCardsLayout->setSpacing(0);
+    if (auto *placesBox = qobject_cast<QBoxLayout *>(m_placesDock->widget()->layout())) {
+        placesBox->insertWidget(placesBox->indexOf(m_placesPanel) + 1, groupCards);
+    }
+    auto rebuildGroupCards = [this, groupCards, groupCardsLayout]() {
+        while (QLayoutItem *item = groupCardsLayout->takeAt(0)) {
+            delete item->widget();
+            delete item;
+        }
+        const QStringList groups = m_favoritesPanel->groups();
+        for (const QString &name : groups) {
+            auto *card = new FolderCard(groupCards);
+            card->setMaxEntries(12);
+            card->setTitle(name);
+            card->setPlusShown(true);
+            card->setUrls(m_favoritesPanel->favorites(name));
+            card->setVisible(true);
+            connect(card, &FolderCard::urlActivated, this, &DolphinMainWindow::changeUrl);
+            connect(card, &FolderCard::plusClicked, this, [this, name]() {
+                m_favoritesPanel->addFavorite(m_activeViewContainer->url(), name);
+            });
+            groupCardsLayout->addWidget(card);
+        }
+    };
+    rebuildGroupCards();
+    connect(m_favoritesPanel, &FavoritesPanel::changed, this, rebuildGroupCards);
+
     // OneCommander's History card, under the places: the folders opened last.
-    auto *historyCard = new HistoryCard(m_placesDock->widget());
-    historyCard->setObjectName(QStringLiteral("commanderHistoryCard"));
+    auto *historyCard = new FolderCard(m_placesDock->widget());
+    historyCard->setObjectName(QStringLiteral("commanderFolderCard"));
     if (auto *placesBox = qobject_cast<QBoxLayout *>(m_placesDock->widget()->layout())) {
         placesBox->insertWidget(placesBox->indexOf(m_placesPanel) + 1, historyCard);
     }
     historyCard->setUrls(m_favoritesPanel->history());
-    connect(historyCard, &HistoryCard::urlActivated, this, &DolphinMainWindow::changeUrl);
+    connect(historyCard, &FolderCard::urlActivated, this, &DolphinMainWindow::changeUrl);
     connect(this, &DolphinMainWindow::urlChanged, historyCard, [this, historyCard]() {
         historyCard->setUrls(m_favoritesPanel->history());
     });

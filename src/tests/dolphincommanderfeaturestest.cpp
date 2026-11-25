@@ -23,7 +23,7 @@
 #include "kitemviews/kitemlistwidget.h"
 #include "panels/favorites/favoritespanel.h"
 #include "panels/places/drivescard.h"
-#include "panels/places/historycard.h"
+#include "panels/places/foldercard.h"
 #include "panels/places/placespanel.h"
 #include "testdir.h"
 #include "views/columnsstrip.h"
@@ -90,7 +90,7 @@ private Q_SLOTS:
     void cleanup();
 
     void testTheDrivesCardListsTheDrives();
-    void testTheHistoryCardListsTheLastFolders();
+    void testTheFolderCardListsTheLastFolders();
     void testTheHeaderHasAMenuButton();
     void testDetailsIsTheDefaultViewMode();
     void testTheHeaderSwitchesToColumnsAndBack();
@@ -254,9 +254,9 @@ void DolphinCommanderFeaturesTest::testTheDrivesCardListsTheDrives()
     QCOMPARE(spy.at(0).at(0).toUrl(), QUrl::fromLocalFile(card.mountPoints().first()));
 }
 
-void DolphinCommanderFeaturesTest::testTheHistoryCardListsTheLastFolders()
+void DolphinCommanderFeaturesTest::testTheFolderCardListsTheLastFolders()
 {
-    HistoryCard card;
+    FolderCard card;
     card.show();
     QVERIFY(card.isHidden() || card.urls().isEmpty()); // nothing opened yet: nothing to show
     QList<QUrl> urls;
@@ -264,11 +264,11 @@ void DolphinCommanderFeaturesTest::testTheHistoryCardListsTheLastFolders()
         urls << QUrl::fromLocalFile(QStringLiteral("/tmp/folder%1").arg(i));
     }
     card.setUrls(urls);
-    QCOMPARE(card.urls().size(), int(HistoryCard::MaxEntries)); // only the newest ones
+    QCOMPARE(card.urls().size(), int(FolderCard::MaxEntries)); // only the newest ones
     QCOMPARE(card.urls().first(), urls.first());
     QVERIFY(!card.isHidden());
 
-    QSignalSpy spy(&card, &HistoryCard::urlActivated);
+    QSignalSpy spy(&card, &FolderCard::urlActivated);
     card.resize(card.sizeHint());
     QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, QPoint(30, 8 + 28 + 30)); // the second line
     QCOMPARE(spy.count(), 1);
@@ -469,6 +469,17 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
     DolphinMainWindow window;
     closer.stop();
     KActionCollection *actions = window.actionCollection();
+
+    // Every favorite group has a card under the places, and a new group gets one.
+    auto *favoritesPanel = window.findChild<FavoritesPanel *>(QStringLiteral("favoritesPanel"));
+    auto *groupCards = window.findChild<QWidget *>(QStringLiteral("commanderGroupCards"));
+    QVERIFY(favoritesPanel);
+    QVERIFY(groupCards);
+    const int cardsBefore = int(groupCards->findChildren<FolderCard *>().size());
+    favoritesPanel->addGroup(QStringLiteral("Test group for cards"));
+    QCOMPARE(int(groupCards->findChildren<FolderCard *>().size()), cardsBefore + 1);
+    favoritesPanel->removeGroup(QStringLiteral("Test group for cards"));
+    QCOMPARE(int(groupCards->findChildren<FolderCard *>().size()), cardsBefore);
 
     // The Drives card goes away with "Drives in Sidebar" and comes back with it.
     auto *card = window.findChild<DrivesCard *>();
