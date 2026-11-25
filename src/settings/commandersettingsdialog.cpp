@@ -192,7 +192,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
                i18nc("@item:valuesuffix", " ms"),
                live,
                i18nc("@info", "Reduces mouse button noise by setting a delay to ignore rapid, unintended clicks."));
-        flag(general, interaction, QStringLiteral("UseSmoothScrolling"), i18nc("@option:check", "Smooth scrolling with mouse wheel"), true, not_yet);
+        flag(general, interaction, QStringLiteral("UseSmoothScrolling"), i18nc("@option:check", "Smooth scrolling with mouse wheel"), true, live);
         flag(general, interaction, QStringLiteral("UseHighResScrolling"), i18nc("@option:check", "Use high-resolution touchpad scrolling"), true, not_yet);
         pick(general,
              interaction,
@@ -767,8 +767,8 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
                QStringLiteral(" px"),
                not_yet,
                i18nc("@info", "Make it larger for easier touchscreen access."));
-        flag(theme, ui, QStringLiteral("EnableAnimations"), i18nc("@option:check", "Enable Animations"), true, not_yet);
-        number(theme, ui, QStringLiteral("AnimationDuration"), i18nc("@label", "Animation duration (ms)"), 200, 0, 1000, QStringLiteral(" ms"), not_yet);
+        flag(theme, ui, QStringLiteral("EnableAnimations"), i18nc("@option:check", "Enable Animations"), true, live);
+        number(theme, ui, QStringLiteral("AnimationDuration"), i18nc("@label", "Animation duration (ms)"), 200, 0, 1000, QStringLiteral(" ms"), live);
         pick(theme,
              ui,
              QStringLiteral("FocusedElementStyle"),

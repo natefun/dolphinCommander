@@ -6,6 +6,8 @@
 
 #include "kitemlistsmoothscroller.h"
 
+#include "commandersettings.h"
+
 #include <KConfigGroup>
 #include <KSharedConfig>
 
@@ -27,7 +29,14 @@ KItemListSmoothScroller::KItemListSmoothScroller(QScrollBar *scrollBar, QObject 
 
     KSharedConfig::Ptr globalConfig = KSharedConfig::openConfig(QStringLiteral("kdeglobals"), KConfig::IncludeGlobals);
     KConfigGroup configGroup(globalConfig, QStringLiteral("KDE"));
-    updateAnimationDuration(configGroup.readEntry("SmoothScroll", true));
+    updateAnimationDuration(configGroup.readEntry("SmoothScroll", true) && CommanderSettings::boolValue(QStringLiteral("UseSmoothScrolling"), true));
+    // OneCommander's "Smooth scrolling with mouse wheel".
+    connect(CommanderSettings::notifier(), &CommanderSettings::Notifier::changed, this, [this](const QString &key) {
+        if (key == QLatin1String("UseSmoothScrolling")) {
+            KSharedConfig::Ptr config = KSharedConfig::openConfig(QStringLiteral("kdeglobals"), KConfig::IncludeGlobals);
+            updateAnimationDuration(KConfigGroup(config, QStringLiteral("KDE")).readEntry("SmoothScroll", true) && CommanderSettings::boolValue(key, true));
+        }
+    });
 
     QDBusConnection::sessionBus().connect(QString(),
                                           QStringLiteral("/SmoothScroll"),
