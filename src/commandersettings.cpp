@@ -20,6 +20,11 @@ QVariant CommanderSettings::value(const QString &key, const QVariant &defaultVal
     return group().readEntry(key, defaultValue);
 }
 
+bool CommanderSettings::has(const QString &key)
+{
+    return group().hasKey(key);
+}
+
 bool CommanderSettings::boolValue(const QString &key, bool defaultValue)
 {
     return group().readEntry(key, defaultValue);

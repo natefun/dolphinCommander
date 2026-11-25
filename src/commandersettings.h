@@ -19,6 +19,8 @@
 namespace CommanderSettings
 {
 DOLPHIN_EXPORT QVariant value(const QString &key, const QVariant &defaultValue = QVariant());
+/** True if the setting was ever changed, so that its default is not what is in effect. */
+DOLPHIN_EXPORT bool has(const QString &key);
 DOLPHIN_EXPORT bool boolValue(const QString &key, bool defaultValue = false);
 DOLPHIN_EXPORT int intValue(const QString &key, int defaultValue = 0);
 DOLPHIN_EXPORT QString stringValue(const QString &key, const QString &defaultValue = QString());

@@ -207,6 +207,8 @@ private:
 
     /** Writes the style this folder comes with into the properties in hand. */
     void applyOwnDefaultStyle();
+    /** OneCommander's "Default files view" and sorting settings, for a folder that has nothing saved yet. */
+    void applyCommanderDefaults();
 
     Q_DISABLE_COPY(ViewProperties)
 

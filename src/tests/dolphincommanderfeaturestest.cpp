@@ -102,6 +102,7 @@ private Q_SLOTS:
     void testSettingsChangeWhatTheProgramDoes();
     void testFilesCanBeTreatedAsHidden();
     void testDatesAndSizesFollowTheirFormats();
+    void testANewFolderStartsWithTheChosenViewAndSorting();
     void testTheHeaderHasAMenuButton();
     void testDetailsIsTheDefaultViewMode();
     void testTheHeaderSwitchesToColumnsAndBack();
@@ -511,6 +512,29 @@ void DolphinCommanderFeaturesTest::testDatesAndSizesFollowTheirFormats()
     QCOMPARE(informant.roleText("size", values), QLocale().toString(5000000.0 / (1024 * 1024), 'f', 2));
     CommanderSettings::remove(QStringLiteral("SizeFormat"));
     CommanderSettings::remove(QStringLiteral("UseOldDefinitionOfMegabyte"));
+}
+
+void DolphinCommanderFeaturesTest::testANewFolderStartsWithTheChosenViewAndSorting()
+{
+    CommanderSettings::setValue(QStringLiteral("SortItemsBy"), QStringLiteral("size"));
+    CommanderSettings::setValue(QStringLiteral("SortDirection"), QStringLiteral("descending"));
+    CommanderSettings::setValue(QStringLiteral("SortKeepFoldersOnTop"), false);
+    CommanderSettings::setValue(QStringLiteral("FilesViewDefault"), QStringLiteral("compact"));
+    {
+        TestDir fresh;
+        ViewProperties props(QUrl::fromLocalFile(fresh.path()));
+        QCOMPARE(props.sortRole(), QByteArray("size"));
+        QCOMPARE(int(props.sortOrder()), int(Qt::DescendingOrder));
+        QVERIFY(!props.sortFoldersFirst());
+        QCOMPARE(int(props.viewMode()), int(DolphinView::CompactView));
+    }
+    for (const QString &key :
+         {QStringLiteral("SortItemsBy"), QStringLiteral("SortDirection"), QStringLiteral("SortKeepFoldersOnTop"), QStringLiteral("FilesViewDefault")}) {
+        CommanderSettings::remove(key);
+    }
+    TestDir plain;
+    ViewProperties unchanged(QUrl::fromLocalFile(plain.path()));
+    QCOMPARE(unchanged.sortRole(), QByteArray("text"));
 }
 
 void DolphinCommanderFeaturesTest::testTheHeaderHasAMenuButton()

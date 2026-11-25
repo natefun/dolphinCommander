@@ -272,7 +272,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              {{QStringLiteral("details"), i18nc("@item:inlistbox", "Details")},
               {QStringLiteral("compact"), i18nc("@item:inlistbox", "Compact")},
               {QStringLiteral("icons"), i18nc("@item:inlistbox", "Thumbnail file view")}},
-             not_yet);
+             live);
         flag(view,
              files,
              QStringLiteral("InheritFilesView"),
@@ -305,15 +305,15 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
               {QStringLiteral("size"), i18nc("@item:inlistbox", "Size")},
               {QStringLiteral("modified"), i18nc("@item:inlistbox", "Date modified")},
               {QStringLiteral("created"), i18nc("@item:inlistbox", "Date created")}},
-             not_yet,
+             live,
              i18nc("@info", "These settings won't affect folders that already have sorting saved."));
         pick(view,
              sorting,
              QStringLiteral("SortDirection"),
              i18nc("@label", "Sort direction"),
              {{QStringLiteral("ascending"), i18nc("@item:inlistbox", "Ascending")}, {QStringLiteral("descending"), i18nc("@item:inlistbox", "Descending")}},
-             not_yet);
-        flag(view, sorting, QStringLiteral("SortKeepFoldersOnTop"), i18nc("@option:check", "Keep folders above files"), true, not_yet);
+             live);
+        flag(view, sorting, QStringLiteral("SortKeepFoldersOnTop"), i18nc("@option:check", "Keep folders above files"), true, live);
         flag(view,
              sorting,
              QStringLiteral("ShowKeepFoldersOnTopToggle"),
