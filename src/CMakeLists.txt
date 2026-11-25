@@ -322,6 +322,7 @@ target_sources(dolphinstatic PRIVATE
     kitemviews/kfileitemlisttostring.cpp
     panels/places/placespanel.cpp
     panels/places/drivescard.cpp
+    panels/places/historycard.cpp
     panels/panel.cpp
     panels/terminal/terminalpanel.cpp
     search/bar.cpp
@@ -394,6 +395,7 @@ target_sources(dolphinstatic PRIVATE
     kitemviews/kfileitemlisttostring.h
     panels/places/placespanel.h
     panels/places/drivescard.h
+    panels/places/historycard.h
     panels/panel.h
     panels/terminal/terminalpanel.h
     search/bar.h

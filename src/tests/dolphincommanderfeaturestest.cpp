@@ -23,6 +23,7 @@
 #include "kitemviews/kitemlistwidget.h"
 #include "panels/favorites/favoritespanel.h"
 #include "panels/places/drivescard.h"
+#include "panels/places/historycard.h"
 #include "panels/places/placespanel.h"
 #include "testdir.h"
 #include "views/columnsstrip.h"
@@ -89,6 +90,7 @@ private Q_SLOTS:
     void cleanup();
 
     void testTheDrivesCardListsTheDrives();
+    void testTheHistoryCardListsTheLastFolders();
     void testTheHeaderHasAMenuButton();
     void testDetailsIsTheDefaultViewMode();
     void testTheHeaderSwitchesToColumnsAndBack();
@@ -250,6 +252,29 @@ void DolphinCommanderFeaturesTest::testTheDrivesCardListsTheDrives()
     QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, QPoint(30, 8 + 28 + 10));
     QCOMPARE(spy.count(), 1);
     QCOMPARE(spy.at(0).at(0).toUrl(), QUrl::fromLocalFile(card.mountPoints().first()));
+}
+
+void DolphinCommanderFeaturesTest::testTheHistoryCardListsTheLastFolders()
+{
+    HistoryCard card;
+    card.show();
+    QVERIFY(card.isHidden() || card.urls().isEmpty()); // nothing opened yet: nothing to show
+    QList<QUrl> urls;
+    for (int i = 0; i < 9; ++i) {
+        urls << QUrl::fromLocalFile(QStringLiteral("/tmp/folder%1").arg(i));
+    }
+    card.setUrls(urls);
+    QCOMPARE(card.urls().size(), int(HistoryCard::MaxEntries)); // only the newest ones
+    QCOMPARE(card.urls().first(), urls.first());
+    QVERIFY(!card.isHidden());
+
+    QSignalSpy spy(&card, &HistoryCard::urlActivated);
+    card.resize(card.sizeHint());
+    QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, QPoint(30, 8 + 28 + 30)); // the second line
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(spy.at(0).at(0).toUrl(), urls.at(1));
+    card.setUrls({});
+    QVERIFY(card.isHidden());
 }
 
 void DolphinCommanderFeaturesTest::testTheHeaderHasAMenuButton()

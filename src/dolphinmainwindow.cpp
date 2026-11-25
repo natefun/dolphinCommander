@@ -33,6 +33,7 @@
 #include "middleclickactioneventfilter.h"
 #include "panels/favorites/favoritespanel.h"
 #include "panels/places/drivescard.h"
+#include "panels/places/historycard.h"
 #include "panels/places/placespanel.h"
 #include "panels/terminal/terminalpanel.h"
 #include "search/dolphinquery.h"
@@ -5295,6 +5296,18 @@ void DolphinMainWindow::setupDockWidgets()
     favoritesDock->setWidget(m_favoritesPanel);
     connect(m_favoritesPanel, &FavoritesPanel::urlActivated, this, &DolphinMainWindow::slotPlaceActivated);
     connect(this, &DolphinMainWindow::urlChanged, m_favoritesPanel, &FavoritesPanel::addHistory);
+
+    // OneCommander's History card, under the places: the folders opened last.
+    auto *historyCard = new HistoryCard(m_placesDock->widget());
+    historyCard->setObjectName(QStringLiteral("commanderHistoryCard"));
+    if (auto *placesBox = qobject_cast<QBoxLayout *>(m_placesDock->widget()->layout())) {
+        placesBox->insertWidget(placesBox->indexOf(m_placesPanel) + 1, historyCard);
+    }
+    historyCard->setUrls(m_favoritesPanel->history());
+    connect(historyCard, &HistoryCard::urlActivated, this, &DolphinMainWindow::changeUrl);
+    connect(this, &DolphinMainWindow::urlChanged, historyCard, [this, historyCard]() {
+        historyCard->setUrls(m_favoritesPanel->history());
+    });
     connect(m_favoritesPanel, &FavoritesPanel::urlActivatedInNewTab, this, &DolphinMainWindow::openNewTab);
     createPanelAction(QIcon::fromTheme(QStringLiteral("folder-favorites")),
                       Qt::CTRL | Qt::ALT | Qt::Key_F,
