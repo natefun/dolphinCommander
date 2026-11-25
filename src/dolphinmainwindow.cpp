@@ -16,6 +16,7 @@
 #include "admin/workerintegration.h"
 #include "commandersettings.h"
 #include "commandertools.h"
+#include "dolphin_contentdisplaysettings.h"
 #include "dolphin_generalsettings.h"
 #include "dolphinbookmarkhandler.h"
 #include "dolphincontextmenu.h"
@@ -2008,6 +2009,9 @@ void DolphinMainWindow::openCommanderSettings()
         CommanderSettings::setValue(QStringLiteral("ShowHidden"), hidden->isChecked());
     }
     CommanderSettings::setValue(QStringLiteral("OnStart"), GeneralSettings::rememberOpenedTabs() ? QStringLiteral("restore") : QStringLiteral("path"));
+    CommanderSettings::setValue(QStringLiteral("FileNameTrimming"),
+                                ContentDisplaySettings::elidingMode() == ContentDisplaySettings::ElidingMode::Middle ? QStringLiteral("middle")
+                                                                                                                     : QStringLiteral("end"));
     auto *dialog = new CommanderSettingsDialog(this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->show();
@@ -2098,6 +2102,13 @@ void DolphinMainWindow::applyCommanderSetting(const QString &key)
         setAction(QStringLiteral("folders_sorted_by_name"), on);
     } else if (key == QLatin1String("AutoThumbsDetails")) {
         setAction(QStringLiteral("auto_thumbs_details"), on);
+    } else if (key == QLatin1String("ShowFileExtension")) {
+        refreshViews();
+    } else if (key == QLatin1String("FileNameTrimming")) {
+        ContentDisplaySettings::setElidingMode(CommanderSettings::stringValue(key) == QLatin1String("middle") ? ContentDisplaySettings::ElidingMode::Middle
+                                                                                                              : ContentDisplaySettings::ElidingMode::Right);
+        ContentDisplaySettings::self()->save();
+        refreshViews();
     } else if (key == QLatin1String("TabsShow")) {
         m_leftTabs->refreshTabNames();
         m_rightTabs->refreshTabNames();

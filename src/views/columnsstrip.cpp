@@ -4,6 +4,8 @@
 
 #include "columnsstrip.h"
 
+#include "commandersettings.h"
+
 #include "kitemviews/kfileitemlistview.h"
 #include "kitemviews/kfileitemmodel.h"
 #include "kitemviews/kitemlistcontainer.h"
@@ -31,11 +33,23 @@
 namespace
 {
 /** A column is never narrower than this, even if the user drags a divider. */
-constexpr int MinimumColumnWidth = 80;
+int minimumColumnWidth()
+{
+    // OneCommander's "Columns minimum width".
+    return qBound(40, CommanderSettings::intValue(QStringLiteral("ColumnMinimumWidth"), 80), 400);
+}
 /** Columns are hidden, farthest back first, until the rest can have at least this much. */
-constexpr int PreferredColumnWidth = 150;
+int preferredColumnWidth()
+{
+    // OneCommander's "Columns small width": the width the left-most columns contract to when there is no room.
+    return qBound(40, CommanderSettings::intValue(QStringLiteral("ColumnWidthSmall"), 150), 400);
+}
 /** The width a new column starts with. Columns are only made narrower than this if there is not enough room. */
-constexpr int DefaultColumnWidth = 170;
+int defaultColumnWidth()
+{
+    // OneCommander's "Current (rightmost) column pane width in Columns layout".
+    return qBound(80, CommanderSettings::intValue(QStringLiteral("ColumnWidthCurrentColumnsLayout"), 170), 1000);
+}
 constexpr int StripHeight = 224;
 /** The width of the strip that stands for a column that is hidden. */
 constexpr int CollapsedLabelWidth = 14;
@@ -212,7 +226,7 @@ void ColumnsStrip::setUrl(const QUrl &url)
         m_columns.append(column);
     }
     while (m_columnWidths.size() < m_columns.size()) {
-        m_columnWidths.append(DefaultColumnWidth);
+        m_columnWidths.append(defaultColumnWidth());
     }
     while (m_columnWidths.size() > m_columns.size()) {
         m_columnWidths.removeLast();
@@ -249,7 +263,7 @@ void ColumnsStrip::updateColumnLayout()
     // narrow labels at the left, which takes some of the room.
     int visibleCount = 1;
     for (int v = count; v > 1; --v) {
-        if ((width() - (count - v) * CollapsedLabelWidth) / v >= PreferredColumnWidth) {
+        if ((width() - (count - v) * CollapsedLabelWidth) / v >= preferredColumnWidth()) {
             visibleCount = v;
             break;
         }
@@ -274,7 +288,7 @@ void ColumnsStrip::updateColumnLayout()
     for (int i = 0; i < count; ++i) {
         const bool visible = i >= m_firstVisibleColumn;
         m_columns.at(i).widget->setVisible(visible);
-        const int columnWidth = visible ? qMax(MinimumColumnWidth, int(m_columnWidths.at(i) * scale)) : 0;
+        const int columnWidth = visible ? qMax(minimumColumnWidth(), int(m_columnWidths.at(i) * scale)) : 0;
         newSizes.append(columnWidth);
         used += columnWidth;
     }
@@ -304,7 +318,7 @@ ColumnsStrip::Column ColumnsStrip::createColumn(const QUrl &url)
     view->setAccessibleParentsObject(container);
 #endif
     container->setEnabledFrame(false);
-    container->setMinimumWidth(MinimumColumnWidth);
+    container->setMinimumWidth(minimumColumnWidth());
     // Long names are cut off instead of making the column scroll sideways.
     container->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
@@ -324,7 +338,7 @@ ColumnsStrip::Column ColumnsStrip::createColumn(const QUrl &url)
     title->setToolTip(url.toDisplayString(QUrl::PreferLocalFile));
     wrapperLayout->addWidget(title);
     wrapperLayout->addWidget(container, 1);
-    wrapper->setMinimumWidth(MinimumColumnWidth);
+    wrapper->setMinimumWidth(minimumColumnWidth());
     column.widget = wrapper;
 
     // The model and controller are parented to this widget so they outlive the QObject tree

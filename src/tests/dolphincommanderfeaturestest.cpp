@@ -9,6 +9,7 @@
 
 #include "commandersettings.h"
 #include "commandertools.h"
+#include "dolphin_contentdisplaysettings.h"
 #include "dolphin_generalsettings.h"
 #include "dolphinmainwindow.h"
 #include "dolphinnavigatorswidgetaction.h"
@@ -396,6 +397,14 @@ void DolphinCommanderFeaturesTest::testSettingsChangeWhatTheProgramDoes()
     container->showMessage(QStringLiteral("it broke"), KMessageWidget::Error);
     QCOMPARE(int(DolphinViewContainer::recentMessages().size()), notes + 1);
     CommanderSettings::remove(QStringLiteral("NotificationLevel"));
+
+    // File names are trimmed in the middle or at the end, and file extensions can be hidden.
+    CommanderSettings::setValue(QStringLiteral("FileNameTrimming"), QStringLiteral("middle"));
+    QCOMPARE(int(ContentDisplaySettings::elidingMode()), int(ContentDisplaySettings::ElidingMode::Middle));
+    CommanderSettings::setValue(QStringLiteral("FileNameTrimming"), QStringLiteral("end"));
+    QCOMPARE(int(ContentDisplaySettings::elidingMode()), int(ContentDisplaySettings::ElidingMode::Right));
+    CommanderSettings::setValue(QStringLiteral("ShowFileExtension"), false);
+    CommanderSettings::remove(QStringLiteral("ShowFileExtension"));
 
     // A menu entry and its setting in the window are the same thing.
     QAction *age = window.actionCollection()->action(QStringLiteral("age_stripes"));

@@ -362,7 +362,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QString(),
              not_yet,
              i18nc("@info", "Visibility is controlled by the checkbox above or the shortcut."));
-        flag(view, visibility, QStringLiteral("ShowFileExtension"), i18nc("@option:check", "Show file extensions"), true, not_yet);
+        flag(view, visibility, QStringLiteral("ShowFileExtension"), i18nc("@option:check", "Show file extensions"), true, live);
         flag(view,
              visibility,
              QStringLiteral("HideExtensionIfExtensionColumnVisible"),
@@ -467,7 +467,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("FileNameTrimming"),
              i18nc("@label", "File name trimming"),
              {{QStringLiteral("end"), i18nc("@item:inlistbox", "End")}, {QStringLiteral("middle"), i18nc("@item:inlistbox", "Middle")}},
-             not_yet,
+             live,
              i18nc("@info", "Determines where the file name will be trimmed when it cannot fit the available space."));
         pick(view,
              itemProps,
@@ -546,17 +546,17 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
                40,
                400,
                QStringLiteral(" px"),
-               not_yet,
+               live,
                i18nc("@info", "Minimum width for all columns."));
         number(columns,
                widths,
                QStringLiteral("ColumnWidthSmall"),
                i18nc("@label", "Columns small width"),
-               120,
+               150,
                40,
                400,
                QStringLiteral(" px"),
-               not_yet,
+               live,
                i18nc("@info", "If there isn't enough space, left-most columns will contract up to this width."));
         number(columns,
                widths,
@@ -581,11 +581,11 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
                widths,
                QStringLiteral("ColumnWidthCurrentColumnsLayout"),
                i18nc("@label", "Current (rightmost) column pane width in Columns layout"),
-               300,
+               170,
                80,
                1000,
                QStringLiteral(" px"),
-               not_yet);
+               live);
         number(columns,
                widths,
                QStringLiteral("ColumnWidthOther"),
