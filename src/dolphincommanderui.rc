@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="65">
+<gui name="dolphin" version="66">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
@@ -32,6 +32,7 @@
             </Menu>
             <Action name="paste_clipboard_as_file" />
             <Action name="paste_as_links" />
+            <Action name="paste_as_hard_links" />
             <Separator/>
             <Action name="properties" />
         </Menu>

@@ -492,6 +492,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "new_tab_from_clipboard",
                                "run_with_arguments",
                                "open_link_target",
+                               "paste_as_hard_links",
                                "regenerate_thumbnails",
                                "run_as_different_user",
                                "lock_column_resizing",
@@ -901,6 +902,21 @@ void DolphinCommanderFeaturesTest::testLinksAreMadeFromTheClipboard()
     QCOMPARE(second.size(), 1);
     QVERIFY(second.first() != first.first());
     QVERIFY(QFileInfo(second.first()).isSymLink());
+
+    // A hard link is a second name for the same file; a folder cannot have one.
+    dir.createDir("hard");
+    const QString hardFolder = dir.path() + QStringLiteral("/hard");
+    const QStringList hard =
+        CommanderTools::pasteAsLinks({QUrl::fromLocalFile(dir.path() + QStringLiteral("/a.txt")), QUrl::fromLocalFile(target)}, hardFolder, true);
+    QCOMPARE(hard, QStringList({hardFolder + QStringLiteral("/a.txt")}));
+    QVERIFY(!QFileInfo(hard.first()).isSymLink());
+    QFile original(dir.path() + QStringLiteral("/a.txt"));
+    QVERIFY(original.open(QIODevice::Append));
+    original.write("more");
+    original.close();
+    QFile linked(hard.first());
+    QVERIFY(linked.open(QIODevice::ReadOnly));
+    QCOMPARE(linked.readAll(), QByteArray("xmore")); // the same data
 }
 
 void DolphinCommanderFeaturesTest::testAFileTellsItsMetadata()

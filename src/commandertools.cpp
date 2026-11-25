@@ -29,6 +29,7 @@
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+
 #include <QFont>
 #include <QFontDatabase>
 #include <QFutureWatcher>
@@ -57,6 +58,7 @@
 #include <QVBoxLayout>
 #include <QVideoWidget>
 #include <QtConcurrent>
+#include <unistd.h>
 
 QString CommanderTools::expandRenamePattern(const QString &pattern, const QString &fileName, int counter, const QDateTime &modified)
 {
@@ -200,7 +202,7 @@ QString CommanderTools::saveLinkAsFile(const QUrl &url, const QString &folder)
     return path;
 }
 
-QStringList CommanderTools::pasteAsLinks(const QList<QUrl> &urls, const QString &folder)
+QStringList CommanderTools::pasteAsLinks(const QList<QUrl> &urls, const QString &folder, bool hardLinks)
 {
     QStringList made;
     for (const QUrl &url : urls) {
@@ -216,7 +218,12 @@ QStringList CommanderTools::pasteAsLinks(const QList<QUrl> &urls, const QString 
             path = folder + QLatin1Char('/') + target.completeBaseName() + QLatin1String(" - link")
                 + (i > 2 ? QLatin1Char(' ') + QString::number(i) : QString()) + (target.suffix().isEmpty() ? QString() : QLatin1Char('.') + target.suffix());
         }
-        if (QFile::link(target.absoluteFilePath(), path)) {
+        if (hardLinks) {
+            // A hard link is another name for the same file: not possible for a folder, or across file systems.
+            if (!target.isDir() && ::link(QFile::encodeName(target.absoluteFilePath()).constData(), QFile::encodeName(path).constData()) == 0) {
+                made << path;
+            }
+        } else if (QFile::link(target.absoluteFilePath(), path)) {
             made << path;
         }
     }

@@ -4088,6 +4088,29 @@ void DolphinMainWindow::setupActions()
         m_activeViewContainer->view()->markUrlsAsSelected(madeUrls);
     });
 
+    // OneCommander's drop menu also offers a hard link.
+    QAction *pasteAsHardLinks = actionCollection()->addAction(QStringLiteral("paste_as_hard_links"));
+    pasteAsHardLinks->setText(i18nc("@action:inmenu", "Paste as Hard Links"));
+    pasteAsHardLinks->setToolTip(
+        i18nc("@info:tooltip", "Make a hard link in this folder to each file on the clipboard. Folders and files on another file system cannot be linked."));
+    pasteAsHardLinks->setIcon(QIcon::fromTheme(QStringLiteral("edit-paste")));
+    connect(pasteAsHardLinks, &QAction::triggered, this, [this]() {
+        const QUrl folder = m_activeViewContainer->url();
+        const QList<QUrl> urls = QApplication::clipboard()->mimeData() ? QApplication::clipboard()->mimeData()->urls() : QList<QUrl>();
+        const QStringList made = folder.isLocalFile() ? CommanderTools::pasteAsLinks(urls, folder.toLocalFile(), true) : QStringList();
+        if (made.isEmpty()) {
+            m_activeViewContainer->showMessage(
+                i18nc("@info", "No hard link could be made: it needs files on the clipboard, on the same file system as this folder."),
+                KMessageWidget::Information);
+            return;
+        }
+        QList<QUrl> madeUrls;
+        for (const QString &path : made) {
+            madeUrls << QUrl::fromLocalFile(path);
+        }
+        m_activeViewContainer->view()->markUrlsAsSelected(madeUrls);
+    });
+
     QAction *closeOtherTabs = actionCollection()->addAction(QStringLiteral("close_other_tabs"));
     closeOtherTabs->setText(i18nc("@action:inmenu", "Close All Tabs but This One"));
     closeOtherTabs->setIcon(QIcon::fromTheme(QStringLiteral("tab-close-other")));
