@@ -142,6 +142,7 @@ private Q_SLOTS:
     void testJobsRunOneAfterAnother();
     void testTheMainToolbarHasOneCommandersButtons();
     void testNewFilesComeFromTemplates();
+    void testThePreviewScalesSmoothlyOrPixelated();
     void testThePreviewGuessesHowToShowAPicture();
     void testFilesDroppedOnAFavoriteAreMovedIntoIt();
     void testTheFavoritesPanelKeepsAHistoryAndAliases();
@@ -608,6 +609,14 @@ void DolphinCommanderFeaturesTest::testNewFilesComeFromTemplates()
 
     QFile::remove(saved);
     QFile::remove(second);
+}
+
+void DolphinCommanderFeaturesTest::testThePreviewScalesSmoothlyOrPixelated()
+{
+    FilePreviewWidget widget;
+    QVERIFY(widget.smoothScaling()); // smooth is the default, as in OneCommander
+    widget.setSmoothScaling(false);
+    QVERIFY(!widget.smoothScaling());
 }
 
 void DolphinCommanderFeaturesTest::testThePreviewGuessesHowToShowAPicture()

@@ -949,6 +949,16 @@ QuickViewDialog::QuickViewDialog(QWidget *parent)
         });
         modesLayout->addWidget(button);
     }
+    // OneCommander's "Image scaling interpolation": smooth, or pixelated for sharp pixels.
+    auto *pixelated = new QCheckBox(i18nc("@option:check", "Pixelated scaling"), modes);
+    pixelated->setObjectName(QStringLiteral("pixelatedScaling"));
+    pixelated->setChecked(!KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("QuickViewSmooth", true));
+    m_preview->setSmoothScaling(!pixelated->isChecked());
+    connect(pixelated, &QCheckBox::toggled, this, [this](bool on) {
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("QuickViewSmooth", !on);
+        m_preview->setSmoothScaling(!on);
+    });
+    modesLayout->addWidget(pixelated);
     modesLayout->addStretch();
     modes->hide();
     layout->addWidget(modes);

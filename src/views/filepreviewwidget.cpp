@@ -203,6 +203,17 @@ void FilePreviewWidget::setImageMode(ImageMode mode)
     showImage();
 }
 
+void FilePreviewWidget::setSmoothScaling(bool smooth)
+{
+    m_smooth = smooth;
+    showImage();
+}
+
+bool FilePreviewWidget::smoothScaling() const
+{
+    return m_smooth;
+}
+
 FilePreviewWidget::ImageMode FilePreviewWidget::imageMode() const
 {
     return m_imageMode;
@@ -233,14 +244,16 @@ void FilePreviewWidget::showImage()
     switch (m_imageMode) {
     case ImageMode::Fit: {
         const QSize fitted = m_pixmap.size().scaled(room * m_zoom, Qt::KeepAspectRatio);
-        shown = m_pixmap.scaled(fitted.expandedTo(QSize(8, 8)), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        shown = m_pixmap.scaled(fitted.expandedTo(QSize(8, 8)), Qt::KeepAspectRatio, (m_smooth ? Qt::SmoothTransformation : Qt::FastTransformation));
         break;
     }
     case ImageMode::FillWidth:
-        shown = m_pixmap.scaledToWidth(qMax(int(room.width() * m_zoom), 8), Qt::SmoothTransformation);
+        shown = m_pixmap.scaledToWidth(qMax(int(room.width() * m_zoom), 8), (m_smooth ? Qt::SmoothTransformation : Qt::FastTransformation));
         break;
     case ImageMode::ActualSize:
-        shown = qFuzzyCompare(m_zoom, 1.0) ? m_pixmap : m_pixmap.scaledToWidth(qMax(int(m_pixmap.width() * m_zoom), 8), Qt::SmoothTransformation);
+        shown = qFuzzyCompare(m_zoom, 1.0)
+            ? m_pixmap
+            : m_pixmap.scaledToWidth(qMax(int(m_pixmap.width() * m_zoom), 8), (m_smooth ? Qt::SmoothTransformation : Qt::FastTransformation));
         break;
     }
     m_image->setPixmap(shown);
