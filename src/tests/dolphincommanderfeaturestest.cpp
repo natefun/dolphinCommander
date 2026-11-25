@@ -22,6 +22,7 @@
 #include "kitemviews/kitemlistview.h"
 #include "kitemviews/kitemlistwidget.h"
 #include "panels/favorites/favoritespanel.h"
+#include "panels/places/drivescard.h"
 #include "panels/places/placespanel.h"
 #include "testdir.h"
 #include "views/columnsstrip.h"
@@ -87,6 +88,7 @@ private Q_SLOTS:
     void init();
     void cleanup();
 
+    void testTheDrivesCardListsTheDrives();
     void testTheHeaderHasAMenuButton();
     void testDetailsIsTheDefaultViewMode();
     void testTheHeaderSwitchesToColumnsAndBack();
@@ -230,6 +232,23 @@ QToolButton *DolphinCommanderFeaturesTest::headerModeButton(DolphinView::Mode mo
         }
     }
     return nullptr;
+}
+
+void DolphinCommanderFeaturesTest::testTheDrivesCardListsTheDrives()
+{
+    QCOMPARE(DrivesCard::usageText(1204'000'000'000, 1991'000'000'000),
+             QLocale().toString(1204) + QLatin1String(" / ") + QLocale().toString(1991) + QLatin1String(" GB"));
+    DrivesCard card;
+    QVERIFY(!card.mountPoints().isEmpty());
+    QVERIFY(card.mountPoints().contains(QStringLiteral("/")) || card.mountPoints().contains(QStringLiteral("/home")));
+    QVERIFY(card.sizeHint().height() > 30);
+
+    // A click on the first line opens that drive.
+    QSignalSpy spy(&card, &DrivesCard::driveActivated);
+    card.resize(card.sizeHint());
+    QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, QPoint(30, 8 + 28 + 10));
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(spy.at(0).at(0).toUrl(), QUrl::fromLocalFile(card.mountPoints().first()));
 }
 
 void DolphinCommanderFeaturesTest::testTheHeaderHasAMenuButton()

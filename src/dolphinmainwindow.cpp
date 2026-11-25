@@ -32,6 +32,7 @@
 #include "jobqueue.h"
 #include "middleclickactioneventfilter.h"
 #include "panels/favorites/favoritespanel.h"
+#include "panels/places/drivescard.h"
 #include "panels/places/placespanel.h"
 #include "panels/terminal/terminalpanel.h"
 #include "search/dolphinquery.h"
@@ -5057,6 +5058,12 @@ void DolphinMainWindow::setupDockWidgets()
     auto *placesLayout = new QVBoxLayout(placesContainer);
     placesLayout->setContentsMargins(0, 0, 0, 0);
     placesLayout->setSpacing(0);
+
+    // OneCommander's Drives card, above the places.
+    auto *drivesCard = new DrivesCard(placesContainer);
+    drivesCard->setObjectName(QStringLiteral("commanderDrivesCard"));
+    connect(drivesCard, &DrivesCard::driveActivated, this, &DolphinMainWindow::changeUrl);
+    placesLayout->addWidget(drivesCard);
 
     m_placesPanel = new PlacesPanel(placesContainer);
     m_placesPanel->setCustomContextMenuActions({lockLayoutAction});
