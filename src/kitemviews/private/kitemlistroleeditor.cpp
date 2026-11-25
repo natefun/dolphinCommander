@@ -6,6 +6,8 @@
 
 #include "kitemlistroleeditor.h"
 
+#include "commandersettings.h"
+
 #include <KIO/Global>
 
 KItemListRoleEditor::KItemListRoleEditor(QWidget *parent)
@@ -63,7 +65,14 @@ bool KItemListRoleEditor::event(QEvent *event)
         // (See Bug 470238)
         const bool focusWentToAnotherWindow = focusEvent->reason() == Qt::PopupFocusReason || focusEvent->reason() == Qt::ActiveWindowFocusReason;
         if (!focusWentToAnotherWindow) {
-            emitRoleEditingFinished();
+            // OneCommander's "Clicking outside during rename operation should: rename / cancel rename".
+            if (CommanderSettings::stringValue(QStringLiteral("RenameOnLostFocus")) == QLatin1String("cancel")) {
+                m_blockFinishedSignal = true;
+                Q_EMIT roleEditingCanceled(m_role, KIO::encodeFileName(toPlainText()));
+                m_blockFinishedSignal = false;
+            } else {
+                emitRoleEditingFinished();
+            }
         }
     }
     return KTextEdit::event(event);

@@ -25,6 +25,7 @@
 #include "kitemviews/kitemlistview.h"
 #include "kitemviews/kitemlistwidget.h"
 #include "kitemviews/private/kfileitemmodelfilter.h"
+#include "kitemviews/private/kitemlistroleeditor.h"
 #include "panels/favorites/favoritespanel.h"
 #include "panels/places/drivescard.h"
 #include "panels/places/foldercard.h"
@@ -104,6 +105,7 @@ private Q_SLOTS:
     void testFilesCanBeTreatedAsHidden();
     void testDatesAndSizesFollowTheirFormats();
     void testANewFolderStartsWithTheChosenViewAndSorting();
+    void testClickingOutsideARenameRenamesOrCancels();
     void testTheHeaderHasAMenuButton();
     void testDetailsIsTheDefaultViewMode();
     void testTheHeaderSwitchesToColumnsAndBack();
@@ -567,6 +569,28 @@ void DolphinCommanderFeaturesTest::testANewFolderStartsWithTheChosenViewAndSorti
     TestDir plain;
     ViewProperties unchanged(QUrl::fromLocalFile(plain.path()));
     QCOMPARE(unchanged.sortRole(), QByteArray("text"));
+}
+
+void DolphinCommanderFeaturesTest::testClickingOutsideARenameRenamesOrCancels()
+{
+    KItemListRoleEditor editor(nullptr);
+    editor.setRole("text");
+    editor.setPlainText(QStringLiteral("new name"));
+    QSignalSpy finished(&editor, &KItemListRoleEditor::roleEditingFinished);
+    QSignalSpy canceled(&editor, &KItemListRoleEditor::roleEditingCanceled);
+
+    // By default a click elsewhere finishes the rename.
+    QFocusEvent out(QEvent::FocusOut, Qt::MouseFocusReason);
+    QApplication::sendEvent(&editor, &out);
+    QCOMPARE(finished.count(), 1);
+    QCOMPARE(canceled.count(), 0);
+
+    // With the setting "cancel rename" it is cancelled instead.
+    CommanderSettings::setValue(QStringLiteral("RenameOnLostFocus"), QStringLiteral("cancel"));
+    QApplication::sendEvent(&editor, &out);
+    CommanderSettings::remove(QStringLiteral("RenameOnLostFocus"));
+    QCOMPARE(finished.count(), 1);
+    QCOMPARE(canceled.count(), 1);
 }
 
 void DolphinCommanderFeaturesTest::testTheHeaderHasAMenuButton()

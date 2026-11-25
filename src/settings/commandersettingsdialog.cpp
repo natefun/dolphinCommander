@@ -160,7 +160,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("RenameOnLostFocus"),
              i18nc("@label", "Clicking outside during rename operation should:"),
              {{QStringLiteral("rename"), i18nc("@item:inlistbox", "Rename")}, {QStringLiteral("cancel"), i18nc("@item:inlistbox", "Cancel rename")}},
-             not_yet);
+             live);
         flag(general,
              interaction,
              QStringLiteral("PasteClipboardTextAsFile"),
