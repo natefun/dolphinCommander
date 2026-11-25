@@ -109,6 +109,7 @@
 #include <QCloseEvent>
 #include <QColorDialog>
 #include <QComboBox>
+#include <QCryptographicHash>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -1847,10 +1848,14 @@ void DolphinMainWindow::openPreferredSearchTool()
     }
 }
 
-bool DolphinMainWindow::runAsAdministrator(const QString &program, const QStringList &arguments)
+bool DolphinMainWindow::runAsAdministrator(const QString &program, const QStringList &arguments, const QString &user)
 {
     // pkexec asks for the password itself; the display variables let a graphical program start as root.
-    QStringList args{QStringLiteral("env")};
+    QStringList args;
+    if (!user.isEmpty()) {
+        args << QStringLiteral("--user") << user;
+    }
+    args << QStringLiteral("env");
     for (const char *name : {"DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "XAUTHORITY"}) {
         if (qEnvironmentVariableIsSet(name)) {
             args << QString::fromLatin1(name) + QLatin1Char('=') + qEnvironmentVariable(name);
@@ -3961,6 +3966,59 @@ void DolphinMainWindow::setupActions()
     runWithArgs->setIcon(QIcon::fromTheme(QStringLiteral("system-run")));
     actionCollection()->setDefaultShortcut(runWithArgs, Qt::CTRL | Qt::SHIFT | Qt::Key_Return);
     connect(runWithArgs, &QAction::triggered, this, &DolphinMainWindow::runWithArguments);
+
+    // From OneCommander's context menu: "Open shortcut destination", "Run as different user" and "Regenerate thumbnail".
+    QAction *openLinkTarget = actionCollection()->addAction(QStringLiteral("open_link_target"));
+    openLinkTarget->setText(i18nc("@action:inmenu", "Open Link Destination"));
+    openLinkTarget->setToolTip(i18nc("@info:tooltip", "Go to the folder the selected link points to and select what it points to."));
+    openLinkTarget->setIcon(QIcon::fromTheme(QStringLiteral("emblem-symbolic-link")));
+    connect(openLinkTarget, &QAction::triggered, this, [this]() {
+        const auto items = m_activeViewContainer->view()->selectedItems();
+        for (const KFileItem &item : items) {
+            if (item.isLink() && !item.linkDest().isEmpty()) {
+                const QString target = QFileInfo(item.url().adjusted(QUrl::RemoveFilename).toLocalFile(), item.linkDest()).absoluteFilePath();
+                const QString clean = QDir::cleanPath(target);
+                changeUrl(QUrl::fromLocalFile(QFileInfo(clean).absolutePath()));
+                m_activeViewContainer->view()->markUrlsAsSelected({QUrl::fromLocalFile(clean)});
+                m_activeViewContainer->view()->markUrlAsCurrent(QUrl::fromLocalFile(clean));
+                return;
+            }
+        }
+        m_activeViewContainer->showMessage(i18nc("@info:status", "Select a link first."), KMessageWidget::Information);
+    });
+
+    QAction *runAsUser = actionCollection()->addAction(QStringLiteral("run_as_different_user"));
+    runAsUser->setText(i18nc("@action:inmenu", "Run as Different User…"));
+    runAsUser->setIcon(QIcon::fromTheme(QStringLiteral("user-identity")));
+    connect(runAsUser, &QAction::triggered, this, [this]() {
+        bool ok = false;
+        const QString user = QInputDialog::getText(this,
+                                                   i18nc("@title:window", "Run as Different User"),
+                                                   i18nc("@label:textbox", "User name:"),
+                                                   QLineEdit::Normal,
+                                                   QString(),
+                                                   &ok);
+        if (ok && !user.trimmed().isEmpty()) {
+            runAsAdministrator(QCoreApplication::applicationFilePath(), {m_activeViewContainer->url().toString()}, user.trimmed());
+        }
+    });
+
+    QAction *regenerateThumbs = actionCollection()->addAction(QStringLiteral("regenerate_thumbnails"));
+    regenerateThumbs->setText(i18nc("@action:inmenu", "Regenerate Thumbnails"));
+    regenerateThumbs->setToolTip(i18nc("@info:tooltip", "Forget the saved thumbnails of the selected files and make them again."));
+    regenerateThumbs->setIcon(QIcon::fromTheme(QStringLiteral("view-refresh")));
+    connect(regenerateThumbs, &QAction::triggered, this, [this]() {
+        const auto items = m_activeViewContainer->view()->selectedItems();
+        const QString cache = QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation) + QStringLiteral("/thumbnails/");
+        for (const KFileItem &item : items) {
+            const QByteArray name =
+                QCryptographicHash::hash(item.url().adjusted(QUrl::StripTrailingSlash).toEncoded(), QCryptographicHash::Md5).toHex() + ".png";
+            for (const QString &size : {QStringLiteral("normal"), QStringLiteral("large"), QStringLiteral("x-large"), QStringLiteral("xx-large")}) {
+                QFile::remove(cache + size + QLatin1Char('/') + QString::fromLatin1(name));
+            }
+        }
+        m_activeViewContainer->view()->reload();
+    });
 
     QAction *queueJobs = actionCollection()->addAction(QStringLiteral("queue_jobs"));
     queueJobs->setText(i18nc("@action:inmenu", "Queue Copy and Move Jobs"));

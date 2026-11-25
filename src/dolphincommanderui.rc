@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="64">
+<gui name="dolphin" version="65">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
@@ -151,7 +151,11 @@
             <Action name="run_with_arguments" />
             <Action name="scripts_menu" />
             <Separator/>
+            <Action name="open_link_target" />
+            <Action name="regenerate_thumbnails" />
+            <Separator/>
             <Action name="open_terminal_as_administrator" />
+            <Action name="run_as_different_user" />
             <Action name="restart_as_administrator" />
             <Separator/>
             <Action name="recent_notifications" />

@@ -119,3 +119,11 @@ First side-by-side look. Things the real window has that dolphincommander does n
 - Default look is a dark grey theme with blue folder icons.
 
 Whole-screen captures show other windows; only the OneCommander window was captured, with `import -window <id>`.
+
+## OneCommander's own menu captions (read from the strings in its installed program)
+
+Its English captions are in its resources, so the menu wording does not have to be guessed. Context menu entries it has, and what dolphincommander does with each:
+
+- Done now: Open shortcut destination (Open Link Destination), Run as different user, Regenerate thumbnail(s).
+- Already there: New tab / New window / New tab in other pane, Close other tabs, Close stale tabs, Reopen closed tab (Dolphin's recently closed tabs), Copy as path, Copy/Move to the opposite pane, New folder from selection, New note, create file template, Rename with File Automator, Tag (color), sort orders, Change alias, favorite group move/rename/delete, scripts open/remove, Open in command shell.
+- Not done: Map network drive and Mount folder as drive letter (Windows drive letters), Scan network (deep), Browse phone (MTP; KIO has `mtp:/`), Create Hard Link from the drop menu, Copy/Move to recent destination, Start/Stop monitoring a drive for changes, Hide drives or Networks from the sidebar.
