@@ -37,6 +37,7 @@
 #include "search/dolphinquery.h"
 #include "selectionmode/actiontexthelper.h"
 #include "views/columnsstrip.h"
+#include "views/viewheader.h"
 #include "views/zoomlevelinfo.h"
 #if KIO_VERSION >= QT_VERSION_CHECK(6, 24, 0)
 #include "servicemenushortcutmanager.h"
@@ -393,6 +394,24 @@ DolphinMainWindow::DolphinMainWindow()
     showMenuBarAction->setChecked(!menuBar()->isHidden()); // workaround for bug #171080
     QTimer::singleShot(0, this, [this, showMenuBarAction]() {
         menuBar()->setVisible(showMenuBarAction->isChecked());
+    });
+
+    // Each pane has a menu button, as in OneCommander, which has no menu bar: it shows every menu of the menu bar.
+    ViewHeader::setMenuHandler([this](QWidget *button) {
+        QMenu menu(this);
+        const auto barActions = menuBar()->actions();
+        for (QAction *barAction : barActions) {
+            if (barAction->menu()) {
+                menu.addAction(barAction);
+            }
+        }
+        menu.exec(button->mapToGlobal(QPoint(0, button->height())));
+        // The menus belong to the menu bar: give them back.
+        for (QAction *barAction : barActions) {
+            if (barAction->menu()) {
+                menu.removeAction(barAction);
+            }
+        }
     });
 
     auto hamburgerMenu = static_cast<KHamburgerMenu *>(actionCollection()->action(KStandardAction::name(KStandardAction::HamburgerMenu)));

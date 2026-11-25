@@ -13,6 +13,8 @@
 #include <QPointer>
 #include <QWidget>
 
+#include <functional>
+
 class DolphinUrlNavigator;
 class QLabel;
 class QToolButton;
@@ -31,6 +33,9 @@ public:
 
     /** Follows @p view from now on, in place of the view it had. The container replaces its view to switch to the columns view and back. */
     void setView(DolphinView *view);
+
+    /** Called with the menu button when it is clicked. The main window shows its menus there, as OneCommander has no menu bar. */
+    static void setMenuHandler(std::function<void(QWidget *button)> handler);
 
 Q_SIGNALS:
     /** Emitted when a button of a view mode is clicked. The container sets the mode, as it may have to replace the view for it. */

@@ -87,6 +87,7 @@ private Q_SLOTS:
     void init();
     void cleanup();
 
+    void testTheHeaderHasAMenuButton();
     void testDetailsIsTheDefaultViewMode();
     void testTheHeaderSwitchesToColumnsAndBack();
     void testTheMillerColumnsFollowASwappedView();
@@ -229,6 +230,28 @@ QToolButton *DolphinCommanderFeaturesTest::headerModeButton(DolphinView::Mode mo
         }
     }
     return nullptr;
+}
+
+void DolphinCommanderFeaturesTest::testTheHeaderHasAMenuButton()
+{
+    // OneCommander has no menu bar: the pane's menu button calls the handler the main window sets.
+    int calls = 0;
+    ViewHeader::setMenuHandler([&calls](QWidget *) {
+        ++calls;
+    });
+    auto *header = m_container->findChild<ViewHeader *>();
+    QVERIFY(header);
+    QToolButton *menuButton = nullptr;
+    const auto buttons = header->findChildren<QToolButton *>();
+    for (QToolButton *button : buttons) {
+        if (button->toolTip() == QLatin1String("Menu")) {
+            menuButton = button;
+        }
+    }
+    QVERIFY(menuButton);
+    menuButton->click();
+    QCOMPARE(calls, 1);
+    ViewHeader::setMenuHandler(nullptr);
 }
 
 void DolphinCommanderFeaturesTest::testDetailsIsTheDefaultViewMode()
