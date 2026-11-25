@@ -426,6 +426,18 @@ void DolphinCommanderFeaturesTest::testSettingsChangeWhatTheProgramDoes()
     QCOMPARE(activeTabs->currentTabPage()->activeViewContainer()->url().toLocalFile(), QStringLiteral("/etc"));
     CommanderSettings::remove(QStringLiteral("SwitchToNewTab"));
 
+    // "Open paths from external source in": the current tab, or the tab that has the path already.
+    CommanderSettings::setValue(QStringLiteral("OpenArgsPath"), QStringLiteral("current"));
+    const int tabsAtStart = activeTabs->count() + 0;
+    window.openDirectories(QList<QUrl>{QUrl::fromLocalFile(QStringLiteral("/var"))}, false);
+    QCOMPARE(window.activeViewContainer()->url().toLocalFile(), QStringLiteral("/var"));
+    CommanderSettings::setValue(QStringLiteral("OpenArgsPath"), QStringLiteral("existing"));
+    const int tabsInAll = int(window.findChildren<DolphinTabPage *>().size());
+    window.openDirectories(QList<QUrl>{QUrl::fromLocalFile(QStringLiteral("/var"))}, false);
+    QCOMPARE(int(window.findChildren<DolphinTabPage *>().size()), tabsInAll);
+    CommanderSettings::remove(QStringLiteral("OpenArgsPath"));
+    Q_UNUSED(tabsAtStart)
+
     // "Notification level: errors only" keeps the other messages out of the list of notifications.
     DolphinViewContainer *container = window.activeViewContainer();
     QVERIFY(container);

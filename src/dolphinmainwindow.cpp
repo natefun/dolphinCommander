@@ -571,6 +571,24 @@ QVector<DolphinViewContainer *> DolphinMainWindow::viewContainers() const
 
 void DolphinMainWindow::openDirectories(const QList<QUrl> &dirs, bool splitView)
 {
+    // OneCommander's "Open paths from external source in: current tab / new tab / existing tab with the same path".
+    const QString openIn = CommanderSettings::stringValue(QStringLiteral("OpenArgsPath"));
+    if (!splitView && dirs.size() == 1 && m_activeViewContainer && (openIn == QLatin1String("current") || openIn == QLatin1String("existing"))) {
+        if (openIn == QLatin1String("existing")) {
+            for (DolphinTabWidget *side : {m_leftTabs, m_rightTabs}) {
+                for (int i = 0; i < side->count(); ++i) {
+                    if (side->tabPageAt(i)->activeViewContainer()->url().matches(dirs.first(), QUrl::StripTrailingSlash)) {
+                        side->setCurrentIndex(i);
+                        activateSide(side);
+                        return;
+                    }
+                }
+            }
+        } else {
+            changeUrl(dirs.first());
+            return;
+        }
+    }
     DolphinTabWidget *const activeSide = m_tabWidget;
     if (splitView && dirs.size() == 2) {
         // Two directories with the split view requested: one for each side.

@@ -244,7 +244,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              {{QStringLiteral("new"), i18nc("@item:inlistbox", "New tab")},
               {QStringLiteral("current"), i18nc("@item:inlistbox", "Current tab")},
               {QStringLiteral("existing"), i18nc("@item:inlistbox", "Existing tab with the same path")}},
-             not_yet);
+             live);
         pick(general,
              tabsHeader,
              QStringLiteral("TabsShow"),
