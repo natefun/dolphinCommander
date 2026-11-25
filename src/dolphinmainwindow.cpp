@@ -436,42 +436,56 @@ DolphinMainWindow::DolphinMainWindow()
     connect(hamburgerMenu, &KHamburgerMenu::aboutToShowMenu, this, &DolphinMainWindow::updateHamburgerMenu);
     hamburgerMenu->hideActionsOf(toolBar());
 
-    // Below the places: the menu that holds everything that is not in the settings or the context menu,
-    // and the buttons for refresh and search, in front of the button for the settings.
-    auto *topBar = new QToolBar(m_placesDock->widget());
-    topBar->setMovable(false);
-    topBar->setFloatable(false);
-    topBar->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    topBar->setIconSize(QSize(16, 16));
-    topBar->setContextMenuPolicy(Qt::NoContextMenu);
-    topBar->addAction(hamburgerMenu);
-    for (const QString &name : {KStandardAction::name(KStandardAction::Redisplay), QStringLiteral("toggle_search")}) {
-        if (QAction *action = actionCollection()->action(name)) {
-            topBar->addAction(action);
-        }
-    }
-    // OneCommander's main toolbar, on a row of its own above that one: layout, file automator (the scripts), new window and about.
-    auto *mainBar = new QToolBar(m_placesDock->widget());
+    // OneCommander's row of buttons in the lower left corner, with its own tooltips: Settings, About, Layout, Search,
+    // File Automator and New Window. The menus are in the menu button of each pane's header.
+    auto *mainBar = new QWidget(m_placesDock->widget());
     mainBar->setObjectName(QStringLiteral("commanderMainToolbar"));
-    mainBar->setMovable(false);
-    mainBar->setFloatable(false);
-    mainBar->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    mainBar->setIconSize(QSize(16, 16));
-    mainBar->setContextMenuPolicy(Qt::NoContextMenu);
-    mainBar->layout()->setSpacing(0);
-    mainBar->setStyleSheet(QStringLiteral("QToolButton { padding: 2px; }"));
-    for (const QString &name : {QStringLiteral("cycle_layout"),
-                                QStringLiteral("scripts_menu"),
-                                KStandardAction::name(KStandardAction::New),
-                                KStandardAction::name(KStandardAction::AboutApp)}) {
-        if (QAction *action = actionCollection()->action(name)) {
-            mainBar->addAction(action);
+    auto *mainBarLayout = new QHBoxLayout(mainBar);
+    mainBarLayout->setContentsMargins(2, 2, 2, 2);
+    mainBarLayout->setSpacing(1);
+    auto addMainButton = [this, mainBar, mainBarLayout](const QString &icon, const QString &toolTip, const QString &actionName) {
+        auto *button = new QToolButton(mainBar);
+        button->setAutoRaise(true);
+        button->setFocusPolicy(Qt::NoFocus);
+        button->setIcon(QIcon::fromTheme(icon));
+        button->setIconSize(QSize(16, 16));
+        button->setToolTip(toolTip);
+        button->setObjectName(actionName);
+        connect(button, &QToolButton::clicked, this, [this, actionName]() {
+            if (QAction *action = actionCollection()->action(actionName)) {
+                action->trigger();
+            }
+        });
+        mainBarLayout->addWidget(button);
+        return button;
+    };
+    addMainButton(QStringLiteral("configure"), i18nc("@info:tooltip", "Program settings"), KStandardAction::name(KStandardAction::Preferences));
+    addMainButton(QStringLiteral("help-about"), i18nc("@info:tooltip", "About/Help"), KStandardAction::name(KStandardAction::AboutApp));
+    addMainButton(QStringLiteral("view-split-left-right"),
+                  i18nc("@info:tooltip", "Switch between Standard and Columns layouts"),
+                  QStringLiteral("cycle_layout"));
+    addMainButton(QStringLiteral("edit-find"), i18nc("@info:tooltip", "Search files starting from currently opened folder"), QStringLiteral("toggle_search"));
+    addMainButton(QStringLiteral("system-run"), i18nc("@info:tooltip", "File Automator"), QStringLiteral("batch_rename"));
+    // "Open new or saved window": a new window, the saved windows (the workspaces) and centering this window.
+    auto *newWindow = addMainButton(QStringLiteral("window-new"), i18nc("@info:tooltip", "Open new or saved window"), QStringLiteral("file_new"));
+    newWindow->disconnect(this);
+    connect(newWindow, &QToolButton::clicked, this, [this, newWindow]() {
+        QMenu menu(this);
+        if (QAction *create = actionCollection()->action(KStandardAction::name(KStandardAction::New))) {
+            menu.addAction(i18nc("@action:inmenu", "Create new window"), create, &QAction::trigger);
         }
-    }
+        if (auto *workspacesAction = qobject_cast<KActionMenu *>(actionCollection()->action(QStringLiteral("workspaces_menu")))) {
+            menu.addAction(i18nc("@action:inmenu", "Saved windows"))->setMenu(workspacesAction->menu());
+        }
+        if (QAction *center = actionCollection()->action(QStringLiteral("center_window"))) {
+            menu.addAction(i18nc("@action:inmenu", "Center current window"), center, &QAction::trigger);
+        }
+        menu.exec(newWindow->mapToGlobal(QPoint(0, newWindow->height())));
+    });
+    mainBarLayout->addStretch();
     if (auto *placesBox = qobject_cast<QBoxLayout *>(m_placesDock->widget()->layout())) {
         placesBox->insertWidget(qMax(placesBox->count() - 1, 0), mainBar);
     }
-    m_placesButtonRow->insertWidget(0, topBar);
 
     updateAllowedToolbarAreas();
     updateNavigatorsBackground();
@@ -5250,22 +5264,9 @@ void DolphinMainWindow::setupDockWidgets()
     m_placesPanel->setCustomContextMenuActions({lockLayoutAction});
     placesLayout->addWidget(m_placesPanel, 1);
 
-    auto *settingsButton = new QToolButton(placesContainer);
-    settingsButton->setAutoRaise(true);
-    settingsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    settingsButton->setIcon(QIcon::fromTheme(QStringLiteral("configure")));
-    settingsButton->setText(i18nc("@action:button", "Settings"));
-    settingsButton->setToolTip(i18nc("@info:tooltip", "Open the settings"));
-    settingsButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    connect(settingsButton, &QToolButton::clicked, this, [this]() {
-        if (QAction *preferences = actionCollection()->action(KStandardAction::name(KStandardAction::Preferences))) {
-            preferences->trigger();
-        }
-    });
     m_placesButtonRow = new QHBoxLayout();
     m_placesButtonRow->setContentsMargins(0, 0, 0, 0);
     m_placesButtonRow->setSpacing(0);
-    m_placesButtonRow->addWidget(settingsButton);
     placesLayout->addLayout(m_placesButtonRow);
 
     placesDock->setWidget(placesContainer);

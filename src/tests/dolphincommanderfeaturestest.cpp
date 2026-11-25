@@ -625,19 +625,21 @@ void DolphinCommanderFeaturesTest::testTheMainToolbarHasOneCommandersButtons()
     closer.start();
     DolphinMainWindow window;
     closer.stop();
-    // Layout, file automator, new window and about sit together in one toolbar, as in OneCommander's main toolbar.
-    const QStringList names = {QStringLiteral("cycle_layout"), QStringLiteral("scripts_menu"), QStringLiteral("file_new"), QStringLiteral("help_about_app")};
-    bool together = false;
-    const auto bars = window.findChildren<QToolBar *>();
-    for (QToolBar *bar : bars) {
-        bool all = true;
-        for (const QString &name : names) {
-            QAction *action = window.actionCollection()->action(name);
-            all = all && action && bar->actions().contains(action);
-        }
-        together = together || all;
+    // OneCommander's row of buttons in the lower left, in its order and with its tooltips.
+    auto *bar = window.findChild<QWidget *>(QStringLiteral("commanderMainToolbar"));
+    QVERIFY(bar);
+    const auto buttons = bar->findChildren<QToolButton *>();
+    QStringList tips;
+    for (QToolButton *button : buttons) {
+        tips << button->toolTip();
     }
-    QVERIFY(together);
+    QCOMPARE(tips,
+             QStringList({QStringLiteral("Program settings"),
+                          QStringLiteral("About/Help"),
+                          QStringLiteral("Switch between Standard and Columns layouts"),
+                          QStringLiteral("Search files starting from currently opened folder"),
+                          QStringLiteral("File Automator"),
+                          QStringLiteral("Open new or saved window")}));
 }
 
 void DolphinCommanderFeaturesTest::testNewFilesComeFromTemplates()
