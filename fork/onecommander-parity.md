@@ -124,9 +124,9 @@ Whole-screen captures show other windows; only the OneCommander window was captu
 
 Its English captions are in its resources, so the menu wording does not have to be guessed. Context menu entries it has, and what dolphincommander does with each:
 
-- Done now: Hide drives from sidebar (View, Appearance and Behavior, or right-click the Drives card), Paste as Hard Links, Open shortcut destination (Open Link Destination), Run as different user, Regenerate thumbnail(s).
+- Done now: Copy/Move to Recent Destination (File menu, remembers the last 10 copy and move folders), Hide drives from sidebar (View, Appearance and Behavior, or right-click the Drives card), Paste as Hard Links, Open shortcut destination (Open Link Destination), Run as different user, Regenerate thumbnail(s).
 - Already there: New tab / New window / New tab in other pane, Close other tabs, Close stale tabs, Reopen closed tab (Dolphin's recently closed tabs), Copy as path, Copy/Move to the opposite pane, New folder from selection, New note, create file template, Rename with File Automator, Tag (color), sort orders, Change alias, favorite group move/rename/delete, scripts open/remove, Open in command shell.
-- Not done: Map network drive and Mount folder as drive letter (Windows drive letters), Scan network (deep), Browse phone (MTP; KIO has `mtp:/`), Copy/Move to recent destination, Start/Stop monitoring a drive for changes.
+- Not done: Map network drive and Mount folder as drive letter (Windows drive letters), Scan network (deep), Browse phone (MTP; KIO has `mtp:/`), Start/Stop monitoring a drive for changes.
 - Preview (from its settings strings): small pictures are shown "Scaled to fit preview pane" or at "Original size"; "Image scaling interpolation" is Pixelated or Smooth (Quick view now has a Pixelated scaling checkbox); preview has "Multimedia" and "Text/plain" tabs; Esc or Space closes the preview; there is an option for QuickLook instead of the built-in preview (Windows only).
 
 ## OneCommander's Settings captions, checked against dolphincommander

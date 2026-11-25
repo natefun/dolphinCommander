@@ -505,6 +505,8 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "new_tab_from_clipboard",
                                "run_with_arguments",
                                "open_link_target",
+                               "copy_to_recent",
+                               "move_to_recent",
                                "show_drives_card",
                                "paste_as_hard_links",
                                "regenerate_thumbnails",
@@ -1268,6 +1270,9 @@ void DolphinCommanderFeaturesTest::testJobsRunOneAfterAnother()
         KIO::copy(QUrl::fromLocalFile(dir.path() + QStringLiteral("/b")), QUrl::fromLocalFile(dir.path() + QStringLiteral("/out2")), KIO::HideProgressInfo);
     JobQueue::add(second);
     QCOMPARE(JobQueue::count(), 2);
+    // The folders the copies went to are remembered, newest first, for "Copy/Move to Recent Destination".
+    QCOMPARE(JobQueue::recentDestinations().value(0), dir.path() + QStringLiteral("/out2"));
+    QCOMPARE(JobQueue::recentDestinations().value(1), dir.path() + QStringLiteral("/out1"));
 
     bool secondStartedBeforeFirstEnded = false;
     bool firstEnded = false;

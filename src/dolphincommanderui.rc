@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="67">
+<gui name="dolphin" version="68">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
@@ -33,6 +33,8 @@
             <Action name="paste_clipboard_as_file" />
             <Action name="paste_as_links" />
             <Action name="paste_as_hard_links" />
+            <Action name="copy_to_recent" />
+            <Action name="move_to_recent" />
             <Separator/>
             <Action name="properties" />
         </Menu>

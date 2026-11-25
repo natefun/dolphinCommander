@@ -4,7 +4,10 @@
 
 #include "jobqueue.h"
 
+#include <KConfigGroup>
+#include <KIO/CopyJob>
 #include <KJob>
+#include <KSharedConfig>
 
 #include <QList>
 #include <QPointer>
@@ -48,8 +51,29 @@ int JobQueue::count()
     return count;
 }
 
+QStringList JobQueue::recentDestinations()
+{
+    return KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("RecentDestinations", QStringList());
+}
+
+void JobQueue::rememberDestination(const QString &folder)
+{
+    QStringList folders = recentDestinations();
+    folders.removeAll(folder);
+    folders.prepend(folder);
+    while (folders.size() > 10) {
+        folders.removeLast();
+    }
+    KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("RecentDestinations", folders);
+}
+
 void JobQueue::add(KJob *job)
 {
+    if (auto *copy = qobject_cast<KIO::CopyJob *>(job)) {
+        if (copy->destUrl().isLocalFile()) {
+            rememberDestination(copy->destUrl().toLocalFile());
+        }
+    }
     if (!s_enabled || !job) {
         return;
     }

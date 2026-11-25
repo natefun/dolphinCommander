@@ -4111,6 +4111,45 @@ void DolphinMainWindow::setupActions()
         m_activeViewContainer->view()->markUrlsAsSelected(madeUrls);
     });
 
+    // OneCommander's "Copy/Move to recent destination": the folders the last copies and moves went to.
+    for (const bool move : {false, true}) {
+        auto *recentMenu = actionCollection()->add<KActionMenu>(move ? QStringLiteral("move_to_recent") : QStringLiteral("copy_to_recent"));
+        recentMenu->setText(move ? i18nc("@action:inmenu", "Move to Recent Destination") : i18nc("@action:inmenu", "Copy to Recent Destination"));
+        recentMenu->setIcon(QIcon::fromTheme(move ? QStringLiteral("edit-cut") : QStringLiteral("edit-copy")));
+        connect(recentMenu->menu(), &QMenu::aboutToShow, this, [this, recentMenu, move]() {
+            QMenu *menu = recentMenu->menu();
+            menu->clear();
+            const QStringList folders = JobQueue::recentDestinations();
+            for (const QString &folder : folders) {
+                if (!QFileInfo(folder).isDir()) {
+                    continue;
+                }
+                menu->addAction(QIcon::fromTheme(QStringLiteral("folder")), folder, this, [this, folder, move]() {
+                    QList<QUrl> urls;
+                    const auto items = m_activeViewContainer->view()->selectedItems();
+                    for (const KFileItem &item : items) {
+                        urls << item.url();
+                    }
+                    if (urls.isEmpty()) {
+                        return;
+                    }
+                    const QUrl destination = QUrl::fromLocalFile(folder);
+                    KIO::CopyJob *job = move ? KIO::move(urls, destination) : KIO::copy(urls, destination);
+                    JobQueue::add(job);
+                    job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, this));
+                    if (move) {
+                        KIO::FileUndoManager::self()->recordJob(KIO::FileUndoManager::Move, urls, destination, job);
+                    } else {
+                        KIO::FileUndoManager::self()->recordCopyJob(job);
+                    }
+                });
+            }
+            if (menu->isEmpty()) {
+                menu->addAction(i18nc("@item:inmenu", "No recent destinations"))->setEnabled(false);
+            }
+        });
+    }
+
     QAction *closeOtherTabs = actionCollection()->addAction(QStringLiteral("close_other_tabs"));
     closeOtherTabs->setText(i18nc("@action:inmenu", "Close All Tabs but This One"));
     closeOtherTabs->setIcon(QIcon::fromTheme(QStringLiteral("tab-close-other")));
