@@ -4,6 +4,8 @@
 
 #include "viewheader.h"
 
+#include "commandersettings.h"
+
 #include "dolphinurlnavigator.h"
 #include "views/dolphinview.h"
 
@@ -82,6 +84,11 @@ ViewHeader::ViewHeader(DolphinView *view, DolphinUrlNavigator *navigator, QWidge
     connect(m_forward, &QToolButton::clicked, m_navigator, &KUrlNavigator::goForward);
     connect(m_up, &QToolButton::clicked, m_navigator, &KUrlNavigator::goUp);
     connect(m_navigator, &KUrlNavigator::historyChanged, this, &ViewHeader::updateNavigation);
+    connect(CommanderSettings::notifier(), &CommanderSettings::Notifier::changed, this, [this](const QString &key) {
+        if (key == QLatin1String("ShowFilesViewToolbar")) {
+            updateModes();
+        }
+    });
 
     const struct {
         DolphinView::Mode mode;
@@ -195,6 +202,14 @@ void ViewHeader::updateNavigation()
 
 void ViewHeader::updateModes()
 {
+    // OneCommander's "Show Files View toolbar buttons".
+    const bool buttonsShown = CommanderSettings::boolValue(QStringLiteral("ShowFilesViewToolbar"), true);
+    for (QToolButton *button : std::as_const(m_modeButtons)) {
+        button->setVisible(buttonsShown);
+    }
+    for (QToolButton *button : std::as_const(m_sortButtons)) {
+        button->setVisible(buttonsShown);
+    }
     for (QToolButton *button : std::as_const(m_modeButtons)) {
         button->setChecked(button->property("viewMode").toInt() == int(m_view->viewMode()));
     }

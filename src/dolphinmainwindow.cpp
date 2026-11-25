@@ -129,6 +129,7 @@
 #include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
+#include <QLoggingCategory>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -1948,6 +1949,21 @@ void DolphinMainWindow::openTerminalHere()
 
 void DolphinMainWindow::openTerminalJob(const QUrl &url)
 {
+    // OneCommander's "Command shell": a program of the user's choice, with $CurrentPath for the folder.
+    const QString shell = CommanderSettings::stringValue(QStringLiteral("CommandShell")).trimmed();
+    if (!shell.isEmpty() && url.isLocalFile()) {
+        QStringList words = QProcess::splitCommand(shell);
+        if (!words.isEmpty()) {
+            const QString program = words.takeFirst();
+            for (QString &word : words) {
+                word.replace(QLatin1String("$CurrentPath"), url.toLocalFile());
+            }
+            if (QProcess::startDetached(program, words, url.toLocalFile())) {
+                return;
+            }
+        }
+    }
+
     if (url.isLocalFile()) {
         auto job = new KTerminalLauncherJob(QString());
         job->setWorkingDirectory(url.toLocalFile());
@@ -2090,7 +2106,12 @@ void DolphinMainWindow::applyCommanderSetting(const QString &key)
         }
     } else if (key == QLatin1String("Layout")) {
         setCommanderLayout(static_cast<CommanderLayout>(qBound(0, CommanderSettings::intValue(key, 0), 2)));
-    } else if (key == QLatin1String("ColorTheme") || key == QLatin1String("FontFamily") || key == QLatin1String("FontPointSize")) {
+    } else if (key == QLatin1String("HideLastWindow")) {
+        CommanderSettings::setValue(QStringLiteral("KeepRunningWhenClosed"), on);
+    } else if (key == QLatin1String("LogDetailedMessages")) {
+        QLoggingCategory::setFilterRules(on ? QStringLiteral("*.debug=true\n*.info=true") : QStringLiteral("*.debug=false"));
+    } else if (key == QLatin1String("ColorTheme") || key == QLatin1String("FontFamily") || key == QLatin1String("FontPointSize")
+               || key == QLatin1String("FontStretch") || key == QLatin1String("AccentColor")) {
         reloadTheme();
     } else if (key == QLatin1String("OptUseThinScrollbar")) {
         setAction(QStringLiteral("thin_scrollbars"), on);
@@ -3068,6 +3089,11 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
             text = QColor(216, 222, 233);
             highlight = QColor(94, 129, 172);
         }
+        // OneCommander's "Accent Color" (a HEX value): the color of what is selected.
+        const QColor accent(CommanderSettings::stringValue(QStringLiteral("AccentColor")).trimmed());
+        if (accent.isValid()) {
+            highlight = accent;
+        }
         if (theme == QLatin1String("custom")) {
             // window, base, text, highlight: the colors the user chose
             const QStringList chosen = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("CustomTheme", QStringList());
@@ -3115,6 +3141,13 @@ void DolphinMainWindow::applyTextAndIcons(int fontPointSize, const QString &icon
     }
     if (fontPointSize > 0) {
         font.setPointSize(fontPointSize);
+    }
+    // OneCommander's "Font stretch".
+    const QString stretch = CommanderSettings::stringValue(QStringLiteral("FontStretch"));
+    if (stretch == QLatin1String("contracted")) {
+        font.setStretch(QFont::SemiCondensed);
+    } else if (stretch == QLatin1String("expanded")) {
+        font.setStretch(QFont::SemiExpanded);
     }
     QApplication::setFont(font);
     QIcon::setThemeName(iconTheme.isEmpty() ? systemIconTheme : iconTheme);

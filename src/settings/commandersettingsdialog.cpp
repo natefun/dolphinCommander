@@ -280,7 +280,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              false,
              not_yet,
              i18nc("@info", "Files view and sorting will be inherited from the parent folder."));
-        flag(view, files, QStringLiteral("ShowFilesViewToolbar"), i18nc("@option:check", "Show Files View toolbar buttons"), true, not_yet);
+        flag(view, files, QStringLiteral("ShowFilesViewToolbar"), i18nc("@option:check", "Show Files View toolbar buttons"), true, live);
         flag(view,
              files,
              QStringLiteral("AutoThumbsDetails"),
@@ -494,8 +494,8 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              itemProps,
              QStringLiteral("ShowFolderBackgroundImage"),
              i18nc("@option:check", "Show folder background image"),
-             false,
-             not_yet,
+             true,
+             live,
              i18nc("@info", "If a folder contains a file named folder.jpg, cover.jpg or background.jpg it is shown behind the list."));
 
         const QString thumbs = i18nc("@title:group", "Thumbnails");
@@ -730,7 +730,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("AccentColor"),
              i18nc("@label", "Accent Color"),
              QString(),
-             not_yet,
+             live,
              i18nc("@info", "(HEX value in #RRGGBB format)"));
         flag(theme, themeHeader, QStringLiteral("UseSystemAccentColor"), i18nc("@option:check", "Use system accent color"), false, win);
         flag(theme, themeHeader, QStringLiteral("OptUseThinScrollbar"), i18nc("@option:check", "Use thin scrollbar"), false, live);
@@ -753,7 +753,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              {{QStringLiteral("normal"), i18nc("@item:inlistbox", "Normal")},
               {QStringLiteral("contracted"), i18nc("@item:inlistbox", "Contracted")},
               {QStringLiteral("expanded"), i18nc("@item:inlistbox", "Expanded")}},
-             not_yet);
+             live);
         number(theme, ui, QStringLiteral("Padding"), i18nc("@label", "Padding"), 0, 0, 20, QStringLiteral(" px"), not_yet);
         number(theme,
                ui,
@@ -822,9 +822,9 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("ComputerNameQuestion"),
              i18nc("@label", "Root folder alias"),
              {{QStringLiteral("machine"), i18nc("@item:inlistbox", "Machine name")}, {QStringLiteral("custom"), i18nc("@item:inlistbox", "Custom alias")}},
-             not_yet,
+             live,
              i18nc("@info", "The name of the first column pane that contains the drives list."));
-        text(window, sidebar, QStringLiteral("ComputerNameCustom"), i18nc("@label", "Custom alias"), QString(), not_yet);
+        text(window, sidebar, QStringLiteral("ComputerNameCustom"), i18nc("@label", "Custom alias"), QString(), live);
         flag(window,
              sidebar,
              QStringLiteral("ShowEjectOnSubstDrives"),
@@ -845,7 +845,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("HideLastWindow"),
              i18nc("@option:check", "Hide last window instead of close"),
              false,
-             not_yet,
+             live,
              i18nc("@info", "Opens the window instantly but uses more memory."));
         flag(window, windowHeader, QStringLiteral("Autostart"), i18nc("@option:check", "Autostart"), false, live, i18nc("@info", "Run when you log in."));
         flag(window, windowHeader, QStringLiteral("ShowWindowNameInTaskbar"), i18nc("@option:check", "Show window name in Taskbar"), false, win);
@@ -865,7 +865,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("CommandShell"),
              i18nc("@label", "Command shell"),
              QString(),
-             not_yet,
+             live,
              i18nc("@info", "Exe path and arguments. $CurrentPath will be replaced with the current path."));
         pick(advanced,
              advancedHeader,
@@ -892,7 +892,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              i18nc("@label", "Download Audio by pasting URL using following parameters"),
              QString(),
              not_yet);
-        flag(advanced, advancedHeader, QStringLiteral("LogDetailedMessages"), i18nc("@option:check", "Log detailed messages"), false, not_yet);
+        flag(advanced, advancedHeader, QStringLiteral("LogDetailedMessages"), i18nc("@option:check", "Log detailed messages"), false, live);
         flag(advanced, advancedHeader, QStringLiteral("ShowErrorReportDialog"), i18nc("@option:check", "Show error report dialog on crash"), false, win);
         flag(advanced, advancedHeader, QStringLiteral("UseOldDragAndDropSystem"), i18nc("@option:check", "Use old Drag&Drop system"), false, win);
         flag(advanced,

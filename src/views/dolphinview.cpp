@@ -6,6 +6,8 @@
  */
 
 #include "dolphinview.h"
+
+#include "commandersettings.h"
 #include "commandertools.h"
 #include "jobqueue.h"
 #include "kitemviews/kitemlistwidget.h"
@@ -2426,7 +2428,9 @@ void DolphinView::slotDirectoryLoadingCompleted()
     m_loadingState = LoadingState::Completed;
 
     // A cover.jpg, folder.jpg, ... in a local folder is shown behind the items.
-    m_view->setBackgroundImage(url().isLocalFile() ? DolphinItemListView::backgroundImageIn(url().toLocalFile()) : QString());
+    m_view->setBackgroundImage(url().isLocalFile() && CommanderSettings::boolValue(QStringLiteral("ShowFolderBackgroundImage"), true)
+                                   ? DolphinItemListView::backgroundImageIn(url().toLocalFile())
+                                   : QString());
 
     // Update the view-state. This has to be done asynchronously
     // because the view might not be in its final state yet.

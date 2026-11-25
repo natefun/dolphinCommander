@@ -408,6 +408,29 @@ void DolphinCommanderFeaturesTest::testSettingsChangeWhatTheProgramDoes()
     CommanderSettings::setValue(QStringLiteral("ShowFileExtension"), false);
     CommanderSettings::remove(QStringLiteral("ShowFileExtension"));
 
+    // The Drives card can carry an alias, and the header's view buttons can be hidden.
+    DrivesCard titled;
+    QCOMPARE(titled.title(), QStringLiteral("Drives"));
+    CommanderSettings::setValue(QStringLiteral("ComputerNameQuestion"), QStringLiteral("custom"));
+    CommanderSettings::setValue(QStringLiteral("ComputerNameCustom"), QStringLiteral("My computer"));
+    QCOMPARE(titled.title(), QStringLiteral("My computer"));
+    CommanderSettings::remove(QStringLiteral("ComputerNameQuestion"));
+    CommanderSettings::remove(QStringLiteral("ComputerNameCustom"));
+    QCOMPARE(titled.title(), QStringLiteral("Drives"));
+    auto *header = container->findChild<ViewHeader *>();
+    QVERIFY(header);
+    QToolButton *detailsButton = nullptr;
+    for (QToolButton *button : header->findChildren<QToolButton *>()) {
+        if (button->property("viewMode").isValid()) {
+            detailsButton = button;
+        }
+    }
+    QVERIFY(detailsButton);
+    CommanderSettings::setValue(QStringLiteral("ShowFilesViewToolbar"), false);
+    QVERIFY(detailsButton->isHidden());
+    CommanderSettings::remove(QStringLiteral("ShowFilesViewToolbar"));
+    QVERIFY(!detailsButton->isHidden());
+
     // A menu entry and its setting in the window are the same thing.
     QAction *age = window.actionCollection()->action(QStringLiteral("age_stripes"));
     QVERIFY(age);

@@ -24,6 +24,9 @@ public:
 
     QSize sizeHint() const override;
 
+    /** The title of the card: "Drives", or the alias that was set for it. */
+    QString title() const;
+
     /** The mount points shown, in order. */
     QStringList mountPoints() const;
 
