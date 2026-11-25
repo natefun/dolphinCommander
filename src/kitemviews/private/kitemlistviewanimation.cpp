@@ -5,6 +5,8 @@
  */
 
 #include "kitemlistviewanimation.h"
+
+#include "commandersettings.h"
 #include "kitemviews/kitemlistview.h"
 
 #include <QPropertyAnimation>
@@ -101,7 +103,13 @@ void KItemListViewAnimation::start(QGraphicsWidget *widget, AnimationType type, 
 
     QPropertyAnimation *propertyAnim = nullptr;
     const int styleDuration = widget->style()->styleHint(QStyle::SH_Widget_Animation_Duration);
-    const int animationDuration = (widget->style()->styleHint(QStyle::SH_Widget_Animate) && styleDuration > 0) ? styleDuration : 1;
+    int animationDuration = (widget->style()->styleHint(QStyle::SH_Widget_Animate) && styleDuration > 0) ? styleDuration : 1;
+    // OneCommander's "Enable Animations" and "Animation duration (ms)".
+    if (CommanderSettings::has(QStringLiteral("EnableAnimations")) && !CommanderSettings::boolValue(QStringLiteral("EnableAnimations"), true)) {
+        animationDuration = 1;
+    } else if (CommanderSettings::has(QStringLiteral("AnimationDuration"))) {
+        animationDuration = qMax(1, CommanderSettings::intValue(QStringLiteral("AnimationDuration"), animationDuration));
+    }
 
     switch (type) {
     case MovingAnimation: {

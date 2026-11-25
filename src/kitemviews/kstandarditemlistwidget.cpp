@@ -6,6 +6,8 @@
 
 #include "kstandarditemlistwidget.h"
 
+#include "commandersettings.h"
+
 #include "dolphin_contentdisplaysettings.h"
 #include "kfileitemlistview.h"
 #include "private/kfileitemclipboard.h"
@@ -1385,7 +1387,17 @@ void KStandardItemListWidget::updateIconsLayoutTextCache()
     // Initialize properties for the "text" role. It will be used as anchor
     // for initializing the position of the other roles.
     TextInfo *nameTextInfo = m_textInfo.value("text");
-    const QString nameText = KStringHandler::preProcessWrap(escapeString(values["text"].toString()));
+    QString shownName = values["text"].toString();
+    // OneCommander's "Show file extensions": off hides what follows the last dot of a file's name.
+    const bool extensionColumnHidesIt =
+        CommanderSettings::boolValue(QStringLiteral("HideExtensionIfExtensionColumnVisible"), false) && visibleRoles().contains("extension");
+    if ((!CommanderSettings::boolValue(QStringLiteral("ShowFileExtension"), true) || extensionColumnHidesIt) && !values.value("isDir").toBool()) {
+        const qsizetype dot = shownName.lastIndexOf(QLatin1Char('.'));
+        if (dot > 0) {
+            shownName.truncate(dot);
+        }
+    }
+    const QString nameText = KStringHandler::preProcessWrap(escapeString(shownName));
     nameTextInfo->staticText.setText(nameText);
 
     // Calculate the number of lines required for the name and the required width

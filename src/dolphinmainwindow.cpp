@@ -14,7 +14,9 @@
 #include "sidessplitter.h"
 
 #include "admin/workerintegration.h"
+#include "commandersettings.h"
 #include "commandertools.h"
+#include "dolphin_contentdisplaysettings.h"
 #include "dolphin_generalsettings.h"
 #include "dolphinbookmarkhandler.h"
 #include "dolphincontextmenu.h"
@@ -38,6 +40,7 @@
 #include "panels/terminal/terminalpanel.h"
 #include "search/dolphinquery.h"
 #include "selectionmode/actiontexthelper.h"
+#include "settings/commandersettingsdialog.h"
 #include "views/columnsstrip.h"
 #include "views/viewheader.h"
 #include "views/zoomlevelinfo.h"
@@ -126,6 +129,7 @@
 #include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
+#include <QLoggingCategory>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -377,6 +381,15 @@ DolphinMainWindow::DolphinMainWindow()
 
     QClipboard *clipboard = QApplication::clipboard();
     connect(clipboard, &QClipboard::dataChanged, this, &DolphinMainWindow::updatePasteAction);
+    // OneCommander's "Check and notify when there is text on clipboard": Ctrl+V can make a file of it.
+    connect(clipboard, &QClipboard::dataChanged, this, [this]() {
+        const QMimeData *data = QApplication::clipboard()->mimeData();
+        if (m_activeViewContainer && data && CommanderSettings::boolValue(QStringLiteral("ClipboardCheckText"), false) && !data->hasUrls() && data->hasText()
+            && !data->text().trimmed().isEmpty()) {
+            m_activeViewContainer->showMessage(i18nc("@info:status", "There is text on the clipboard. Press Ctrl+V to make a file of it."),
+                                               KMessageWidget::Information);
+        }
+    });
 
     QAction *toggleFilterBarAction = actionCollection()->action(QStringLiteral("toggle_filter"));
     toggleFilterBarAction->setChecked(GeneralSettings::filterBar());
@@ -436,42 +449,69 @@ DolphinMainWindow::DolphinMainWindow()
     connect(hamburgerMenu, &KHamburgerMenu::aboutToShowMenu, this, &DolphinMainWindow::updateHamburgerMenu);
     hamburgerMenu->hideActionsOf(toolBar());
 
-    // Below the places: the menu that holds everything that is not in the settings or the context menu,
-    // and the buttons for refresh and search, in front of the button for the settings.
-    auto *topBar = new QToolBar(m_placesDock->widget());
-    topBar->setMovable(false);
-    topBar->setFloatable(false);
-    topBar->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    topBar->setIconSize(QSize(16, 16));
-    topBar->setContextMenuPolicy(Qt::NoContextMenu);
-    topBar->addAction(hamburgerMenu);
-    for (const QString &name : {KStandardAction::name(KStandardAction::Redisplay), QStringLiteral("toggle_search")}) {
-        if (QAction *action = actionCollection()->action(name)) {
-            topBar->addAction(action);
-        }
-    }
-    // OneCommander's main toolbar, on a row of its own above that one: layout, file automator (the scripts), new window and about.
-    auto *mainBar = new QToolBar(m_placesDock->widget());
+    // OneCommander's row of buttons in the lower left corner, with its own tooltips: Settings, About, Layout, Search,
+    // File Automator and New Window. The menus are in the menu button of each pane's header.
+    auto *mainBar = new QWidget(m_placesDock->widget());
     mainBar->setObjectName(QStringLiteral("commanderMainToolbar"));
-    mainBar->setMovable(false);
-    mainBar->setFloatable(false);
-    mainBar->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    mainBar->setIconSize(QSize(16, 16));
-    mainBar->setContextMenuPolicy(Qt::NoContextMenu);
-    mainBar->layout()->setSpacing(0);
-    mainBar->setStyleSheet(QStringLiteral("QToolButton { padding: 2px; }"));
-    for (const QString &name : {QStringLiteral("cycle_layout"),
-                                QStringLiteral("scripts_menu"),
-                                KStandardAction::name(KStandardAction::New),
-                                KStandardAction::name(KStandardAction::AboutApp)}) {
-        if (QAction *action = actionCollection()->action(name)) {
-            mainBar->addAction(action);
+    auto *mainBarLayout = new QHBoxLayout(mainBar);
+    mainBarLayout->setContentsMargins(2, 2, 2, 2);
+    mainBarLayout->setSpacing(1);
+    auto addMainButton = [this, mainBar, mainBarLayout](const QString &icon, const QString &toolTip, const QString &actionName) {
+        auto *button = new QToolButton(mainBar);
+        button->setAutoRaise(true);
+        button->setFocusPolicy(Qt::NoFocus);
+        button->setIcon(QIcon::fromTheme(icon));
+        button->setIconSize(QSize(16, 16));
+        button->setToolTip(toolTip);
+        button->setObjectName(actionName);
+        connect(button, &QToolButton::clicked, this, [this, actionName]() {
+            if (QAction *action = actionCollection()->action(actionName)) {
+                action->trigger();
+            }
+        });
+        mainBarLayout->addWidget(button);
+        return button;
+    };
+    addMainButton(QStringLiteral("configure"), i18nc("@info:tooltip", "Program settings"), QStringLiteral("commander_settings"));
+    addMainButton(QStringLiteral("help-about"), i18nc("@info:tooltip", "About/Help"), KStandardAction::name(KStandardAction::AboutApp));
+    addMainButton(QStringLiteral("view-split-left-right"),
+                  i18nc("@info:tooltip", "Switch between Standard and Columns layouts"),
+                  QStringLiteral("cycle_layout"));
+    addMainButton(QStringLiteral("edit-find"), i18nc("@info:tooltip", "Search files starting from currently opened folder"), QStringLiteral("toggle_search"));
+    addMainButton(QStringLiteral("system-run"), i18nc("@info:tooltip", "File Automator"), QStringLiteral("batch_rename"));
+    // "Open new or saved window": a new window, the saved windows (the workspaces) and centering this window.
+    auto *newWindow = addMainButton(QStringLiteral("window-new"), i18nc("@info:tooltip", "Open new or saved window"), QStringLiteral("file_new"));
+    newWindow->disconnect(this);
+    connect(newWindow, &QToolButton::clicked, this, [this, newWindow]() {
+        QMenu menu(this);
+        if (QAction *create = actionCollection()->action(KStandardAction::name(KStandardAction::New))) {
+            menu.addAction(i18nc("@action:inmenu", "Create new window"), create, &QAction::trigger);
         }
+        if (auto *workspacesAction = qobject_cast<KActionMenu *>(actionCollection()->action(QStringLiteral("workspaces_menu")))) {
+            menu.addAction(i18nc("@action:inmenu", "Saved windows"))->setMenu(workspacesAction->menu());
+        }
+        if (QAction *center = actionCollection()->action(QStringLiteral("center_window"))) {
+            menu.addAction(i18nc("@action:inmenu", "Center current window"), center, &QAction::trigger);
+        }
+        menu.exec(newWindow->mapToGlobal(QPoint(0, newWindow->height())));
+    });
+    // OneCommander's Scripts button: only when "Show Scripts button" is on.
+    auto *scriptsButton = new QToolButton(mainBar);
+    scriptsButton->setObjectName(QStringLiteral("scripts_menu"));
+    scriptsButton->setAutoRaise(true);
+    scriptsButton->setFocusPolicy(Qt::NoFocus);
+    scriptsButton->setIcon(QIcon::fromTheme(QStringLiteral("text-x-script")));
+    scriptsButton->setToolTip(i18nc("@info:tooltip", "Scripts"));
+    scriptsButton->setPopupMode(QToolButton::InstantPopup);
+    if (auto *scriptsAction = qobject_cast<KActionMenu *>(actionCollection()->action(QStringLiteral("scripts_menu")))) {
+        scriptsButton->setMenu(scriptsAction->menu());
     }
+    scriptsButton->setVisible(CommanderSettings::boolValue(QStringLiteral("ShowScriptsButton"), false));
+    mainBarLayout->addWidget(scriptsButton);
+    mainBarLayout->addStretch();
     if (auto *placesBox = qobject_cast<QBoxLayout *>(m_placesDock->widget()->layout())) {
         placesBox->insertWidget(qMax(placesBox->count() - 1, 0), mainBar);
     }
-    m_placesButtonRow->insertWidget(0, topBar);
 
     updateAllowedToolbarAreas();
     updateNavigatorsBackground();
@@ -499,6 +539,11 @@ DolphinMainWindow::DolphinMainWindow()
 
 DolphinMainWindow::~DolphinMainWindow()
 {
+    // OneCommander's "Clear History on close".
+    if (m_favoritesPanel && CommanderSettings::boolValue(QStringLiteral("ClearHistoryOnClose"), false)) {
+        m_favoritesPanel->clearHistory();
+    }
+
     // This fixes a crash on Wayland when closing the mainwindow while another dialog is open.
     disconnect(QGuiApplication::clipboard(), &QClipboard::dataChanged, this, &DolphinMainWindow::updatePasteAction);
 
@@ -526,6 +571,24 @@ QVector<DolphinViewContainer *> DolphinMainWindow::viewContainers() const
 
 void DolphinMainWindow::openDirectories(const QList<QUrl> &dirs, bool splitView)
 {
+    // OneCommander's "Open paths from external source in: current tab / new tab / existing tab with the same path".
+    const QString openIn = CommanderSettings::stringValue(QStringLiteral("OpenArgsPath"));
+    if (!splitView && dirs.size() == 1 && m_activeViewContainer && (openIn == QLatin1String("current") || openIn == QLatin1String("existing"))) {
+        if (openIn == QLatin1String("existing")) {
+            for (DolphinTabWidget *side : {m_leftTabs, m_rightTabs}) {
+                for (int i = 0; i < side->count(); ++i) {
+                    if (side->tabPageAt(i)->activeViewContainer()->url().matches(dirs.first(), QUrl::StripTrailingSlash)) {
+                        side->setCurrentIndex(i);
+                        activateSide(side);
+                        return;
+                    }
+                }
+            }
+        } else {
+            changeUrl(dirs.first());
+            return;
+        }
+    }
     DolphinTabWidget *const activeSide = m_tabWidget;
     if (splitView && dirs.size() == 2) {
         // Two directories with the split view requested: one for each side.
@@ -1396,6 +1459,9 @@ void DolphinMainWindow::updateSearchAction()
 
 void DolphinMainWindow::updatePasteAction()
 {
+    if (!m_activeViewContainer) {
+        return; // a window that has not opened a folder yet
+    }
     QAction *pasteAction = actionCollection()->action(KStandardAction::name(KStandardAction::Paste));
     const std::pair<bool, QString> pasteInfo = m_activeViewContainer->view()->pasteInfo();
     pasteAction->setEnabled(pasteInfo.first);
@@ -1913,6 +1979,21 @@ void DolphinMainWindow::openTerminalHere()
 
 void DolphinMainWindow::openTerminalJob(const QUrl &url)
 {
+    // OneCommander's "Command shell": a program of the user's choice, with $CurrentPath for the folder.
+    const QString shell = CommanderSettings::stringValue(QStringLiteral("CommandShell")).trimmed();
+    if (!shell.isEmpty() && url.isLocalFile()) {
+        QStringList words = QProcess::splitCommand(shell);
+        if (!words.isEmpty()) {
+            const QString program = words.takeFirst();
+            for (QString &word : words) {
+                word.replace(QLatin1String("$CurrentPath"), url.toLocalFile());
+            }
+            if (QProcess::startDetached(program, words, url.toLocalFile())) {
+                return;
+            }
+        }
+    }
+
     if (url.isLocalFile()) {
         auto job = new KTerminalLauncherJob(QString());
         job->setWorkingDirectory(url.toLocalFile());
@@ -1959,6 +2040,163 @@ void DolphinMainWindow::editSettings()
         m_settingsDialog = settingsDialog;
     } else {
         m_settingsDialog.data()->raise();
+    }
+}
+
+void DolphinMainWindow::openCommanderSettings()
+{
+    if (m_commanderSettingsDialog) {
+        m_commanderSettingsDialog->raise();
+        m_commanderSettingsDialog->activateWindow();
+        return;
+    }
+    // Settings that the menus keep elsewhere show what they are now.
+    if (QAction *hidden = actionCollection()->action(QStringLiteral("show_hidden_files"))) {
+        CommanderSettings::setValue(QStringLiteral("ShowHidden"), hidden->isChecked());
+    }
+    CommanderSettings::setValue(QStringLiteral("OnStart"), GeneralSettings::rememberOpenedTabs() ? QStringLiteral("restore") : QStringLiteral("path"));
+    CommanderSettings::setValue(QStringLiteral("FileNameTrimming"),
+                                ContentDisplaySettings::elidingMode() == ContentDisplaySettings::ElidingMode::Middle ? QStringLiteral("middle")
+                                                                                                                     : QStringLiteral("end"));
+    auto *dialog = new CommanderSettingsDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->show();
+    m_commanderSettingsDialog = dialog;
+}
+
+void DolphinMainWindow::applyPreviewShortcut()
+{
+    // OneCommander's "Pressing Spacebar key opens file preview window": the key goes to the quick view instead of the selection mode.
+    QAction *quickView = actionCollection()->action(QStringLiteral("quick_view"));
+    QAction *selectionMode = actionCollection()->action(QStringLiteral("toggle_selection_mode"));
+    if (!quickView || !selectionMode || !CommanderSettings::has(QStringLiteral("PreviewShortcut"))) {
+        return;
+    }
+    const bool spaceOpensPreview = CommanderSettings::boolValue(QStringLiteral("PreviewShortcut"), true);
+    actionCollection()->setDefaultShortcuts(quickView,
+                                            spaceOpensPreview ? QList<QKeySequence>{Qt::ALT | Qt::Key_F3, Qt::Key_Space}
+                                                              : QList<QKeySequence>{Qt::ALT | Qt::Key_F3});
+    actionCollection()->setDefaultShortcuts(selectionMode, spaceOpensPreview ? QList<QKeySequence>{} : QList<QKeySequence>{Qt::Key_Space});
+}
+
+void DolphinMainWindow::applyCommanderSetting(const QString &key)
+{
+    auto setAction = [this](const QString &name, bool on) {
+        if (QAction *action = actionCollection()->action(name)) {
+            action->setChecked(on);
+        }
+    };
+    const bool on = CommanderSettings::boolValue(key);
+    if (key.startsWith(QLatin1String("button:"))) {
+        const QString button = key.mid(7);
+        if (button == QLatin1String("ShortcutEditor")) {
+            if (QAction *editor = actionCollection()->action(KStandardAction::name(KStandardAction::KeyBindings))) {
+                editor->trigger();
+            }
+        } else if (button == QLatin1String("DefaultFileManagerRegister")) {
+            if (QAction *action = actionCollection()->action(QStringLiteral("make_default_file_manager"))) {
+                action->trigger();
+            }
+        } else if (button == QLatin1String("OpenSettingsFolder")) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)));
+        } else if (button == QLatin1String("CreateDefaultSidebarFolders")) {
+            const QString groupName = qEnvironmentVariable("USER", QStringLiteral("Home"));
+            const QList<QStandardPaths::StandardLocation> folders = {QStandardPaths::HomeLocation,
+                                                                     QStandardPaths::DesktopLocation,
+                                                                     QStandardPaths::DocumentsLocation,
+                                                                     QStandardPaths::DownloadLocation,
+                                                                     QStandardPaths::PicturesLocation,
+                                                                     QStandardPaths::MusicLocation,
+                                                                     QStandardPaths::MoviesLocation};
+            for (QStandardPaths::StandardLocation folder : folders) {
+                const QString path = QStandardPaths::writableLocation(folder);
+                if (QFileInfo(path).isDir()) {
+                    m_favoritesPanel->addFavorite(QUrl::fromLocalFile(path), groupName);
+                }
+            }
+        }
+    } else if (key == QLatin1String("MouseDebounceTime")) {
+        QApplication::setDoubleClickInterval(CommanderSettings::intValue(key, 400));
+    } else if (key == QLatin1String("ScrollingBehavior")) {
+        setAction(QStringLiteral("item_scrolling"), CommanderSettings::stringValue(key) == QLatin1String("item"));
+    } else if (key == QLatin1String("KeepRunningWhenClosed")) {
+        setAction(QStringLiteral("keep_running_when_closed"), on);
+    } else if (key == QLatin1String("Autostart")) {
+        const QString file =
+            QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/autostart/org.kde.dolphincommander.desktop");
+        if (on) {
+            QDir().mkpath(QFileInfo(file).absolutePath());
+            QFile desktop(file);
+            if (desktop.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                desktop.write("[Desktop Entry]\nType=Application\nName=dolphinCommander\nExec=dolphincommander\nIcon=system-file-manager\n");
+            }
+        } else {
+            QFile::remove(file);
+        }
+    } else if (key == QLatin1String("ClearHistoryOnClose") || key == QLatin1String("HistoryMaxItems")) {
+        // Read when the history is changed and when the window closes.
+    } else if (key == QLatin1String("ShowDrivesCard")) {
+        setAction(QStringLiteral("show_drives_card"), on);
+    } else if (key == QLatin1String("ShowNetworksInSidebar")) {
+        if (auto *card = findChild<QWidget *>(QStringLiteral("commanderNetworkCard"))) {
+            card->setVisible(CommanderSettings::boolValue(key, true));
+        }
+    } else if (key == QLatin1String("ShowHistoryInSidebar")) {
+        if (auto *card = findChild<FolderCard *>(QStringLiteral("commanderHistoryCard"))) {
+            card->setVisible(CommanderSettings::boolValue(key, true) && !card->urls().isEmpty());
+        }
+    } else if (key == QLatin1String("ShowScriptsButton")) {
+        if (auto *scripts = findChild<QWidget *>(QStringLiteral("scripts_menu"))) {
+            scripts->setVisible(on);
+        }
+    } else if (key == QLatin1String("Layout")) {
+        setCommanderLayout(static_cast<CommanderLayout>(qBound(0, CommanderSettings::intValue(key, 0), 2)));
+    } else if (key == QLatin1String("HideLastWindow")) {
+        CommanderSettings::setValue(QStringLiteral("KeepRunningWhenClosed"), on);
+    } else if (key == QLatin1String("LogDetailedMessages")) {
+        QLoggingCategory::setFilterRules(on ? QStringLiteral("*.debug=true\n*.info=true") : QStringLiteral("*.debug=false"));
+    } else if (key == QLatin1String("ColorTheme") || key == QLatin1String("FontFamily") || key == QLatin1String("FontPointSize")
+               || key == QLatin1String("FontStretch") || key == QLatin1String("AccentColor")) {
+        reloadTheme();
+    } else if (key == QLatin1String("OptUseThinScrollbar")) {
+        setAction(QStringLiteral("thin_scrollbars"), on);
+    } else if (key == QLatin1String("AgeStripes")) {
+        setAction(QStringLiteral("age_stripes"), on);
+    } else if (key == QLatin1String("PreviewShortcut")) {
+        applyPreviewShortcut();
+    } else if (key == QLatin1String("FileAge")) {
+        // "Color" marks the files by their age, "None" leaves them plain.
+        setAction(QStringLiteral("age_stripes"), CommanderSettings::stringValue(key) == QLatin1String("color"));
+    } else if (key == QLatin1String("ColoredBadges")) {
+        setAction(QStringLiteral("colored_badges"), on);
+    } else if (key == QLatin1String("FoldersSortedByName")) {
+        setAction(QStringLiteral("folders_sorted_by_name"), on);
+    } else if (key == QLatin1String("AutoThumbsDetails")) {
+        setAction(QStringLiteral("auto_thumbs_details"), on);
+    } else if (key == QLatin1String("ShowFileExtension") || key == QLatin1String("FileNameMaxLines") || key == QLatin1String("FolderIconOverride")
+               || key == QLatin1String("Padding")) {
+        refreshViews();
+    } else if (key == QLatin1String("FileNameTrimming")) {
+        ContentDisplaySettings::setElidingMode(CommanderSettings::stringValue(key) == QLatin1String("middle") ? ContentDisplaySettings::ElidingMode::Middle
+                                                                                                              : ContentDisplaySettings::ElidingMode::Right);
+        ContentDisplaySettings::self()->save();
+        refreshViews();
+    } else if (key == QLatin1String("ShowFolderSize")) {
+        // OneCommander's folder sizes: on counts what is inside, off shows nothing for folders.
+        ContentDisplaySettings::setDirectorySizeMode(on ? ContentDisplaySettings::EnumDirectorySizeMode::ContentSize
+                                                        : ContentDisplaySettings::EnumDirectorySizeMode::None);
+        ContentDisplaySettings::self()->save();
+        refreshViews();
+    } else if (key == QLatin1String("TabsShow")) {
+        m_leftTabs->refreshTabNames();
+        m_rightTabs->refreshTabNames();
+    } else if (key == QLatin1String("OnStart")) {
+        GeneralSettings::setRememberOpenedTabs(CommanderSettings::stringValue(key) != QLatin1String("path"));
+        GeneralSettings::self()->save();
+    } else if (key == QLatin1String("ShowHidden")) {
+        setAction(QStringLiteral("show_hidden_files"), on);
+    } else if (key == QLatin1String("QuickViewSmoothChoice")) {
+        CommanderSettings::setValue(QStringLiteral("QuickViewSmooth"), CommanderSettings::stringValue(key) != QLatin1String("pixelated"));
     }
 }
 
@@ -2780,7 +3018,24 @@ void DolphinMainWindow::pasteClipboardAsFile()
         QPushButton *link = box.addButton(i18nc("@action:button", "Link File"), QMessageBox::AcceptRole);
         QPushButton *text = box.addButton(i18nc("@action:button", "Text File"), QMessageBox::AcceptRole);
         QPushButton *download = box.addButton(i18nc("@action:button", "Download"), QMessageBox::AcceptRole);
+        // OneCommander's "Download videos / Download Audio by pasting URL using following parameters" (yt-dlp, for instance).
+        const QString videoCommand = CommanderSettings::stringValue(QStringLiteral("VideoDownloadParameters")).trimmed();
+        const QString audioCommand = CommanderSettings::stringValue(QStringLiteral("AudioDownloadParameters")).trimmed();
+        QPushButton *video = videoCommand.isEmpty() ? nullptr : box.addButton(i18nc("@action:button", "Download Video"), QMessageBox::AcceptRole);
+        QPushButton *audio = audioCommand.isEmpty() ? nullptr : box.addButton(i18nc("@action:button", "Download Audio"), QMessageBox::AcceptRole);
         box.exec();
+        if ((video && box.clickedButton() == video) || (audio && box.clickedButton() == audio)) {
+            QStringList words = QProcess::splitCommand(box.clickedButton() == video ? videoCommand : audioCommand);
+            if (!words.isEmpty()) {
+                const QString program = words.takeFirst();
+                for (QString &word : words) {
+                    word.replace(QLatin1String("$CurrentDir"), folder.toLocalFile());
+                    word.replace(QLatin1String("$URL"), web.toString());
+                }
+                QProcess::startDetached(program, words, folder.toLocalFile());
+            }
+            return;
+        }
         if (box.clickedButton() == link) {
             path = CommanderTools::saveLinkAsFile(web, folder.toLocalFile());
         } else if (box.clickedButton() == download) {
@@ -2865,6 +3120,7 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
 {
     systemIconThemeName();
     static const QPalette systemPalette = QApplication::palette();
+    qApp->setProperty("commanderPaneColors", theme == QLatin1String("dark") || theme == QLatin1String("nord") || theme == QLatin1String("custom"));
     // The views take their background from the program's palette while one of the fork's themes is on.
     DolphinView::setUsesApplicationPalette(theme == QLatin1String("dark") || theme == QLatin1String("light") || theme == QLatin1String("custom")
                                            || theme == QLatin1String("nord"));
@@ -2880,13 +3136,14 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
         }
         return false;
     };
-    const QString schemeId =
-        theme == QLatin1String("dark") ? QStringLiteral("BreezeDark") : (theme == QLatin1String("light") ? QStringLiteral("BreezeLight") : QString());
+    // Dark is OneCommander's own measured palette, not the desktop's Breeze Dark.
+    const QString schemeId = theme == QLatin1String("light") ? QStringLiteral("BreezeLight") : QString();
     if (!schemeId.isEmpty() && installedScheme(schemeId)) {
         KColorSchemeManager::instance()->activateSchemeId(schemeId);
         m_schemeThemeActive = true;
         KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ColorTheme", theme);
         QPixmapCache::clear();
+        applyStyleSheet(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("StyleSheet", QString()));
         return;
     }
     if (theme == QLatin1String("system") && m_schemeThemeActive) {
@@ -2897,16 +3154,21 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
         const bool dark = theme == QLatin1String("dark") || theme == QLatin1String("nord");
         QPalette palette;
         // The dark colors are the ones measured in OneCommander's own window: panels, lists and the alternate row.
-        QColor window = dark ? QColor(43, 41, 46) : QColor(244, 244, 246);
+        QColor window = dark ? QColor(13, 11, 14) : QColor(244, 244, 246);
         QColor base = dark ? QColor(32, 31, 34) : QColor(255, 255, 255);
         QColor text = dark ? QColor(230, 232, 236) : QColor(30, 32, 36);
         QColor highlight = dark ? QColor(13, 66, 110) : QColor(42, 110, 200);
         if (theme == QLatin1String("nord")) {
             // The Nord palette, as OneCommander's Nord theme uses it: polar night for the windows, snow storm for the text, frost for the highlight.
-            window = QColor(59, 66, 82);
+            window = QColor(46, 52, 64);
             base = QColor(46, 52, 64);
             text = QColor(216, 222, 233);
             highlight = QColor(94, 129, 172);
+        }
+        // OneCommander's "Accent Color" (a HEX value): the color of what is selected.
+        const QColor accent(CommanderSettings::stringValue(QStringLiteral("AccentColor")).trimmed());
+        if (accent.isValid()) {
+            highlight = accent;
         }
         if (theme == QLatin1String("custom")) {
             // window, base, text, highlight: the colors the user chose
@@ -2923,7 +3185,9 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
         palette.setColor(QPalette::Base, base);
         palette.setColor(QPalette::AlternateBase, dark ? QColor(35, 34, 37) : QColor(248, 248, 250));
         palette.setColor(QPalette::Text, text);
-        palette.setColor(QPalette::Button, window);
+        // The panels (path bar, cards, the tab in front) are one step lighter than the window that shows between them.
+        palette.setColor(QPalette::Button, dark ? QColor(43, 41, 46) : window);
+        palette.setColor(QPalette::Mid, dark ? QColor(70, 68, 74) : QColor(190, 192, 198));
         palette.setColor(QPalette::ButtonText, text);
         palette.setColor(QPalette::ToolTipBase, base);
         palette.setColor(QPalette::ToolTipText, text);
@@ -2942,6 +3206,8 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
     QPixmapCache::clear();
 
     KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ColorTheme", theme);
+    applyStyleSheet(
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("StyleSheet", QString())); // the flat look goes with the theme
 }
 
 void DolphinMainWindow::applyTextAndIcons(int fontPointSize, const QString &iconTheme)
@@ -2949,8 +3215,19 @@ void DolphinMainWindow::applyTextAndIcons(int fontPointSize, const QString &icon
     static const QFont systemFont = QApplication::font();
     const QString systemIconTheme = iconThemeForColors(QApplication::palette().color(QPalette::Base).lightnessF() < 0.5);
     QFont font = systemFont;
+    const QString family = CommanderSettings::stringValue(QStringLiteral("FontFamily"));
+    if (!family.isEmpty()) {
+        font.setFamily(family);
+    }
     if (fontPointSize > 0) {
         font.setPointSize(fontPointSize);
+    }
+    // OneCommander's "Font stretch".
+    const QString stretch = CommanderSettings::stringValue(QStringLiteral("FontStretch"));
+    if (stretch == QLatin1String("contracted")) {
+        font.setStretch(QFont::SemiCondensed);
+    } else if (stretch == QLatin1String("expanded")) {
+        font.setStretch(QFont::SemiExpanded);
     }
     QApplication::setFont(font);
     QIcon::setThemeName(iconTheme.isEmpty() ? systemIconTheme : iconTheme);
@@ -3010,7 +3287,37 @@ void DolphinMainWindow::applyStyleSheet(const QString &styleSheet)
         "QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }"
         "QScrollBar::add-page, QScrollBar::sub-page { background: none; }");
     const bool thin = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ThinScrollbars", false);
-    qApp->setStyleSheet(thin ? styleSheet + QLatin1Char('\n') + thinScrollbars : styleSheet);
+    // OneCommander's flat look comes with its own colors only: the desktop's theme keeps its own look.
+    static const QString flatLook = QStringLiteral(
+        "QTabBar { background: palette(window); }"
+        "KUrlNavigator { background: palette(button); }"
+        "QTabBar::tab { background: transparent; border: none; padding: 4px 12px; min-height: 18px; border-top-left-radius: 4px; border-top-right-radius: 4px; "
+        "}"
+        "QTabBar::tab:selected { background: palette(button); }"
+        "QTabBar::tab:hover:!selected { background: rgba(255, 255, 255, 18); }"
+        "QToolButton { border: none; background: transparent; border-radius: 2px; padding: 2px; }"
+        "QToolButton:hover { background: rgba(255, 255, 255, 24); }"
+        "QToolButton:checked, QToolButton:pressed { background: palette(highlight); }"
+        "QMenu { background: palette(button); border: 1px solid palette(mid); padding: 2px; }"
+        "QMenu::item { padding: 4px 22px; }"
+        "QMenu::item:selected { background: palette(highlight); }"
+        "QMenu::separator { height: 1px; background: palette(mid); margin: 3px 6px; }"
+        "QToolTip { background: palette(button); color: palette(window-text); border: 1px solid palette(mid); }"
+        "QSplitter::handle { background: palette(window); }"
+        "QAbstractItemView, QGraphicsView { border: none; }"
+        "QScrollBar:vertical { width: 8px; background: transparent; margin: 0; }"
+        "QScrollBar:horizontal { height: 8px; background: transparent; margin: 0; }"
+        "QScrollBar::handle:vertical { background: palette(mid); border-radius: 3px; min-height: 24px; }"
+        "QScrollBar::handle:horizontal { background: palette(mid); border-radius: 3px; min-width: 24px; }"
+        "QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }"
+        "QScrollBar::add-page, QScrollBar::sub-page { background: none; }");
+    const QString theme = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ColorTheme", QStringLiteral("system"));
+    const bool ownLook = theme == QLatin1String("dark") || theme == QLatin1String("nord") || theme == QLatin1String("custom");
+    QString sheet = ownLook ? flatLook + QLatin1Char('\n') + styleSheet : styleSheet;
+    if (thin) {
+        sheet += QLatin1Char('\n') + thinScrollbars;
+    }
+    qApp->setStyleSheet(sheet);
     KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("StyleSheet", styleSheet);
 }
 
@@ -3134,6 +3441,12 @@ void DolphinMainWindow::fillScriptsMenu(QMenu *menu)
             continue;
         }
         menu->addAction(script.completeBaseName(), this, [this, scriptPath, interpreter, executable = script.isExecutable()]() {
+            // OneCommander's "Show a dialog to confirm running script".
+            if (CommanderSettings::boolValue(QStringLiteral("ShowScriptRunConfirmationDialog"), false)
+                && QMessageBox::question(this, i18nc("@title:window", "Run Script"), i18nc("@info", "Run the script %1?", QFileInfo(scriptPath).fileName()))
+                    != QMessageBox::Yes) {
+                return;
+            }
             QStringList args;
             const KFileItemList selected = m_activeViewContainer->view()->selectedItems();
             for (const KFileItem &item : selected) {
@@ -4063,6 +4376,9 @@ void DolphinMainWindow::setupActions()
 
     // Ctrl+V with text or a picture on the clipboard makes a file of it, as OneCommander does.
     DolphinView::setPasteNonFilesHandler([]() {
+        if (!CommanderSettings::boolValue(QStringLiteral("PasteClipboardTextAsFile"), true)) {
+            return;
+        }
         if (auto *window = qobject_cast<DolphinMainWindow *>(QApplication::activeWindow())) {
             window->pasteClipboardAsFile();
         }
@@ -4504,6 +4820,17 @@ void DolphinMainWindow::setupActions()
                                                    : i18nc("@info", "The default file manager could not be set (xdg-mime is needed)."),
                                            started ? KMessageWidget::Positive : KMessageWidget::Error);
     });
+
+    // The settings window with OneCommander's tabs; Dolphin's own settings stay in "Configure Dolphin".
+    QAction *commanderSettings = actionCollection()->addAction(QStringLiteral("commander_settings"));
+    commanderSettings->setText(i18nc("@action:inmenu", "Settings…"));
+    commanderSettings->setToolTip(i18nc("@info:tooltip", "Program settings"));
+    commanderSettings->setIcon(QIcon::fromTheme(QStringLiteral("configure")));
+    actionCollection()->setDefaultShortcut(commanderSettings, Qt::CTRL | Qt::Key_Comma);
+    connect(commanderSettings, &QAction::triggered, this, &DolphinMainWindow::openCommanderSettings);
+    connect(CommanderSettings::notifier(), &CommanderSettings::Notifier::changed, this, &DolphinMainWindow::applyCommanderSetting);
+    QApplication::setDoubleClickInterval(CommanderSettings::intValue(QStringLiteral("MouseDebounceTime"), QApplication::doubleClickInterval()));
+    QTimer::singleShot(0, this, &DolphinMainWindow::applyPreviewShortcut); // the quick view action is made after this
 
     // OneCommander's "Browse phone" and "Scan network".
     QAction *browsePhone = actionCollection()->addAction(QStringLiteral("browse_phone"));
@@ -5250,22 +5577,9 @@ void DolphinMainWindow::setupDockWidgets()
     m_placesPanel->setCustomContextMenuActions({lockLayoutAction});
     placesLayout->addWidget(m_placesPanel, 1);
 
-    auto *settingsButton = new QToolButton(placesContainer);
-    settingsButton->setAutoRaise(true);
-    settingsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    settingsButton->setIcon(QIcon::fromTheme(QStringLiteral("configure")));
-    settingsButton->setText(i18nc("@action:button", "Settings"));
-    settingsButton->setToolTip(i18nc("@info:tooltip", "Open the settings"));
-    settingsButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    connect(settingsButton, &QToolButton::clicked, this, [this]() {
-        if (QAction *preferences = actionCollection()->action(KStandardAction::name(KStandardAction::Preferences))) {
-            preferences->trigger();
-        }
-    });
     m_placesButtonRow = new QHBoxLayout();
     m_placesButtonRow->setContentsMargins(0, 0, 0, 0);
     m_placesButtonRow->setSpacing(0);
-    m_placesButtonRow->addWidget(settingsButton);
     placesLayout->addLayout(m_placesButtonRow);
 
     placesDock->setWidget(placesContainer);
@@ -5655,7 +5969,14 @@ void DolphinMainWindow::connectViewSignals(DolphinViewContainer *container)
     connect(view, &DolphinView::selectionChanged, this, &DolphinMainWindow::slotSelectionChanged);
     connect(view, &DolphinView::requestItemInfo, this, &DolphinMainWindow::requestItemInfo);
     connect(view, &DolphinView::fileItemsChanged, this, &DolphinMainWindow::fileItemsChanged);
-    connect(view, &DolphinView::tabRequested, this, &DolphinMainWindow::openNewTab);
+    // OneCommander's "Switch to newly created tab on middle-click on folder".
+    connect(view, &DolphinView::tabRequested, this, [this](const QUrl &url) {
+        if (CommanderSettings::boolValue(QStringLiteral("SwitchToNewTab"), false)) {
+            openNewTabAndActivate(url);
+        } else {
+            openNewTab(url);
+        }
+    });
     connect(view, &DolphinView::activeTabRequested, this, &DolphinMainWindow::openNewTabAndActivate);
     connect(view, &DolphinView::windowRequested, this, &DolphinMainWindow::openNewWindow);
     connect(view, &DolphinView::requestContextMenu, this, &DolphinMainWindow::openContextMenu);
@@ -6051,6 +6372,10 @@ void DolphinMainWindow::slotDoubleClickViewBackground(Qt::MouseButton button)
 {
     if (button != Qt::MouseButton::LeftButton) {
         // only handle left mouse button for now
+        return;
+    }
+
+    if (!CommanderSettings::boolValue(QStringLiteral("UseDoubleClickToOpenParent"), true)) {
         return;
     }
 

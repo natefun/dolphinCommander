@@ -7,7 +7,9 @@
  * Dolphin that breaks one of these features fails here. Dolphin's own tests test Dolphin.
  */
 
+#include "commandersettings.h"
 #include "commandertools.h"
+#include "dolphin_contentdisplaysettings.h"
 #include "dolphin_generalsettings.h"
 #include "dolphinmainwindow.h"
 #include "dolphinnavigatorswidgetaction.h"
@@ -16,19 +18,24 @@
 #include "dolphintabwidget.h"
 #include "dolphinviewcontainer.h"
 #include "jobqueue.h"
+#include "kitemviews/kfileitemlistwidget.h"
 #include "kitemviews/kfileitemmodel.h"
 #include "kitemviews/kitemlistcontainer.h"
 #include "kitemviews/kitemlistcontroller.h"
 #include "kitemviews/kitemlistview.h"
 #include "kitemviews/kitemlistwidget.h"
+#include "kitemviews/private/kfileitemmodelfilter.h"
+#include "kitemviews/private/kitemlistroleeditor.h"
 #include "panels/favorites/favoritespanel.h"
 #include "panels/places/drivescard.h"
 #include "panels/places/foldercard.h"
 #include "panels/places/placespanel.h"
+#include "settings/commandersettingsdialog.h"
 #include "testdir.h"
 #include "views/columnsstrip.h"
 #include "views/dolphincolumnsview.h"
 #include "views/dolphinview.h"
+#include "views/draganddrophelper.h"
 #include "views/filepreviewwidget.h"
 #include "views/itemdetailspane.h"
 #include "views/viewheader.h"
@@ -66,6 +73,7 @@
 #include <QProcess>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QScopeGuard>
 #include <QScrollArea>
 #include <QSignalSpy>
 #include <QSpinBox>
@@ -75,6 +83,7 @@
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTimeZone>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
@@ -92,6 +101,19 @@ private Q_SLOTS:
     void testTheDrivesCardListsTheDrives();
     void testTheFolderCardListsTheLastFolders();
     void testTheNetworkCardOpensTheNetwork();
+    void testTheSettingsWindowHasOneCommandersTabsAndSettings();
+    void testSettingsChangeWhatTheProgramDoes();
+    void testFilesCanBeTreatedAsHidden();
+    void testDatesAndSizesFollowTheirFormats();
+    void testANewFolderStartsWithTheChosenViewAndSorting();
+    void testClickingOutsideARenameRenamesOrCancels();
+    void testADropMovesOrCopiesByTheChosenBehavior();
+    void testALongNameIsCutShortAndKeepsItsExtension();
+    void testOpeningItemsFollowsTheSetting();
+    void testFolderSizesFollowTheSetting();
+    void testDotFilesCanBeLeftShown();
+    void testTheColumnsKeepTheWidthsOfTheSettings();
+    void testAFolderCanInheritItsParentsViewAndShowTheCreationDate();
     void testTheHeaderHasAMenuButton();
     void testDetailsIsTheDefaultViewMode();
     void testTheHeaderSwitchesToColumnsAndBack();
@@ -292,6 +314,470 @@ void DolphinCommanderFeaturesTest::testTheNetworkCardOpensTheNetwork()
     card.setTitleClickable(false);
     QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, QPoint(30, 20));
     QCOMPARE(spy.count(), 1);
+}
+
+void DolphinCommanderFeaturesTest::testTheSettingsWindowHasOneCommandersTabsAndSettings()
+{
+    // The tabs are OneCommander's, in its order.
+    QCOMPARE(CommanderSettingsDialog::tabs(),
+             QStringList({QStringLiteral("General"),
+                          QStringLiteral("View"),
+                          QStringLiteral("Columns"),
+                          QStringLiteral("Preview"),
+                          QStringLiteral("Theme"),
+                          QStringLiteral("Window"),
+                          QStringLiteral("Advanced"),
+                          QStringLiteral("Other")}));
+    QSet<QString> keys;
+    for (const CommanderSettingsDialog::Setting &setting : CommanderSettingsDialog::settings()) {
+        QVERIFY2(CommanderSettingsDialog::tabs().contains(setting.tab), qPrintable(setting.key));
+        QVERIFY2(!keys.contains(setting.key), qPrintable(QStringLiteral("twice: ") + setting.key));
+        keys.insert(setting.key);
+        if (setting.kind == CommanderSettingsDialog::Kind::Choice) {
+            bool found = false;
+            for (const auto &choice : setting.choices) {
+                found = found || choice.value == setting.defaultValue.toString();
+            }
+            QVERIFY2(found, qPrintable(setting.key));
+        }
+    }
+    QVERIFY(keys.size() > 150);
+
+    // Every setting is in the window, and a change is saved and announced at once.
+    CommanderSettingsDialog dialog;
+    for (const QString &key : std::as_const(keys)) {
+        QVERIFY2(dialog.findChild<QWidget *>(QStringLiteral("setting-") + key), qPrintable(key));
+    }
+    QSignalSpy spy(CommanderSettings::notifier(), &CommanderSettings::Notifier::changed);
+    auto *box = dialog.findChild<QCheckBox *>(QStringLiteral("setting-UseDoubleClickToOpenParent"));
+    QVERIFY(box);
+    const bool before = box->isChecked();
+    box->setChecked(!before);
+    QCOMPARE(CommanderSettings::boolValue(QStringLiteral("UseDoubleClickToOpenParent"), true), !before);
+    QCOMPARE(spy.count(), 1);
+    // Settings for Windows are shown and cannot be changed.
+    QVERIFY(!dialog.findChild<QWidget *>(QStringLiteral("setting-UseMicaWindow"))->isEnabled());
+    // "Restore to default" puts it back.
+    dialog.findChild<QPushButton *>(QStringLiteral("setting-RestoreDefault"))->click();
+    QVERIFY(box->isChecked());
+    QVERIFY(CommanderSettings::boolValue(QStringLiteral("UseDoubleClickToOpenParent"), true));
+}
+
+void DolphinCommanderFeaturesTest::testSettingsChangeWhatTheProgramDoes()
+{
+    // The double-click threshold is the one the setting says.
+    const int interval = QApplication::doubleClickInterval();
+    CommanderSettings::setValue(QStringLiteral("MouseDebounceTime"), 555);
+    DolphinMainWindow window; // reads it at start and listens to changes
+    CommanderSettings::setValue(QStringLiteral("MouseDebounceTime"), 600);
+    QCOMPARE(QApplication::doubleClickInterval(), 600);
+    CommanderSettings::remove(QStringLiteral("MouseDebounceTime"));
+    QApplication::setDoubleClickInterval(interval);
+
+    // The sidebar cards are shown or hidden.
+    auto *network = window.findChild<QWidget *>(QStringLiteral("commanderNetworkCard"));
+    QVERIFY(network);
+    CommanderSettings::setValue(QStringLiteral("ShowNetworksInSidebar"), false);
+    QVERIFY(network->isHidden());
+    CommanderSettings::setValue(QStringLiteral("ShowNetworksInSidebar"), true);
+    QVERIFY(!network->isHidden());
+    CommanderSettings::remove(QStringLiteral("ShowNetworksInSidebar"));
+
+    // The Scripts button appears when it is asked for.
+    auto *scripts = window.findChild<QToolButton *>(QStringLiteral("scripts_menu"));
+    QVERIFY(scripts);
+    CommanderSettings::setValue(QStringLiteral("ShowScriptsButton"), true);
+    QVERIFY(!scripts->isHidden());
+    CommanderSettings::remove(QStringLiteral("ShowScriptsButton"));
+    QVERIFY(scripts->isHidden());
+
+    // Tabs show the full path when asked to.
+    window.openDirectories(QList<QUrl>{QUrl::fromLocalFile(QDir::tempPath())}, false);
+    QTRY_VERIFY_WITH_TIMEOUT(window.activeViewContainer(), 5000);
+    DolphinTabWidget *tabsWithATab = nullptr;
+    const auto tabWidgets = window.findChildren<DolphinTabWidget *>();
+    for (DolphinTabWidget *tabs : tabWidgets) {
+        tabsWithATab = tabsWithATab ? tabsWithATab : (tabs->count() > 0 ? tabs : nullptr);
+    }
+    QVERIFY(tabsWithATab);
+    CommanderSettings::setValue(QStringLiteral("TabsShow"), QStringLiteral("full"));
+    QVERIFY2(tabsWithATab->tabText(0).startsWith(QLatin1Char('/')), qPrintable(tabsWithATab->tabText(0)));
+    CommanderSettings::remove(QStringLiteral("TabsShow"));
+
+    // "Creating a new tab should open path".
+    CommanderSettings::setValue(QStringLiteral("NewTab"), QStringLiteral("path"));
+    CommanderSettings::setValue(QStringLiteral("NewTabOpenPath"), QStringLiteral("/usr"));
+    const int tabsBefore = tabsWithATab->count();
+    tabsWithATab->openNewActivatedTab();
+    QCOMPARE(tabsWithATab->count(), tabsBefore + 1);
+    QCOMPARE(tabsWithATab->currentTabPage()->activeViewContainer()->url().toLocalFile(), QStringLiteral("/usr"));
+    CommanderSettings::remove(QStringLiteral("NewTab"));
+    CommanderSettings::remove(QStringLiteral("NewTabOpenPath"));
+
+    // A middle-click on a folder opens a tab behind, or in front when asked to.
+    DolphinViewContainer *middleContainer = window.activeViewContainer();
+    QVERIFY(middleContainer);
+    DolphinTabWidget *activeTabs = nullptr;
+    for (DolphinTabWidget *tabs : tabWidgets) {
+        activeTabs = tabs->currentTabPage() && tabs->currentTabPage()->activeViewContainer() == middleContainer ? tabs : activeTabs;
+    }
+    QVERIFY(activeTabs);
+    const int tabsNow = activeTabs->count();
+    Q_EMIT middleContainer->view()->tabRequested(QUrl::fromLocalFile(QStringLiteral("/etc")));
+    QCOMPARE(activeTabs->count(), tabsNow + 1);
+    QVERIFY(activeTabs->currentTabPage()->activeViewContainer()->url().toLocalFile() != QStringLiteral("/etc"));
+    CommanderSettings::setValue(QStringLiteral("SwitchToNewTab"), true);
+    Q_EMIT middleContainer->view()->tabRequested(QUrl::fromLocalFile(QStringLiteral("/etc")));
+    QCOMPARE(activeTabs->count(), tabsNow + 2);
+    QCOMPARE(activeTabs->currentTabPage()->activeViewContainer()->url().toLocalFile(), QStringLiteral("/etc"));
+    CommanderSettings::remove(QStringLiteral("SwitchToNewTab"));
+
+    // "Open paths from external source in": the current tab, or the tab that has the path already.
+    CommanderSettings::setValue(QStringLiteral("OpenArgsPath"), QStringLiteral("current"));
+    const int tabsAtStart = activeTabs->count() + 0;
+    window.openDirectories(QList<QUrl>{QUrl::fromLocalFile(QStringLiteral("/var"))}, false);
+    QCOMPARE(window.activeViewContainer()->url().toLocalFile(), QStringLiteral("/var"));
+    CommanderSettings::setValue(QStringLiteral("OpenArgsPath"), QStringLiteral("existing"));
+    const int tabsInAll = int(window.findChildren<DolphinTabPage *>().size());
+    window.openDirectories(QList<QUrl>{QUrl::fromLocalFile(QStringLiteral("/var"))}, false);
+    QCOMPARE(int(window.findChildren<DolphinTabPage *>().size()), tabsInAll);
+    CommanderSettings::remove(QStringLiteral("OpenArgsPath"));
+    Q_UNUSED(tabsAtStart)
+
+    // "Notification level: errors only" keeps the other messages out of the list of notifications.
+    DolphinViewContainer *container = window.activeViewContainer();
+    QVERIFY(container);
+    CommanderSettings::setValue(QStringLiteral("NotificationLevel"), QStringLiteral("errors"));
+    const int notes = int(DolphinViewContainer::recentMessages().size());
+    container->showMessage(QStringLiteral("just so you know"), KMessageWidget::Information);
+    QCOMPARE(int(DolphinViewContainer::recentMessages().size()), notes);
+    container->showMessage(QStringLiteral("it broke"), KMessageWidget::Error);
+    QCOMPARE(int(DolphinViewContainer::recentMessages().size()), notes + 1);
+    CommanderSettings::remove(QStringLiteral("NotificationLevel"));
+
+    // File names are trimmed in the middle or at the end, and file extensions can be hidden.
+    CommanderSettings::setValue(QStringLiteral("FileNameTrimming"), QStringLiteral("middle"));
+    QCOMPARE(int(ContentDisplaySettings::elidingMode()), int(ContentDisplaySettings::ElidingMode::Middle));
+    CommanderSettings::setValue(QStringLiteral("FileNameTrimming"), QStringLiteral("end"));
+    QCOMPARE(int(ContentDisplaySettings::elidingMode()), int(ContentDisplaySettings::ElidingMode::Right));
+    CommanderSettings::setValue(QStringLiteral("ShowFileExtension"), false);
+    CommanderSettings::remove(QStringLiteral("ShowFileExtension"));
+
+    // The Drives card can carry an alias, and the header's view buttons can be hidden.
+    DrivesCard titled;
+    QCOMPARE(titled.title(), QStringLiteral("Drives"));
+    CommanderSettings::setValue(QStringLiteral("ComputerNameQuestion"), QStringLiteral("custom"));
+    CommanderSettings::setValue(QStringLiteral("ComputerNameCustom"), QStringLiteral("My computer"));
+    QCOMPARE(titled.title(), QStringLiteral("My computer"));
+    CommanderSettings::remove(QStringLiteral("ComputerNameQuestion"));
+    CommanderSettings::remove(QStringLiteral("ComputerNameCustom"));
+    QCOMPARE(titled.title(), QStringLiteral("Drives"));
+    auto *header = container->findChild<ViewHeader *>();
+    QVERIFY(header);
+    QToolButton *detailsButton = nullptr;
+    for (QToolButton *button : header->findChildren<QToolButton *>()) {
+        if (button->property("viewMode").isValid()) {
+            detailsButton = button;
+        }
+    }
+    QVERIFY(detailsButton);
+    CommanderSettings::setValue(QStringLiteral("ShowFilesViewToolbar"), false);
+    QVERIFY(detailsButton->isHidden());
+    CommanderSettings::remove(QStringLiteral("ShowFilesViewToolbar"));
+    QVERIFY(!detailsButton->isHidden());
+
+    // "Override all folder icons with:" names the icon of every folder, and not of a file.
+    const KFileItem folderItem(QUrl::fromLocalFile(QDir::tempPath()), QStringLiteral("inode/directory"), S_IFDIR);
+    const KFileItem fileItem(QUrl::fromLocalFile(QDir::tempPath() + QStringLiteral("/nothing.zzzz")), QString(), KFileItem::Unknown);
+    CommanderSettings::setValue(QStringLiteral("FolderIconOverride"), QStringLiteral("folder-red"));
+    QCOMPARE(KFileItemModel::customIcon(folderItem), QStringLiteral("folder-red"));
+    QVERIFY(KFileItemModel::customIcon(fileItem) != QStringLiteral("folder-red"));
+    CommanderSettings::remove(QStringLiteral("FolderIconOverride"));
+    QVERIFY(KFileItemModel::customIcon(folderItem) != QStringLiteral("folder-red"));
+
+    // "Check and notify when there is text on clipboard".
+    CommanderSettings::setValue(QStringLiteral("ClipboardCheckText"), true);
+    const int notesBeforeText = int(DolphinViewContainer::recentMessages().size());
+    QApplication::clipboard()->setText(QStringLiteral("some text worth a file"));
+    QTRY_VERIFY_WITH_TIMEOUT(int(DolphinViewContainer::recentMessages().size()) > notesBeforeText, 3000);
+    QVERIFY(DolphinViewContainer::recentMessages().first().contains(QStringLiteral("Ctrl+V")));
+    CommanderSettings::remove(QStringLiteral("ClipboardCheckText"));
+
+    // A menu entry and its setting in the window are the same thing.
+    QAction *age = window.actionCollection()->action(QStringLiteral("age_stripes"));
+    QVERIFY(age);
+    const bool ageWas = age->isChecked();
+    CommanderSettings::setValue(QStringLiteral("AgeStripes"), !ageWas);
+    QCOMPARE(age->isChecked(), !ageWas);
+    CommanderSettings::setValue(QStringLiteral("AgeStripes"), ageWas);
+    CommanderSettings::setValue(QStringLiteral("FileAge"), QStringLiteral("color"));
+    QVERIFY(age->isChecked());
+    CommanderSettings::setValue(QStringLiteral("FileAge"), QStringLiteral("none"));
+    QVERIFY(!age->isChecked());
+    CommanderSettings::remove(QStringLiteral("FileAge"));
+    CommanderSettings::setValue(QStringLiteral("AgeStripes"), ageWas);
+
+    // The space bar opens the preview when asked to, and selects otherwise.
+    QAction *quickView = window.actionCollection()->action(QStringLiteral("quick_view"));
+    QAction *selectionMode = window.actionCollection()->action(QStringLiteral("toggle_selection_mode"));
+    CommanderSettings::setValue(QStringLiteral("PreviewShortcut"), true);
+    QVERIFY(quickView->shortcuts().contains(QKeySequence(Qt::Key_Space)));
+    QVERIFY(!selectionMode->shortcuts().contains(QKeySequence(Qt::Key_Space)));
+    CommanderSettings::setValue(QStringLiteral("PreviewShortcut"), false);
+    QVERIFY(!quickView->shortcuts().contains(QKeySequence(Qt::Key_Space)));
+    QVERIFY(selectionMode->shortcuts().contains(QKeySequence(Qt::Key_Space)));
+    CommanderSettings::remove(QStringLiteral("PreviewShortcut"));
+}
+
+void DolphinCommanderFeaturesTest::testFilesCanBeTreatedAsHidden()
+{
+    CommanderSettings::setValue(QStringLiteral("HiddenFilesPrefixList"), QStringLiteral("draft-, old_"));
+    CommanderSettings::setValue(QStringLiteral("HiddenFilesList"), QStringLiteral("Thumbs.db"));
+    CommanderSettings::setValue(QStringLiteral("HiddenFilesExtList"), QStringLiteral("bak,.log"));
+    CommanderSettings::setValue(QStringLiteral("HideTemporary"), true);
+    KFileItemModelFilter filter;
+    filter.reloadHiddenRules();
+    auto file = [](const QString &name) {
+        return KFileItem(QUrl::fromLocalFile(QStringLiteral("/tmp/") + name), QString(), KFileItem::Unknown);
+    };
+    // The rules are for the time hidden files are not shown.
+    filter.setHiddenRulesActive(false);
+    QVERIFY(filter.matches(file(QStringLiteral("draft-1.txt"))));
+    filter.setHiddenRulesActive(true);
+    QVERIFY(!filter.matches(file(QStringLiteral("draft-1.txt"))));
+    QVERIFY(!filter.matches(file(QStringLiteral("old_notes.txt"))));
+    QVERIFY(!filter.matches(file(QStringLiteral("Thumbs.db"))));
+    QVERIFY(!filter.matches(file(QStringLiteral("backup.BAK"))));
+    QVERIFY(!filter.matches(file(QStringLiteral("run.log"))));
+    QVERIFY(!filter.matches(file(QStringLiteral("work.tmp"))));
+    QVERIFY(!filter.matches(file(QStringLiteral("~$report.docx"))));
+    QVERIFY(filter.matches(file(QStringLiteral("report.docx"))));
+    QVERIFY(filter.matches(file(QStringLiteral("thumbs.png"))));
+    for (const QString &key :
+         {QStringLiteral("HiddenFilesPrefixList"), QStringLiteral("HiddenFilesList"), QStringLiteral("HiddenFilesExtList"), QStringLiteral("HideTemporary")}) {
+        CommanderSettings::remove(key);
+    }
+    filter.reloadHiddenRules();
+    QVERIFY(filter.matches(file(QStringLiteral("draft-1.txt"))));
+}
+
+namespace
+{
+// roleText() is protected: this is a way in for the test.
+class OpenInformant : public KFileItemListWidgetInformant
+{
+public:
+    using KFileItemListWidgetInformant::roleText;
+};
+}
+
+void DolphinCommanderFeaturesTest::testDatesAndSizesFollowTheirFormats()
+{
+    OpenInformant informant;
+    const QDateTime when(QDate(2026, 11, 24), QTime(15, 7), QTimeZone::systemTimeZone());
+    SmallHash values;
+    values.insert("modificationtime", qint64(when.toSecsSinceEpoch()));
+    values.insert("size", qulonglong(5 * 1000 * 1000));
+
+    // Nothing changes until a format is chosen.
+    const QString original = informant.roleText("modificationtime", values);
+    CommanderSettings::setValue(QStringLiteral("DateFormat"), QStringLiteral("iso"));
+    CommanderSettings::setValue(QStringLiteral("TimeFormat"), QStringLiteral("24h"));
+    QCOMPARE(informant.roleText("modificationtime", values), QStringLiteral("2026-11-24 15:07"));
+    CommanderSettings::setValue(QStringLiteral("TimeFormat"), QStringLiteral("12h"));
+    QVERIFY(informant.roleText("modificationtime", values).startsWith(QStringLiteral("2026-11-24 3:07")));
+    CommanderSettings::remove(QStringLiteral("DateFormat"));
+    CommanderSettings::remove(QStringLiteral("TimeFormat"));
+    QCOMPARE(informant.roleText("modificationtime", values), original);
+
+    // Sizes in megabytes only, with the decimal or the old definition of a megabyte.
+    CommanderSettings::setValue(QStringLiteral("SizeFormat"), QStringLiteral("mb"));
+    QCOMPARE(informant.roleText("size", values), QLocale().toString(5.0, 'f', 2));
+    CommanderSettings::setValue(QStringLiteral("UseOldDefinitionOfMegabyte"), true);
+    QCOMPARE(informant.roleText("size", values), QLocale().toString(5000000.0 / (1024 * 1024), 'f', 2));
+    CommanderSettings::remove(QStringLiteral("SizeFormat"));
+    CommanderSettings::remove(QStringLiteral("UseOldDefinitionOfMegabyte"));
+}
+
+void DolphinCommanderFeaturesTest::testANewFolderStartsWithTheChosenViewAndSorting()
+{
+    // The settings are taken away again whatever happens, and each folder has properties of its own for this test.
+    const bool globalProps = GeneralSettings::globalViewProps();
+    GeneralSettings::setGlobalViewProps(false);
+    const QStringList keys = {QStringLiteral("SortItemsBy"),
+                              QStringLiteral("SortDirection"),
+                              QStringLiteral("SortKeepFoldersOnTop"),
+                              QStringLiteral("FilesViewDefault")};
+    const auto cleanUp = qScopeGuard([&]() {
+        for (const QString &key : keys) {
+            CommanderSettings::remove(key);
+        }
+        GeneralSettings::setGlobalViewProps(globalProps);
+    });
+    CommanderSettings::setValue(QStringLiteral("SortItemsBy"), QStringLiteral("size"));
+    CommanderSettings::setValue(QStringLiteral("SortDirection"), QStringLiteral("descending"));
+    CommanderSettings::setValue(QStringLiteral("SortKeepFoldersOnTop"), false);
+    CommanderSettings::setValue(QStringLiteral("FilesViewDefault"), QStringLiteral("compact"));
+    {
+        TestDir fresh;
+        ViewProperties props(QUrl::fromLocalFile(fresh.path()));
+        QCOMPARE(props.sortRole(), QByteArray("size"));
+        QCOMPARE(int(props.sortOrder()), int(Qt::DescendingOrder));
+        QVERIFY(!props.sortFoldersFirst());
+        QCOMPARE(int(props.viewMode()), int(DolphinView::CompactView));
+    }
+    for (const QString &key : keys) {
+        CommanderSettings::remove(key);
+    }
+    TestDir plain;
+    ViewProperties unchanged(QUrl::fromLocalFile(plain.path()));
+    QCOMPARE(unchanged.sortRole(), QByteArray("text"));
+}
+
+void DolphinCommanderFeaturesTest::testAFolderCanInheritItsParentsViewAndShowTheCreationDate()
+{
+    const bool globalProps = GeneralSettings::globalViewProps();
+    GeneralSettings::setGlobalViewProps(false);
+    const auto cleanUp = qScopeGuard([globalProps]() {
+        CommanderSettings::remove(QStringLiteral("InheritFilesView"));
+        CommanderSettings::remove(QStringLiteral("DateShown"));
+        GeneralSettings::setGlobalViewProps(globalProps);
+    });
+    TestDir parent;
+    parent.createDir("child");
+    {
+        ViewProperties props(QUrl::fromLocalFile(parent.path()));
+        props.setViewMode(DolphinView::CompactView);
+        props.save();
+    }
+    const QUrl child = QUrl::fromLocalFile(parent.path() + QStringLiteral("/child"));
+    QVERIFY(ViewProperties(child).viewMode() != DolphinView::CompactView);
+    CommanderSettings::setValue(QStringLiteral("InheritFilesView"), true);
+    QCOMPARE(int(ViewProperties(child).viewMode()), int(DolphinView::CompactView));
+
+    // The details view shows the date modified unless the date created is asked for.
+    TestDir fresh;
+    QVERIFY(ViewProperties(QUrl::fromLocalFile(fresh.path())).visibleRoles().contains("modificationtime"));
+    CommanderSettings::setValue(QStringLiteral("DateShown"), QStringLiteral("created"));
+    ViewProperties created(QUrl::fromLocalFile(fresh.path()));
+    created.setViewMode(DolphinView::DetailsView);
+    QVERIFY(created.visibleRoles().contains("creationtime"));
+}
+
+void DolphinCommanderFeaturesTest::testClickingOutsideARenameRenamesOrCancels()
+{
+    KItemListRoleEditor editor(nullptr);
+    editor.setRole("text");
+    editor.setPlainText(QStringLiteral("new name"));
+    QSignalSpy finished(&editor, &KItemListRoleEditor::roleEditingFinished);
+    QSignalSpy canceled(&editor, &KItemListRoleEditor::roleEditingCanceled);
+
+    // By default a click elsewhere finishes the rename.
+    QFocusEvent out(QEvent::FocusOut, Qt::MouseFocusReason);
+    QApplication::sendEvent(&editor, &out);
+    QCOMPARE(finished.count(), 1);
+    QCOMPARE(canceled.count(), 0);
+
+    // With the setting "cancel rename" it is cancelled instead.
+    CommanderSettings::setValue(QStringLiteral("RenameOnLostFocus"), QStringLiteral("cancel"));
+    QApplication::sendEvent(&editor, &out);
+    CommanderSettings::remove(QStringLiteral("RenameOnLostFocus"));
+    QCOMPARE(finished.count(), 1);
+    QCOMPARE(canceled.count(), 1);
+}
+
+void DolphinCommanderFeaturesTest::testADropMovesOrCopiesByTheChosenBehavior()
+{
+    TestDir dir;
+    dir.createFile("a.txt", "x");
+    const QList<QUrl> sources = {QUrl::fromLocalFile(dir.path() + QStringLiteral("/a.txt"))};
+    const QUrl sameDrive = QUrl::fromLocalFile(QDir::tempPath());
+    const QUrl otherDrive = QUrl::fromLocalFile(QStringLiteral("/proc"));
+    // Consistent, as the program has always done: always moving.
+    QCOMPARE(int(DragAndDropHelper::defaultActionFor(sources, otherDrive)), int(Qt::MoveAction));
+    // The Explorer way: moving on the same drive and copying to another.
+    CommanderSettings::setValue(QStringLiteral("DragDropBehavior"), QStringLiteral("inconsistent"));
+    const auto cleanUp = qScopeGuard([]() {
+        CommanderSettings::remove(QStringLiteral("DragDropBehavior"));
+    });
+    QCOMPARE(int(DragAndDropHelper::defaultActionFor(sources, sameDrive)), int(Qt::MoveAction));
+    QCOMPARE(int(DragAndDropHelper::defaultActionFor(sources, otherDrive)), int(Qt::CopyAction));
+    QCOMPARE(int(DragAndDropHelper::defaultActionFor(sources, QUrl(QStringLiteral("smb://server/share")))), int(Qt::CopyAction));
+}
+
+void DolphinCommanderFeaturesTest::testALongNameIsCutShortAndKeepsItsExtension()
+{
+    KItemListRoleEditor editor(nullptr);
+    editor.setRole("text");
+    const QString longName = QString(60, QLatin1Char('a')) + QStringLiteral(".txt");
+    editor.setPlainText(longName);
+    QSignalSpy finished(&editor, &KItemListRoleEditor::roleEditingFinished);
+    auto finish = [&]() {
+        QApplication::sendEvent(&editor, new QFocusEvent(QEvent::FocusOut, Qt::MouseFocusReason));
+        return finished.takeLast().at(1).value<EditResult>().newName;
+    };
+    QCOMPARE(finish(), longName); // nothing changes until the limit is asked for
+    CommanderSettings::setValue(QStringLiteral("LimitFileNameLength"), true);
+    CommanderSettings::setValue(QStringLiteral("MaximumFilenameLength"), 20);
+    const auto cleanUp = qScopeGuard([]() {
+        CommanderSettings::remove(QStringLiteral("LimitFileNameLength"));
+        CommanderSettings::remove(QStringLiteral("MaximumFilenameLength"));
+    });
+    const QString shortened = finish();
+    QCOMPARE(int(shortened.size()), 20);
+    QVERIFY(shortened.endsWith(QStringLiteral(".txt")));
+    editor.setPlainText(QStringLiteral("short.txt"));
+    QCOMPARE(finish(), QStringLiteral("short.txt"));
+}
+
+void DolphinCommanderFeaturesTest::testOpeningItemsFollowsTheSetting()
+{
+    KItemListController *controller = m_container->view()->findChild<KItemListContainer *>()->controller();
+    KFileItemModel *model = static_cast<KFileItemModel *>(controller->model());
+    const int folder = model->index(QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/subdir")));
+    const int file = model->index(QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/file1.txt")));
+    QVERIFY(folder >= 0 && file >= 0);
+    const auto cleanUp = qScopeGuard([]() {
+        CommanderSettings::remove(QStringLiteral("OpeningItems"));
+    });
+
+    CommanderSettings::setValue(QStringLiteral("OpeningItems"), QStringLiteral("double"));
+    QVERIFY(!controller->singleClickActivationFor(folder));
+    QVERIFY(!controller->singleClickActivationFor(file));
+    CommanderSettings::setValue(QStringLiteral("OpeningItems"), QStringLiteral("folders"));
+    QVERIFY(controller->singleClickActivationFor(folder));
+    QVERIFY(!controller->singleClickActivationFor(file));
+    CommanderSettings::setValue(QStringLiteral("OpeningItems"), QStringLiteral("all"));
+    QVERIFY(controller->singleClickActivationFor(folder));
+    QVERIFY(controller->singleClickActivationFor(file));
+}
+
+void DolphinCommanderFeaturesTest::testFolderSizesFollowTheSetting()
+{
+    QTimer closer;
+    closer.setInterval(200);
+    connect(&closer, &QTimer::timeout, this, [&]() {
+        if (QWidget *modal = QApplication::activeModalWidget()) {
+            modal->close();
+        }
+    });
+    closer.start();
+    DolphinMainWindow window;
+    closer.stop();
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    window.openDirectories(QList<QUrl>{m_testDir->url()}, false);
+    QTRY_VERIFY_WITH_TIMEOUT(window.activeViewContainer(), 5000);
+    const auto before = ContentDisplaySettings::directorySizeMode();
+    const auto cleanUp = qScopeGuard([before]() {
+        CommanderSettings::remove(QStringLiteral("ShowFolderSize"));
+        ContentDisplaySettings::setDirectorySizeMode(before);
+        ContentDisplaySettings::self()->save();
+    });
+    CommanderSettings::setValue(QStringLiteral("ShowFolderSize"), true);
+    QCOMPARE(int(ContentDisplaySettings::directorySizeMode()), int(ContentDisplaySettings::EnumDirectorySizeMode::ContentSize));
+    CommanderSettings::setValue(QStringLiteral("ShowFolderSize"), false);
+    QCOMPARE(int(ContentDisplaySettings::directorySizeMode()), int(ContentDisplaySettings::EnumDirectorySizeMode::None));
 }
 
 void DolphinCommanderFeaturesTest::testTheHeaderHasAMenuButton()
@@ -625,19 +1111,23 @@ void DolphinCommanderFeaturesTest::testTheMainToolbarHasOneCommandersButtons()
     closer.start();
     DolphinMainWindow window;
     closer.stop();
-    // Layout, file automator, new window and about sit together in one toolbar, as in OneCommander's main toolbar.
-    const QStringList names = {QStringLiteral("cycle_layout"), QStringLiteral("scripts_menu"), QStringLiteral("file_new"), QStringLiteral("help_about_app")};
-    bool together = false;
-    const auto bars = window.findChildren<QToolBar *>();
-    for (QToolBar *bar : bars) {
-        bool all = true;
-        for (const QString &name : names) {
-            QAction *action = window.actionCollection()->action(name);
-            all = all && action && bar->actions().contains(action);
+    // OneCommander's row of buttons in the lower left, in its order and with its tooltips.
+    auto *bar = window.findChild<QWidget *>(QStringLiteral("commanderMainToolbar"));
+    QVERIFY(bar);
+    const auto buttons = bar->findChildren<QToolButton *>();
+    QStringList tips;
+    for (QToolButton *button : buttons) {
+        if (!button->isHidden()) { // the Scripts button is shown only when asked for
+            tips << button->toolTip();
         }
-        together = together || all;
     }
-    QVERIFY(together);
+    QCOMPARE(tips,
+             QStringList({QStringLiteral("Program settings"),
+                          QStringLiteral("About/Help"),
+                          QStringLiteral("Switch between Standard and Columns layouts"),
+                          QStringLiteral("Search files starting from currently opened folder"),
+                          QStringLiteral("File Automator"),
+                          QStringLiteral("Open new or saved window")}));
 }
 
 void DolphinCommanderFeaturesTest::testNewFilesComeFromTemplates()
@@ -1184,6 +1674,10 @@ void DolphinCommanderFeaturesTest::testTheNordThemeHasItsColors()
     closer.start();
     DolphinMainWindow window;
     closer.stop();
+    QMetaObject::invokeMethod(&window,
+                              "applyColorTheme",
+                              Qt::DirectConnection,
+                              Q_ARG(QString, QStringLiteral("system"))); // an earlier test may have left a theme on
     const QColor before = QApplication::palette().color(QPalette::Base);
     QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("nord")));
     QCOMPARE(QApplication::palette().color(QPalette::Base), QColor(46, 52, 64));
@@ -1248,6 +1742,51 @@ void DolphinCommanderFeaturesTest::testTheDetailsPaneDescribesTheSelectedFile()
     QCOMPARE(ItemDetailsPane::ageText(now.addDays(-7), now), QStringLiteral("7 d"));
     QCOMPARE(ItemDetailsPane::ageText(now.addDays(-270), now), QStringLiteral("9 M"));
     QCOMPARE(ItemDetailsPane::ageText(now.addDays(-800), now), QStringLiteral("2 y"));
+}
+
+void DolphinCommanderFeaturesTest::testDotFilesCanBeLeftShown()
+{
+    const auto cleanUp = qScopeGuard([]() {
+        CommanderSettings::remove(QStringLiteral("TreatDotFilesAsHidden"));
+    });
+    m_testDir->createFile(".dotfile");
+    KFileItemModel *model = static_cast<KFileItemModel *>(m_container->view()->findChild<KItemListContainer *>()->controller()->model());
+    const QUrl dot = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/.dotfile"));
+    m_container->view()->reload();
+    QTRY_VERIFY_WITH_TIMEOUT(model->count() >= 3, 5000);
+    QVERIFY(model->index(dot) < 0);
+    CommanderSettings::setValue(QStringLiteral("TreatDotFilesAsHidden"), false);
+    QTRY_VERIFY_WITH_TIMEOUT(model->index(dot) >= 0, 5000);
+    CommanderSettings::setValue(QStringLiteral("TreatDotFilesAsHidden"), true);
+    QTRY_VERIFY_WITH_TIMEOUT(model->index(dot) < 0, 5000);
+}
+
+void DolphinCommanderFeaturesTest::testTheColumnsKeepTheWidthsOfTheSettings()
+{
+    const auto cleanUp = qScopeGuard([]() {
+        CommanderSettings::remove(QStringLiteral("ColumnWidthCurrentColumnsLayout"));
+        CommanderSettings::remove(QStringLiteral("ColumnWidthOther"));
+        CommanderSettings::remove(QStringLiteral("ColumnParentWidth"));
+    });
+    CommanderSettings::setValue(QStringLiteral("ColumnWidthCurrentColumnsLayout"), 300);
+    CommanderSettings::setValue(QStringLiteral("ColumnWidthOther"), 120);
+    ColumnsStrip strip;
+    strip.resize(1800, 300);
+    strip.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&strip));
+    strip.setUrl(QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/subdir")));
+    QTRY_VERIFY(strip.count() >= 3);
+    // The sizes are the labels, then the columns, then what is left over.
+    const int columns = (strip.count() - 1) / 2;
+    QList<int> sizes = strip.sizes();
+    QCOMPARE(sizes.at(columns + columns - 1), 300);
+    QCOMPARE(sizes.at(columns + columns - 2), 120);
+    CommanderSettings::setValue(QStringLiteral("ColumnWidthOther"), 300);
+    CommanderSettings::setValue(QStringLiteral("ColumnParentWidth"), 200);
+    strip.setUrl(QUrl::fromLocalFile(m_testDir->path()));
+    strip.setUrl(QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/subdir")));
+    sizes = strip.sizes();
+    QCOMPARE(sizes.at(columns + columns - 2), 200); // the parent has a width of its own
 }
 
 void DolphinCommanderFeaturesTest::testLockedColumnDividersCannotBeDragged()
@@ -2995,6 +3534,18 @@ void DolphinCommanderFeaturesTest::testTakeScreenshots()
     QTest::qWait(300); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
     QVERIFY(designer.grab().save(outDir + QStringLiteral("/designer.png")));
 
+    {
+        CommanderSettingsDialog settingsDialog;
+        settingsDialog.show();
+        QTest::qWait(300); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
+        auto *tabs = settingsDialog.findChild<QTabWidget *>();
+        for (int i = 0; tabs && i < tabs->count(); ++i) {
+            tabs->setCurrentIndex(i);
+            QTest::qWait(150); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
+            QVERIFY(settingsDialog.grab().save(outDir + QStringLiteral("/settings-%1.png").arg(tabs->tabText(i))));
+        }
+    }
+
     QImage picture(600, 300, QImage::Format_RGB32);
     picture.fill(QColor(30, 120, 200));
     QVERIFY(picture.save(left.path() + QStringLiteral("/picture.png")));
@@ -3109,7 +3660,7 @@ void DolphinCommanderFeaturesTest::testALostWindowCanBeCenteredAndTheThemeReload
     group.writeEntry("StyleSheet", QStringLiteral("QLabel#reloaded { color: #00ff00; }"));
     window.actionCollection()->action(QStringLiteral("reload_theme"))->trigger();
     QVERIFY(QApplication::palette().color(QPalette::Base).lightnessF() < 0.3);
-    QCOMPARE(qApp->styleSheet(), QStringLiteral("QLabel#reloaded { color: #00ff00; }"));
+    QVERIFY(qApp->styleSheet().contains(QStringLiteral("QLabel#reloaded { color: #00ff00; }"))); // after the flat look that goes with the dark colors
     QVERIFY(window.actionCollection()->action(QStringLiteral("reload_theme"))->shortcuts().contains(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F5)));
 
     group.writeEntry("ColorTheme", QStringLiteral("system"));

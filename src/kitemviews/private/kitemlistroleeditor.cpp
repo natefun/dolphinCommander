@@ -6,6 +6,10 @@
 
 #include "kitemlistroleeditor.h"
 
+#include "commandersettings.h"
+
+#include <QFileInfo>
+
 #include <KIO/Global>
 
 KItemListRoleEditor::KItemListRoleEditor(QWidget *parent)
@@ -63,7 +67,14 @@ bool KItemListRoleEditor::event(QEvent *event)
         // (See Bug 470238)
         const bool focusWentToAnotherWindow = focusEvent->reason() == Qt::PopupFocusReason || focusEvent->reason() == Qt::ActiveWindowFocusReason;
         if (!focusWentToAnotherWindow) {
-            emitRoleEditingFinished();
+            // OneCommander's "Clicking outside during rename operation should: rename / cancel rename".
+            if (CommanderSettings::stringValue(QStringLiteral("RenameOnLostFocus")) == QLatin1String("cancel")) {
+                m_blockFinishedSignal = true;
+                Q_EMIT roleEditingCanceled(m_role, KIO::encodeFileName(toPlainText()));
+                m_blockFinishedSignal = false;
+            } else {
+                emitRoleEditingFinished();
+            }
         }
     }
     return KTextEdit::event(event);
@@ -190,8 +201,19 @@ void KItemListRoleEditor::autoAdjustSize()
 
 void KItemListRoleEditor::emitRoleEditingFinished(EditResultDirection direction)
 {
+    QString name = toPlainText();
+    // OneCommander's "Limit file name length for maximum compatibility with other software" and "Maximum file name length":
+    // a longer name is cut short, and keeps its extension.
+    if (m_role == "text" && CommanderSettings::boolValue(QStringLiteral("LimitFileNameLength"), false)) {
+        const int maximum = qMax(8, CommanderSettings::intValue(QStringLiteral("MaximumFilenameLength"), 255));
+        if (name.size() > maximum) {
+            const QString extension = QFileInfo(name).suffix();
+            const int extensionSize = extension.isEmpty() || extension.size() + 2 > maximum ? 0 : int(extension.size()) + 1;
+            name = name.left(maximum - extensionSize) + (extensionSize > 0 ? QLatin1Char('.') + extension : QString());
+        }
+    }
     QVariant ret;
-    ret.setValue(EditResult{KIO::encodeFileName(toPlainText()), direction});
+    ret.setValue(EditResult{KIO::encodeFileName(name), direction});
 
     if (!m_blockFinishedSignal) {
         Q_EMIT roleEditingFinished(m_role, ret);

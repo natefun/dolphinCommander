@@ -587,6 +587,8 @@ private:
     bool m_naturalSorting;
     bool m_sortDirsFirst;
     bool m_sortHiddenLast;
+    /** What was asked for with setShowHiddenFiles(): the lister is told more than that when dot files are not treated as hidden. */
+    bool m_showHiddenFiles = false;
 
     RoleType m_sortRole;
     int m_sortingProgressPercent; // Value of directorySortingProgress() signal

@@ -5,6 +5,8 @@
  */
 
 #include "dolphinviewcontainer.h"
+
+#include "commandersettings.h"
 #include "views/columnsstrip.h"
 #include "views/itemdetailspane.h"
 #include "views/viewheader.h"
@@ -284,6 +286,31 @@ void DolphinViewContainer::connectViewSignals()
     }
 
     connect(ContentDisplaySettings::self(), &KCoreConfigSkeleton::configChanged, m_view, &DolphinView::reload);
+    updatePaneColors();
+}
+
+void DolphinViewContainer::updatePaneColors()
+{
+    const bool own = qApp->property("commanderPaneColors").toBool();
+    setAutoFillBackground(own);
+    if (own) {
+        QPalette colors = QApplication::palette();
+        colors.setColor(QPalette::Window, colors.color(QPalette::Base));
+        if (palette().color(QPalette::Window) != colors.color(QPalette::Window) || palette().color(QPalette::Button) != colors.color(QPalette::Button)) {
+            setPalette(colors);
+        }
+    } else if (testAttribute(Qt::WA_SetPalette)) {
+        setPalette(QPalette());
+    }
+}
+
+void DolphinViewContainer::changeEvent(QEvent *event)
+{
+    QWidget::changeEvent(event);
+    // A palette set for the application reaches the widgets as a change of their own palette.
+    if (event->type() == QEvent::ApplicationPaletteChange || event->type() == QEvent::PaletteChange) {
+        updatePaneColors();
+    }
 }
 
 void DolphinViewContainer::setDetailsPaneShown(bool shown)
@@ -709,11 +736,14 @@ void DolphinViewContainer::showMessage(const QString &message, KMessageWidget::M
     if (message.isEmpty()) {
         return;
     }
-    const QString stamped = QTime::currentTime().toString(Qt::TextDate) + QLatin1String("  ") + message;
-    messageHistory().prepend(stamped);
-    Q_EMIT messageNotifier()->messageShown(stamped);
-    while (messageHistory().size() > 50) {
-        messageHistory().removeLast();
+    // OneCommander's "Notification level: all / errors only" decides what goes to the list of notifications.
+    if (CommanderSettings::stringValue(QStringLiteral("NotificationLevel")) != QLatin1String("errors") || messageType == KMessageWidget::Error) {
+        const QString stamped = QTime::currentTime().toString(Qt::TextDate) + QLatin1String("  ") + message;
+        messageHistory().prepend(stamped);
+        Q_EMIT messageNotifier()->messageShown(stamped);
+        while (messageHistory().size() > 50) {
+            messageHistory().removeLast();
+        }
     }
 
     m_messageWidget->setText(message);
@@ -1064,7 +1094,10 @@ void DolphinViewContainer::slotItemActivated(const KFileItem &item)
     // results in an active view.
     m_view->setActive(true);
 
-    const QUrl &url = DolphinView::openItemAsFolderUrl(item, GeneralSettings::browseThroughArchives());
+    // OneCommander's "Double-click on an archive should: Open in default program" keeps archives from being browsed like folders.
+    const bool browseArchives =
+        GeneralSettings::browseThroughArchives() && CommanderSettings::stringValue(QStringLiteral("DoubleClickArchive")) != QLatin1String("default");
+    const QUrl &url = DolphinView::openItemAsFolderUrl(item, browseArchives);
     if (!url.isEmpty()) {
         const auto modifiers = QGuiApplication::keyboardModifiers();
         // keep in sync with KUrlNavigator::slotNavigatorButtonClicked

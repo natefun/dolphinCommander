@@ -523,6 +523,11 @@ private Q_SLOTS:
 
     /** Opens the settings dialog for Dolphin. */
     void editSettings();
+    /** The settings window with OneCommander's tabs. */
+    void openCommanderSettings();
+    /** Does what the setting @p key says now that it has changed, or what its button says. */
+    void applyCommanderSetting(const QString &key);
+    void applyPreviewShortcut();
 
     /** Updates the state of the 'Show Full Location' action. */
     void slotEditableStateChanged(bool editable);
@@ -927,6 +932,7 @@ private:
     DolphinViewActionHandler *m_actionHandler;
     DolphinRemoteEncoding *m_remoteEncoding;
     QPointer<DolphinSettingsDialog> m_settingsDialog;
+    QPointer<QDialog> m_commanderSettingsDialog;
     DolphinBookmarkHandler *m_bookmarkHandler;
     SelectionMode::ActionTextHelper *m_actionTextHelper;
     DisabledActionNotifier *m_disabledActionNotifier;

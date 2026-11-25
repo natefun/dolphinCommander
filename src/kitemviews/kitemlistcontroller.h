@@ -116,6 +116,9 @@ public:
     bool typeToFilter() const;
     bool singleClickActivationEnforced() const;
 
+    /** Whether a click on the item at @p index opens it, following the OpeningItems setting and the style. */
+    bool singleClickActivationFor(int index, bool includeEnforced = true) const;
+
     /**
      * Setting the selection mode to enabled will make selecting and deselecting easier by acting
      * kind of similar to when the Control Key is held down.

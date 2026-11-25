@@ -119,6 +119,7 @@ target_sources(dolphinprivate PRIVATE
     views/itemdetailspane.cpp
     panels/favorites/favoritespanel.cpp
     jobqueue.cpp
+    commandersettings.cpp
     views/viewheader.cpp
     views/dolphinremoteencoding.cpp
     views/dolphinview.cpp
@@ -301,6 +302,7 @@ target_sources(dolphinstatic PRIVATE
     animatedheightwidget.cpp
     disabledactionnotifier.cpp
     commandertools.cpp
+    settings/commandersettingsdialog.cpp
     dolphinbookmarkhandler.cpp
     dolphindockwidget.cpp
     dolphinmainwindow.cpp

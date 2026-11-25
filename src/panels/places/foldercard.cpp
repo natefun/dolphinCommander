@@ -84,7 +84,9 @@ void FolderCard::paintEvent(QPaintEvent *)
 
     const QPalette &colors = palette();
     const QColor window = colors.color(QPalette::Window);
-    const QColor card = window.lightness() < 128 ? window.lighter(125) : window.darker(104);
+    const QColor card = window.lightness() < 128
+        ? (colors.color(QPalette::Button).lightness() > window.lightness() + 4 ? colors.color(QPalette::Button) : window.lighter(125))
+        : window.darker(104);
     painter.setPen(Qt::NoPen);
     painter.setBrush(card);
     painter.drawRoundedRect(rect().adjusted(Margin / 2, Margin / 2, -Margin / 2, -Margin / 2), 8, 8);

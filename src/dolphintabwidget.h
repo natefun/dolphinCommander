@@ -137,6 +137,8 @@ public Q_SLOTS:
      * the tab.
      */
     void openNewActivatedTab();
+    /** Gives every tab the name it should have now, after a setting about the names was changed. */
+    void refreshTabNames();
 
     /**
      * Opens a new tab showing the  URL \a primaryUrl and the optional URL

@@ -568,8 +568,12 @@ private:
 
 protected:
     bool eventFilter(QObject *object, QEvent *event) override;
+    void changeEvent(QEvent *event) override;
 
 private:
+    /** With OneCommander's colors the folder is painted in the color of the lists, with the window's showing only between the panes. */
+    void updatePaneColors();
+
     /** Puts the button for the Miller columns in the upper right corner. */
     void updateColumnsTogglePosition();
 

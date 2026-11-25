@@ -4,6 +4,8 @@
 
 #include "drivescard.h"
 
+#include "commandersettings.h"
+
 #include <KLocalizedString>
 
 #include <QContextMenuEvent>
@@ -32,6 +34,23 @@ DrivesCard::DrivesCard(QWidget *parent)
     connect(m_timer, &QTimer::timeout, this, &DrivesCard::refresh);
     refresh();
     m_timer->start();
+    connect(CommanderSettings::notifier(), &CommanderSettings::Notifier::changed, this, [this](const QString &key) {
+        if (key == QLatin1String("ComputerNameQuestion") || key == QLatin1String("ComputerNameCustom")) {
+            update();
+        }
+    });
+}
+
+QString DrivesCard::title() const
+{
+    // OneCommander's "Root folder alias": the name of the first pane, with the drives.
+    if (CommanderSettings::stringValue(QStringLiteral("ComputerNameQuestion")) == QLatin1String("custom")) {
+        const QString alias = CommanderSettings::stringValue(QStringLiteral("ComputerNameCustom")).trimmed();
+        if (!alias.isEmpty()) {
+            return alias;
+        }
+    }
+    return i18nc("@title:group", "Drives");
 }
 
 QString DrivesCard::usageText(qint64 usedBytes, qint64 totalBytes)
@@ -116,7 +135,9 @@ void DrivesCard::paintEvent(QPaintEvent *)
 
     const QPalette &colors = palette();
     const QColor window = colors.color(QPalette::Window);
-    const QColor card = window.lightness() < 128 ? window.lighter(125) : window.darker(104);
+    const QColor card = window.lightness() < 128
+        ? (colors.color(QPalette::Button).lightness() > window.lightness() + 4 ? colors.color(QPalette::Button) : window.lighter(125))
+        : window.darker(104);
     painter.setPen(Qt::NoPen);
     painter.setBrush(card);
     painter.drawRoundedRect(rect().adjusted(Margin / 2, Margin / 2, -Margin / 2, -Margin / 2), 8, 8);
@@ -125,7 +146,7 @@ void DrivesCard::paintEvent(QPaintEvent *)
     titleFont.setPointSizeF(titleFont.pointSizeF() * 1.25);
     painter.setFont(titleFont);
     painter.setPen(colors.color(QPalette::WindowText));
-    painter.drawText(QRect(Margin * 2, Margin, width() - Margin * 4, TitleHeight), Qt::AlignVCenter | Qt::AlignLeft, i18nc("@title:group", "Drives"));
+    painter.drawText(QRect(Margin * 2, Margin, width() - Margin * 4, TitleHeight), Qt::AlignVCenter | Qt::AlignLeft, title());
 
     painter.setFont(font());
     for (int i = 0; i < m_drives.size(); ++i) {

@@ -4,6 +4,8 @@
 
 #include "filepreviewwidget.h"
 
+#include "commandersettings.h"
+
 #include <KIO/PreviewJob>
 #include <KLocalizedString>
 #include <KZip>
@@ -133,7 +135,7 @@ void FilePreviewWidget::setItem(const KFileItem &item)
     } else if (!path.isEmpty() && mime.inherits(QStringLiteral("text/plain"))) {
         QFile file(path);
         if (file.open(QIODevice::ReadOnly)) {
-            m_text->setPlainText(QString::fromUtf8(file.read(64 * 1024)));
+            m_text->setPlainText(QString::fromUtf8(file.read(qint64(qMax(1, CommanderSettings::intValue(QStringLiteral("PreviewTextMaxLength"), 64))) * 1024)));
             m_text->show();
         }
     } else if (!path.isEmpty() && mime.name().startsWith(QLatin1String("image/")) && QImageReader(path).canRead()) {
@@ -181,7 +183,10 @@ FilePreviewWidget::ImageMode FilePreviewWidget::bestModeFor(const QSize &image, 
         return ImageMode::Fit;
     }
     if (image.width() <= room.width() && image.height() <= room.height()) {
-        return ImageMode::ActualSize;
+        // OneCommander's "Display small images": scaled to fit the preview, or at their original size.
+        return CommanderSettings::stringValue(QStringLiteral("QuickViewImageScale"), QStringLiteral("original")) == QLatin1String("fit")
+            ? ImageMode::Fit
+            : ImageMode::ActualSize;
     }
     const double ratio = double(image.width()) / image.height();
     return (ratio > 2.2 || ratio < 0.45) ? ImageMode::FillWidth : ImageMode::Fit;

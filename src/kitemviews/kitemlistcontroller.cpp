@@ -9,6 +9,7 @@
 
 #include "kitemlistcontroller.h"
 
+#include "commandersettings.h"
 #include "kitemlistselectionmanager.h"
 #include "kitemlistview.h"
 #include "private/kitemlistkeyboardsearchmanager.h"
@@ -208,6 +209,24 @@ void KItemListController::setAutoActivationEnabled(bool enabled)
 bool KItemListController::isAutoActivationEnabled() const
 {
     return m_autoActivationEnabled;
+}
+
+bool KItemListController::singleClickActivationFor(int index, bool includeEnforced) const
+{
+    if (includeEnforced && m_singleClickActivationEnforced) {
+        return true;
+    }
+    const QString mode = CommanderSettings::stringValue(QStringLiteral("OpeningItems"));
+    if (mode == QLatin1String("double")) {
+        return false;
+    }
+    if (mode == QLatin1String("all")) {
+        return true;
+    }
+    if (mode == QLatin1String("folders")) {
+        return m_model && index >= 0 && index < m_model->count() && m_model->isDir(index);
+    }
+    return m_view->style()->styleHint(QStyle::SH_ItemView_ActivateItemOnSingleClick);
 }
 
 void KItemListController::setSingleClickActivationEnforced(bool singleClick)
@@ -795,7 +814,7 @@ bool KItemListController::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event,
         return false;
     }
 
-    if (m_view->style()->styleHint(QStyle::SH_ItemView_ActivateItemOnSingleClick) || m_singleClickActivationEnforced) {
+    if (singleClickActivationFor(index.value_or(-1))) {
         return false;
     }
 
@@ -1732,7 +1751,7 @@ bool KItemListController::onPress(const QPointF &pos, const Qt::KeyboardModifier
                                                                                       // simplify the overall logic and possibilities both for users and devs.
     const bool leftClick = buttons & Qt::LeftButton;
     const bool rightClick = buttons & Qt::RightButton;
-    const bool singleClickActivation = m_view->style()->styleHint(QStyle::SH_ItemView_ActivateItemOnSingleClick);
+    const bool singleClickActivation = singleClickActivationFor(m_pressedIndex.value_or(-1), false);
 
     // The previous selection is cleared if either
     // 1. The selection mode is SingleSelection, or
@@ -1948,7 +1967,7 @@ bool KItemListController::onRelease(const QPointF &pos, const Qt::KeyboardModifi
                 // we are in single selection mode
                 emitItemActivated = false;
             } else {
-                const bool singleClickActivation = m_view->style()->styleHint(QStyle::SH_ItemView_ActivateItemOnSingleClick) || m_singleClickActivationEnforced;
+                const bool singleClickActivation = singleClickActivationFor(index.value());
                 if (!singleClickActivation) {
                     emitItemActivated = touch && !m_selectionMode;
                 } else {

@@ -7,6 +7,8 @@
 
 #include "viewproperties.h"
 
+#include "commandersettings.h"
+
 #include "dolphin_directoryviewpropertysettings.h"
 #include "dolphin_generalsettings.h"
 #include "dolphindebug.h"
@@ -437,6 +439,11 @@ ViewProperties::ViewProperties(const QUrl &url)
     if (useDefaultSettings) {
         applyOwnDefaultStyle();
 
+        // OneCommander's settings for the view and the sorting of folders that have nothing saved yet.
+        if (!m_hasStoredProperties && m_ownDefaultStyle == OwnDefaultStyle::None) {
+            applyCommanderDefaults();
+        }
+
         if (m_hasOwnDefaultStyle && !m_hasStoredProperties) {
             // Holding nothing written down is what asks for this style, so there is nothing to save.
             m_changedProps = false;
@@ -462,6 +469,49 @@ ViewProperties::ViewProperties(const QUrl &url)
         }
 
         m_node->setVersion(CurrentViewPropertiesVersion);
+    }
+}
+
+void ViewProperties::applyCommanderDefaults()
+{
+    const QString sortBy = CommanderSettings::stringValue(QStringLiteral("SortItemsBy"));
+    if (!sortBy.isEmpty()) {
+        static const QHash<QString, QString> roles = {{QStringLiteral("name"), QStringLiteral("text")},
+                                                      {QStringLiteral("type"), QStringLiteral("type")},
+                                                      {QStringLiteral("size"), QStringLiteral("size")},
+                                                      {QStringLiteral("modified"), QStringLiteral("modificationtime")},
+                                                      {QStringLiteral("created"), QStringLiteral("creationtime")}};
+        if (roles.contains(sortBy)) {
+            m_node->setSortRole(roles.value(sortBy));
+        }
+    }
+    const QString direction = CommanderSettings::stringValue(QStringLiteral("SortDirection"));
+    if (!direction.isEmpty()) {
+        m_node->setSortOrder(direction == QLatin1String("descending") ? Qt::DescendingOrder : Qt::AscendingOrder);
+    }
+    if (CommanderSettings::has(QStringLiteral("SortKeepFoldersOnTop"))) {
+        m_node->setSortFoldersFirst(CommanderSettings::boolValue(QStringLiteral("SortKeepFoldersOnTop"), true));
+    }
+    const QString mode = CommanderSettings::stringValue(QStringLiteral("FilesViewDefault"));
+    if (mode == QLatin1String("details")) {
+        m_node->setViewMode(DolphinView::DetailsView);
+    } else if (mode == QLatin1String("compact")) {
+        m_node->setViewMode(DolphinView::CompactView);
+    } else if (mode == QLatin1String("icons")) {
+        m_node->setViewMode(DolphinView::IconsView);
+    }
+
+    // OneCommander's "Inherit files view": a folder with nothing saved takes the view and sorting of the nearest parent that has.
+    if (CommanderSettings::boolValue(QStringLiteral("InheritFilesView"), false) && m_url.isLocalFile()) {
+        QDir dir(m_url.toLocalFile());
+        while (dir.cdUp()) {
+            ViewProperties parent(QUrl::fromLocalFile(dir.path()));
+            parent.setAutoSaveEnabled(false);
+            if (parent.m_hasStoredProperties) {
+                setDirProperties(parent);
+                break;
+            }
+        }
     }
 }
 
@@ -703,7 +753,8 @@ QList<QByteArray> ViewProperties::visibleRoles() const
         && (m_node->viewMode() == DolphinView::DetailsView) && !visibleRoles.contains(CustomizedDetailsString);
     if (useDefaultValues) {
         roles.append("size");
-        roles.append("modificationtime");
+        // OneCommander's "Date shown in list of files".
+        roles.append(CommanderSettings::stringValue(QStringLiteral("DateShown")) == QLatin1String("created") ? "creationtime" : "modificationtime");
     }
 
     return roles;
