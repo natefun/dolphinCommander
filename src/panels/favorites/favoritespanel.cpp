@@ -4,6 +4,8 @@
 
 #include "favoritespanel.h"
 
+#include "commandersettings.h"
+
 #include <KConfigGroup>
 #include <KIO/CopyJob>
 #include <KLocalizedString>
@@ -253,7 +255,8 @@ void FavoritesPanel::addHistory(const QUrl &url)
     }
     populate(item, {url});
     item->insertChild(0, item->takeChild(item->childCount() - 1));
-    while (item->childCount() > HistoryLimit) {
+    const int limit = qMax(1, CommanderSettings::intValue(QStringLiteral("HistoryMaxItems"), HistoryLimit));
+    while (item->childCount() > limit) {
         delete item->takeChild(item->childCount() - 1);
     }
     save();

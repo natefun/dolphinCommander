@@ -6,6 +6,8 @@
 
 #include "kfileitemmodelrolesupdater.h"
 
+#include "commandersettings.h"
+
 #include "dolphindebug.h"
 #include "kfileitemmodel.h"
 #include "private/kdirectorycontentscounter.h"
@@ -1029,8 +1031,24 @@ void KFileItemModelRolesUpdater::startPreviewJob()
         return;
     }
 
-    const KFileItemList items = m_pendingPreviewItems;
+    KFileItemList items = m_pendingPreviewItems;
     m_pendingPreviewItems.clear();
+
+    // OneCommander's "File extensions to exclude thumbnails": those files keep their icon.
+    const QStringList excluded =
+        CommanderSettings::stringValue(QStringLiteral("ThumbnailExcludedExtensions")).toLower().split(QLatin1Char(','), Qt::SkipEmptyParts);
+    if (!excluded.isEmpty()) {
+        items.erase(std::remove_if(items.begin(),
+                                   items.end(),
+                                   [&excluded](const KFileItem &item) {
+                                       return excluded.contains(QFileInfo(item.name()).suffix().toLower().trimmed());
+                                   }),
+                    items.end());
+        if (items.isEmpty()) {
+            QTimer::singleShot(0, this, &KFileItemModelRolesUpdater::slotPreviewJobFinished);
+            return;
+        }
+    }
 
     KIO::PreviewJob *job = new KIO::PreviewJob(items, cacheSize(), &m_enabledPlugins);
     job->setDevicePixelRatio(m_devicePixelRatio);

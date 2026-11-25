@@ -7,6 +7,7 @@
  * Dolphin that breaks one of these features fails here. Dolphin's own tests test Dolphin.
  */
 
+#include "commandersettings.h"
 #include "commandertools.h"
 #include "dolphin_generalsettings.h"
 #include "dolphinmainwindow.h"
@@ -25,6 +26,7 @@
 #include "panels/places/drivescard.h"
 #include "panels/places/foldercard.h"
 #include "panels/places/placespanel.h"
+#include "settings/commandersettingsdialog.h"
 #include "testdir.h"
 #include "views/columnsstrip.h"
 #include "views/dolphincolumnsview.h"
@@ -92,6 +94,8 @@ private Q_SLOTS:
     void testTheDrivesCardListsTheDrives();
     void testTheFolderCardListsTheLastFolders();
     void testTheNetworkCardOpensTheNetwork();
+    void testTheSettingsWindowHasOneCommandersTabsAndSettings();
+    void testSettingsChangeWhatTheProgramDoes();
     void testTheHeaderHasAMenuButton();
     void testDetailsIsTheDefaultViewMode();
     void testTheHeaderSwitchesToColumnsAndBack();
@@ -292,6 +296,90 @@ void DolphinCommanderFeaturesTest::testTheNetworkCardOpensTheNetwork()
     card.setTitleClickable(false);
     QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, QPoint(30, 20));
     QCOMPARE(spy.count(), 1);
+}
+
+void DolphinCommanderFeaturesTest::testTheSettingsWindowHasOneCommandersTabsAndSettings()
+{
+    // The tabs are OneCommander's, in its order.
+    QCOMPARE(CommanderSettingsDialog::tabs(),
+             QStringList({QStringLiteral("General"),
+                          QStringLiteral("View"),
+                          QStringLiteral("Columns"),
+                          QStringLiteral("Preview"),
+                          QStringLiteral("Theme"),
+                          QStringLiteral("Window"),
+                          QStringLiteral("Advanced"),
+                          QStringLiteral("Other")}));
+    QSet<QString> keys;
+    for (const CommanderSettingsDialog::Setting &setting : CommanderSettingsDialog::settings()) {
+        QVERIFY2(CommanderSettingsDialog::tabs().contains(setting.tab), qPrintable(setting.key));
+        QVERIFY2(!keys.contains(setting.key), qPrintable(QStringLiteral("twice: ") + setting.key));
+        keys.insert(setting.key);
+        if (setting.kind == CommanderSettingsDialog::Kind::Choice) {
+            bool found = false;
+            for (const auto &choice : setting.choices) {
+                found = found || choice.value == setting.defaultValue.toString();
+            }
+            QVERIFY2(found, qPrintable(setting.key));
+        }
+    }
+    QVERIFY(keys.size() > 150);
+
+    // Every setting is in the window, and a change is saved and announced at once.
+    CommanderSettingsDialog dialog;
+    for (const QString &key : std::as_const(keys)) {
+        QVERIFY2(dialog.findChild<QWidget *>(QStringLiteral("setting-") + key), qPrintable(key));
+    }
+    QSignalSpy spy(CommanderSettings::notifier(), &CommanderSettings::Notifier::changed);
+    auto *box = dialog.findChild<QCheckBox *>(QStringLiteral("setting-UseDoubleClickToOpenParent"));
+    QVERIFY(box);
+    const bool before = box->isChecked();
+    box->setChecked(!before);
+    QCOMPARE(CommanderSettings::boolValue(QStringLiteral("UseDoubleClickToOpenParent"), true), !before);
+    QCOMPARE(spy.count(), 1);
+    // Settings for Windows are shown and cannot be changed.
+    QVERIFY(!dialog.findChild<QWidget *>(QStringLiteral("setting-UseMicaWindow"))->isEnabled());
+    // "Restore to default" puts it back.
+    dialog.findChild<QPushButton *>(QStringLiteral("setting-RestoreDefault"))->click();
+    QVERIFY(box->isChecked());
+    QVERIFY(CommanderSettings::boolValue(QStringLiteral("UseDoubleClickToOpenParent"), true));
+}
+
+void DolphinCommanderFeaturesTest::testSettingsChangeWhatTheProgramDoes()
+{
+    // The double-click threshold is the one the setting says.
+    const int interval = QApplication::doubleClickInterval();
+    CommanderSettings::setValue(QStringLiteral("MouseDebounceTime"), 555);
+    DolphinMainWindow window; // reads it at start and listens to changes
+    CommanderSettings::setValue(QStringLiteral("MouseDebounceTime"), 600);
+    QCOMPARE(QApplication::doubleClickInterval(), 600);
+    CommanderSettings::remove(QStringLiteral("MouseDebounceTime"));
+    QApplication::setDoubleClickInterval(interval);
+
+    // The sidebar cards are shown or hidden.
+    auto *network = window.findChild<QWidget *>(QStringLiteral("commanderNetworkCard"));
+    QVERIFY(network);
+    CommanderSettings::setValue(QStringLiteral("ShowNetworksInSidebar"), false);
+    QVERIFY(network->isHidden());
+    CommanderSettings::setValue(QStringLiteral("ShowNetworksInSidebar"), true);
+    QVERIFY(!network->isHidden());
+    CommanderSettings::remove(QStringLiteral("ShowNetworksInSidebar"));
+
+    // The Scripts button appears when it is asked for.
+    auto *scripts = window.findChild<QToolButton *>(QStringLiteral("scripts_menu"));
+    QVERIFY(scripts);
+    CommanderSettings::setValue(QStringLiteral("ShowScriptsButton"), true);
+    QVERIFY(!scripts->isHidden());
+    CommanderSettings::remove(QStringLiteral("ShowScriptsButton"));
+    QVERIFY(scripts->isHidden());
+
+    // A menu entry and its setting in the window are the same thing.
+    QAction *age = window.actionCollection()->action(QStringLiteral("age_stripes"));
+    QVERIFY(age);
+    const bool ageWas = age->isChecked();
+    CommanderSettings::setValue(QStringLiteral("AgeStripes"), !ageWas);
+    QCOMPARE(age->isChecked(), !ageWas);
+    CommanderSettings::setValue(QStringLiteral("AgeStripes"), ageWas);
 }
 
 void DolphinCommanderFeaturesTest::testTheHeaderHasAMenuButton()
@@ -631,7 +719,9 @@ void DolphinCommanderFeaturesTest::testTheMainToolbarHasOneCommandersButtons()
     const auto buttons = bar->findChildren<QToolButton *>();
     QStringList tips;
     for (QToolButton *button : buttons) {
-        tips << button->toolTip();
+        if (!button->isHidden()) { // the Scripts button is shown only when asked for
+            tips << button->toolTip();
+        }
     }
     QCOMPARE(tips,
              QStringList({QStringLiteral("Program settings"),
@@ -2996,6 +3086,18 @@ void DolphinCommanderFeaturesTest::testTakeScreenshots()
     designer.show();
     QTest::qWait(300); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
     QVERIFY(designer.grab().save(outDir + QStringLiteral("/designer.png")));
+
+    {
+        CommanderSettingsDialog settingsDialog;
+        settingsDialog.show();
+        QTest::qWait(300); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
+        auto *tabs = settingsDialog.findChild<QTabWidget *>();
+        for (int i = 0; tabs && i < tabs->count(); ++i) {
+            tabs->setCurrentIndex(i);
+            QTest::qWait(150); // UNAVOIDABLE: the screenshots are taken of what is painted; no signal says that painting is done
+            QVERIFY(settingsDialog.grab().save(outDir + QStringLiteral("/settings-%1.png").arg(tabs->tabText(i))));
+        }
+    }
 
     QImage picture(600, 300, QImage::Format_RGB32);
     picture.fill(QColor(30, 120, 200));

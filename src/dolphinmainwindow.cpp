@@ -14,6 +14,7 @@
 #include "sidessplitter.h"
 
 #include "admin/workerintegration.h"
+#include "commandersettings.h"
 #include "commandertools.h"
 #include "dolphin_generalsettings.h"
 #include "dolphinbookmarkhandler.h"
@@ -38,6 +39,7 @@
 #include "panels/terminal/terminalpanel.h"
 #include "search/dolphinquery.h"
 #include "selectionmode/actiontexthelper.h"
+#include "settings/commandersettingsdialog.h"
 #include "views/columnsstrip.h"
 #include "views/viewheader.h"
 #include "views/zoomlevelinfo.h"
@@ -459,7 +461,7 @@ DolphinMainWindow::DolphinMainWindow()
         mainBarLayout->addWidget(button);
         return button;
     };
-    addMainButton(QStringLiteral("configure"), i18nc("@info:tooltip", "Program settings"), KStandardAction::name(KStandardAction::Preferences));
+    addMainButton(QStringLiteral("configure"), i18nc("@info:tooltip", "Program settings"), QStringLiteral("commander_settings"));
     addMainButton(QStringLiteral("help-about"), i18nc("@info:tooltip", "About/Help"), KStandardAction::name(KStandardAction::AboutApp));
     addMainButton(QStringLiteral("view-split-left-right"),
                   i18nc("@info:tooltip", "Switch between Standard and Columns layouts"),
@@ -482,6 +484,19 @@ DolphinMainWindow::DolphinMainWindow()
         }
         menu.exec(newWindow->mapToGlobal(QPoint(0, newWindow->height())));
     });
+    // OneCommander's Scripts button: only when "Show Scripts button" is on.
+    auto *scriptsButton = new QToolButton(mainBar);
+    scriptsButton->setObjectName(QStringLiteral("scripts_menu"));
+    scriptsButton->setAutoRaise(true);
+    scriptsButton->setFocusPolicy(Qt::NoFocus);
+    scriptsButton->setIcon(QIcon::fromTheme(QStringLiteral("text-x-script")));
+    scriptsButton->setToolTip(i18nc("@info:tooltip", "Scripts"));
+    scriptsButton->setPopupMode(QToolButton::InstantPopup);
+    if (auto *scriptsAction = qobject_cast<KActionMenu *>(actionCollection()->action(QStringLiteral("scripts_menu")))) {
+        scriptsButton->setMenu(scriptsAction->menu());
+    }
+    scriptsButton->setVisible(CommanderSettings::boolValue(QStringLiteral("ShowScriptsButton"), false));
+    mainBarLayout->addWidget(scriptsButton);
     mainBarLayout->addStretch();
     if (auto *placesBox = qobject_cast<QBoxLayout *>(m_placesDock->widget()->layout())) {
         placesBox->insertWidget(qMax(placesBox->count() - 1, 0), mainBar);
@@ -513,6 +528,11 @@ DolphinMainWindow::DolphinMainWindow()
 
 DolphinMainWindow::~DolphinMainWindow()
 {
+    // OneCommander's "Clear History on close".
+    if (m_favoritesPanel && CommanderSettings::boolValue(QStringLiteral("ClearHistoryOnClose"), false)) {
+        m_favoritesPanel->clearHistory();
+    }
+
     // This fixes a crash on Wayland when closing the mainwindow while another dialog is open.
     disconnect(QGuiApplication::clipboard(), &QClipboard::dataChanged, this, &DolphinMainWindow::updatePasteAction);
 
@@ -1976,6 +1996,114 @@ void DolphinMainWindow::editSettings()
     }
 }
 
+void DolphinMainWindow::openCommanderSettings()
+{
+    if (m_commanderSettingsDialog) {
+        m_commanderSettingsDialog->raise();
+        m_commanderSettingsDialog->activateWindow();
+        return;
+    }
+    // Settings that the menus keep elsewhere show what they are now.
+    if (QAction *hidden = actionCollection()->action(QStringLiteral("show_hidden_files"))) {
+        CommanderSettings::setValue(QStringLiteral("ShowHidden"), hidden->isChecked());
+    }
+    auto *dialog = new CommanderSettingsDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->show();
+    m_commanderSettingsDialog = dialog;
+}
+
+void DolphinMainWindow::applyCommanderSetting(const QString &key)
+{
+    auto setAction = [this](const QString &name, bool on) {
+        if (QAction *action = actionCollection()->action(name)) {
+            action->setChecked(on);
+        }
+    };
+    const bool on = CommanderSettings::boolValue(key);
+    if (key.startsWith(QLatin1String("button:"))) {
+        const QString button = key.mid(7);
+        if (button == QLatin1String("ShortcutEditor")) {
+            if (QAction *editor = actionCollection()->action(KStandardAction::name(KStandardAction::KeyBindings))) {
+                editor->trigger();
+            }
+        } else if (button == QLatin1String("DefaultFileManagerRegister")) {
+            if (QAction *action = actionCollection()->action(QStringLiteral("make_default_file_manager"))) {
+                action->trigger();
+            }
+        } else if (button == QLatin1String("OpenSettingsFolder")) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)));
+        } else if (button == QLatin1String("CreateDefaultSidebarFolders")) {
+            const QString groupName = qEnvironmentVariable("USER", QStringLiteral("Home"));
+            const QList<QStandardPaths::StandardLocation> folders = {QStandardPaths::HomeLocation,
+                                                                     QStandardPaths::DesktopLocation,
+                                                                     QStandardPaths::DocumentsLocation,
+                                                                     QStandardPaths::DownloadLocation,
+                                                                     QStandardPaths::PicturesLocation,
+                                                                     QStandardPaths::MusicLocation,
+                                                                     QStandardPaths::MoviesLocation};
+            for (QStandardPaths::StandardLocation folder : folders) {
+                const QString path = QStandardPaths::writableLocation(folder);
+                if (QFileInfo(path).isDir()) {
+                    m_favoritesPanel->addFavorite(QUrl::fromLocalFile(path), groupName);
+                }
+            }
+        }
+    } else if (key == QLatin1String("MouseDebounceTime")) {
+        QApplication::setDoubleClickInterval(CommanderSettings::intValue(key, 400));
+    } else if (key == QLatin1String("ScrollingBehavior")) {
+        setAction(QStringLiteral("item_scrolling"), CommanderSettings::stringValue(key) == QLatin1String("item"));
+    } else if (key == QLatin1String("KeepRunningWhenClosed")) {
+        setAction(QStringLiteral("keep_running_when_closed"), on);
+    } else if (key == QLatin1String("Autostart")) {
+        const QString file =
+            QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/autostart/org.kde.dolphincommander.desktop");
+        if (on) {
+            QDir().mkpath(QFileInfo(file).absolutePath());
+            QFile desktop(file);
+            if (desktop.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                desktop.write("[Desktop Entry]\nType=Application\nName=dolphinCommander\nExec=dolphincommander\nIcon=system-file-manager\n");
+            }
+        } else {
+            QFile::remove(file);
+        }
+    } else if (key == QLatin1String("ClearHistoryOnClose") || key == QLatin1String("HistoryMaxItems")) {
+        // Read when the history is changed and when the window closes.
+    } else if (key == QLatin1String("ShowDrivesCard")) {
+        setAction(QStringLiteral("show_drives_card"), on);
+    } else if (key == QLatin1String("ShowNetworksInSidebar")) {
+        if (auto *card = findChild<QWidget *>(QStringLiteral("commanderNetworkCard"))) {
+            card->setVisible(CommanderSettings::boolValue(key, true));
+        }
+    } else if (key == QLatin1String("ShowHistoryInSidebar")) {
+        if (auto *card = findChild<FolderCard *>(QStringLiteral("commanderHistoryCard"))) {
+            card->setVisible(CommanderSettings::boolValue(key, true) && !card->urls().isEmpty());
+        }
+    } else if (key == QLatin1String("ShowScriptsButton")) {
+        if (auto *scripts = findChild<QWidget *>(QStringLiteral("scripts_menu"))) {
+            scripts->setVisible(on);
+        }
+    } else if (key == QLatin1String("Layout")) {
+        setCommanderLayout(static_cast<CommanderLayout>(qBound(0, CommanderSettings::intValue(key, 0), 2)));
+    } else if (key == QLatin1String("ColorTheme") || key == QLatin1String("FontFamily") || key == QLatin1String("FontPointSize")) {
+        reloadTheme();
+    } else if (key == QLatin1String("OptUseThinScrollbar")) {
+        setAction(QStringLiteral("thin_scrollbars"), on);
+    } else if (key == QLatin1String("AgeStripes")) {
+        setAction(QStringLiteral("age_stripes"), on);
+    } else if (key == QLatin1String("ColoredBadges")) {
+        setAction(QStringLiteral("colored_badges"), on);
+    } else if (key == QLatin1String("FoldersSortedByName")) {
+        setAction(QStringLiteral("folders_sorted_by_name"), on);
+    } else if (key == QLatin1String("AutoThumbsDetails")) {
+        setAction(QStringLiteral("auto_thumbs_details"), on);
+    } else if (key == QLatin1String("ShowHidden")) {
+        setAction(QStringLiteral("show_hidden_files"), on);
+    } else if (key == QLatin1String("QuickViewSmoothChoice")) {
+        CommanderSettings::setValue(QStringLiteral("QuickViewSmooth"), CommanderSettings::stringValue(key) != QLatin1String("pixelated"));
+    }
+}
+
 void DolphinMainWindow::handleUrl(const QUrl &url)
 {
     delete m_lastHandleUrlOpenJob;
@@ -2963,6 +3091,10 @@ void DolphinMainWindow::applyTextAndIcons(int fontPointSize, const QString &icon
     static const QFont systemFont = QApplication::font();
     const QString systemIconTheme = iconThemeForColors(QApplication::palette().color(QPalette::Base).lightnessF() < 0.5);
     QFont font = systemFont;
+    const QString family = CommanderSettings::stringValue(QStringLiteral("FontFamily"));
+    if (!family.isEmpty()) {
+        font.setFamily(family);
+    }
     if (fontPointSize > 0) {
         font.setPointSize(fontPointSize);
     }
@@ -4077,6 +4209,9 @@ void DolphinMainWindow::setupActions()
 
     // Ctrl+V with text or a picture on the clipboard makes a file of it, as OneCommander does.
     DolphinView::setPasteNonFilesHandler([]() {
+        if (!CommanderSettings::boolValue(QStringLiteral("PasteClipboardTextAsFile"), true)) {
+            return;
+        }
         if (auto *window = qobject_cast<DolphinMainWindow *>(QApplication::activeWindow())) {
             window->pasteClipboardAsFile();
         }
@@ -4518,6 +4653,16 @@ void DolphinMainWindow::setupActions()
                                                    : i18nc("@info", "The default file manager could not be set (xdg-mime is needed)."),
                                            started ? KMessageWidget::Positive : KMessageWidget::Error);
     });
+
+    // The settings window with OneCommander's tabs; Dolphin's own settings stay in "Configure Dolphin".
+    QAction *commanderSettings = actionCollection()->addAction(QStringLiteral("commander_settings"));
+    commanderSettings->setText(i18nc("@action:inmenu", "Settings…"));
+    commanderSettings->setToolTip(i18nc("@info:tooltip", "Program settings"));
+    commanderSettings->setIcon(QIcon::fromTheme(QStringLiteral("configure")));
+    actionCollection()->setDefaultShortcut(commanderSettings, Qt::CTRL | Qt::Key_Comma);
+    connect(commanderSettings, &QAction::triggered, this, &DolphinMainWindow::openCommanderSettings);
+    connect(CommanderSettings::notifier(), &CommanderSettings::Notifier::changed, this, &DolphinMainWindow::applyCommanderSetting);
+    QApplication::setDoubleClickInterval(CommanderSettings::intValue(QStringLiteral("MouseDebounceTime"), QApplication::doubleClickInterval()));
 
     // OneCommander's "Browse phone" and "Scan network".
     QAction *browsePhone = actionCollection()->addAction(QStringLiteral("browse_phone"));
@@ -6052,6 +6197,10 @@ void DolphinMainWindow::slotDoubleClickViewBackground(Qt::MouseButton button)
 {
     if (button != Qt::MouseButton::LeftButton) {
         // only handle left mouse button for now
+        return;
+    }
+
+    if (!CommanderSettings::boolValue(QStringLiteral("UseDoubleClickToOpenParent"), true)) {
         return;
     }
 

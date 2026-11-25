@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="69">
+<gui name="dolphin" version="70">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
@@ -170,6 +170,7 @@
             <Action name="keep_running_when_closed" />
         </Menu>
         <Menu name="settings">
+            <Action name="commander_settings" />
         </Menu>
     </MenuBar>
     <State name="new_file" >
