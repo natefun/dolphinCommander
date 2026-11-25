@@ -216,7 +216,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              i18nc("@label", "On start:"),
              {{QStringLiteral("restore"), i18nc("@item:inlistbox", "Restore last used tabs")},
               {QStringLiteral("path"), i18nc("@item:inlistbox", "Create a single tab and open path:")}},
-             not_yet);
+             live);
         text(general, tabsHeader, QStringLiteral("OnStartOpenPath"), i18nc("@label", "Path to open on start:"), QString(), not_yet);
         pick(general,
              tabsHeader,
@@ -230,7 +230,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("NewTabPlacement"),
              i18nc("@label", "Middle-click on a folder opens a new tab:"),
              {{QStringLiteral("after"), i18nc("@item:inlistbox", "After current")}, {QStringLiteral("end"), i18nc("@item:inlistbox", "At the end")}},
-             not_yet);
+             live);
         flag(general,
              tabsHeader,
              QStringLiteral("SwitchToNewTab"),
@@ -251,7 +251,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              i18nc("@label", "Tabs and favorites should show:"),
              {{QStringLiteral("name"), i18nc("@item:inlistbox", "Folder only (Foldername)")},
               {QStringLiteral("full"), i18nc("@item:inlistbox", "Full path (/home/.../Foldername)")}},
-             not_yet);
+             live);
 
         const QString historyHeader = i18nc("@title:group", "History");
         number(general, historyHeader, QStringLiteral("HistoryMaxItems"), i18nc("@label", "Max number of paths saved"), 20, 1, 200, QString(), live);
@@ -672,9 +672,9 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              previewWindow,
              QStringLiteral("QuickViewImageScale"),
              i18nc("@label", "Display small images"),
-             {{QStringLiteral("fit"), i18nc("@item:inlistbox", "Scaled to fit preview pane")},
-              {QStringLiteral("original"), i18nc("@item:inlistbox", "Original size")}},
-             not_yet);
+             {{QStringLiteral("original"), i18nc("@item:inlistbox", "Original size")},
+              {QStringLiteral("fit"), i18nc("@item:inlistbox", "Scaled to fit preview pane")}},
+             live);
         pick(preview,
              previewWindow,
              QStringLiteral("QuickViewSmoothChoice"),
@@ -690,7 +690,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
                1,
                10000,
                QStringLiteral(" K"),
-               not_yet,
+               live,
                i18nc("@info", "Number of characters (in thousands) to read from a file to show in the preview."));
         flag(preview, previewWindow, QStringLiteral("PreviewDownloadsCloudFiles"), i18nc("@option:check", "Download cloud files when previewing"), false, win);
         flag(preview, previewWindow, QStringLiteral("EnableSFP"), i18nc("@option:check", "Enable Explorer Preview (Shell File Preview)"), false, win);
@@ -698,20 +698,12 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              previewWindow,
              QStringLiteral("MediaJumpUnit"),
              i18nc("@label", "Left and Right arrow control for media playback"),
-             {{QStringLiteral("percent"), i18nc("@item:inlistbox", "Percentage of total length")},
-              {QStringLiteral("seconds"), i18nc("@item:inlistbox", "Specific number of seconds")}},
-             not_yet);
-        number(preview, previewWindow, QStringLiteral("MediaJumpPercent"), i18nc("@label", "Percent jump"), 12, 1, 50, QStringLiteral(" %"), not_yet);
-        number(preview, previewWindow, QStringLiteral("MediaJumpSecondsBack"), i18nc("@label", "Rewind seconds"), 10, 1, 600, QStringLiteral(" s"), not_yet);
-        number(preview,
-               previewWindow,
-               QStringLiteral("MediaJumpSecondsForward"),
-               i18nc("@label", "Forward seconds"),
-               10,
-               1,
-               600,
-               QStringLiteral(" s"),
-               not_yet);
+             {{QStringLiteral("seconds"), i18nc("@item:inlistbox", "Specific number of seconds")},
+              {QStringLiteral("percent"), i18nc("@item:inlistbox", "Percentage of total length")}},
+             live);
+        number(preview, previewWindow, QStringLiteral("MediaJumpPercent"), i18nc("@label", "Percent jump"), 12, 1, 50, QStringLiteral(" %"), live);
+        number(preview, previewWindow, QStringLiteral("MediaJumpSecondsBack"), i18nc("@label", "Rewind seconds"), 5, 1, 600, QStringLiteral(" s"), live);
+        number(preview, previewWindow, QStringLiteral("MediaJumpSecondsForward"), i18nc("@label", "Forward seconds"), 10, 1, 600, QStringLiteral(" s"), live);
         const QString paneHeader = i18nc("@title:group", "Preview pane");
         pick(preview,
              paneHeader,
@@ -720,7 +712,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              {{QStringLiteral("osm"), QStringLiteral("OpenStreetMap")},
               {QStringLiteral("google"), i18nc("@item:inlistbox", "Google Maps")},
               {QStringLiteral("bing"), i18nc("@item:inlistbox", "Bing Maps")}},
-             not_yet);
+             live);
 
         // ---- Theme ----
         const QString themeHeader = i18nc("@title:group", "Theme");
@@ -880,7 +872,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("NotificationLevel"),
              i18nc("@label", "Notification level"),
              {{QStringLiteral("all"), i18nc("@item:inlistbox", "All")}, {QStringLiteral("errors"), i18nc("@item:inlistbox", "Errors only")}},
-             not_yet);
+             live);
         flag(advanced,
              advancedHeader,
              QStringLiteral("ShowScriptRunConfirmationDialog"),

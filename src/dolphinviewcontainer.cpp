@@ -5,6 +5,8 @@
  */
 
 #include "dolphinviewcontainer.h"
+
+#include "commandersettings.h"
 #include "views/columnsstrip.h"
 #include "views/itemdetailspane.h"
 #include "views/viewheader.h"
@@ -709,11 +711,14 @@ void DolphinViewContainer::showMessage(const QString &message, KMessageWidget::M
     if (message.isEmpty()) {
         return;
     }
-    const QString stamped = QTime::currentTime().toString(Qt::TextDate) + QLatin1String("  ") + message;
-    messageHistory().prepend(stamped);
-    Q_EMIT messageNotifier()->messageShown(stamped);
-    while (messageHistory().size() > 50) {
-        messageHistory().removeLast();
+    // OneCommander's "Notification level: all / errors only" decides what goes to the list of notifications.
+    if (CommanderSettings::stringValue(QStringLiteral("NotificationLevel")) != QLatin1String("errors") || messageType == KMessageWidget::Error) {
+        const QString stamped = QTime::currentTime().toString(Qt::TextDate) + QLatin1String("  ") + message;
+        messageHistory().prepend(stamped);
+        Q_EMIT messageNotifier()->messageShown(stamped);
+        while (messageHistory().size() > 50) {
+            messageHistory().removeLast();
+        }
     }
 
     m_messageWidget->setText(message);

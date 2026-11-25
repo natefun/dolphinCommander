@@ -373,6 +373,30 @@ void DolphinCommanderFeaturesTest::testSettingsChangeWhatTheProgramDoes()
     CommanderSettings::remove(QStringLiteral("ShowScriptsButton"));
     QVERIFY(scripts->isHidden());
 
+    // Tabs show the full path when asked to.
+    window.openDirectories(QList<QUrl>{QUrl::fromLocalFile(QDir::tempPath())}, false);
+    QTRY_VERIFY_WITH_TIMEOUT(window.activeViewContainer(), 5000);
+    DolphinTabWidget *tabsWithATab = nullptr;
+    const auto tabWidgets = window.findChildren<DolphinTabWidget *>();
+    for (DolphinTabWidget *tabs : tabWidgets) {
+        tabsWithATab = tabsWithATab ? tabsWithATab : (tabs->count() > 0 ? tabs : nullptr);
+    }
+    QVERIFY(tabsWithATab);
+    CommanderSettings::setValue(QStringLiteral("TabsShow"), QStringLiteral("full"));
+    QVERIFY2(tabsWithATab->tabText(0).startsWith(QLatin1Char('/')), qPrintable(tabsWithATab->tabText(0)));
+    CommanderSettings::remove(QStringLiteral("TabsShow"));
+
+    // "Notification level: errors only" keeps the other messages out of the list of notifications.
+    DolphinViewContainer *container = window.activeViewContainer();
+    QVERIFY(container);
+    CommanderSettings::setValue(QStringLiteral("NotificationLevel"), QStringLiteral("errors"));
+    const int notes = int(DolphinViewContainer::recentMessages().size());
+    container->showMessage(QStringLiteral("just so you know"), KMessageWidget::Information);
+    QCOMPARE(int(DolphinViewContainer::recentMessages().size()), notes);
+    container->showMessage(QStringLiteral("it broke"), KMessageWidget::Error);
+    QCOMPARE(int(DolphinViewContainer::recentMessages().size()), notes + 1);
+    CommanderSettings::remove(QStringLiteral("NotificationLevel"));
+
     // A menu entry and its setting in the window are the same thing.
     QAction *age = window.actionCollection()->action(QStringLiteral("age_stripes"));
     QVERIFY(age);

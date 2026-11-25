@@ -4,6 +4,8 @@
 
 #include "commandertools.h"
 
+#include "commandersettings.h"
+
 #include "kitemviews/kfileitemmodel.h"
 #include "views/filepreviewwidget.h"
 
@@ -254,6 +256,14 @@ QUrl CommanderTools::mapUrl(const QPointF &location)
 {
     const QString lat = QString::number(location.y(), 'f', 6);
     const QString lon = QString::number(location.x(), 'f', 6);
+    // OneCommander's "Photo location button opens web browser with:".
+    const QString provider = CommanderSettings::stringValue(QStringLiteral("PhotoLocation"), QStringLiteral("osm"));
+    if (provider == QLatin1String("google")) {
+        return QUrl(QStringLiteral("https://www.google.com/maps?q=%1,%2").arg(lat, lon));
+    }
+    if (provider == QLatin1String("bing")) {
+        return QUrl(QStringLiteral("https://www.bing.com/maps?cp=%1~%2&lvl=16").arg(lat, lon));
+    }
     return QUrl(QStringLiteral("https://www.openstreetmap.org/?mlat=%1&mlon=%2#map=16/%1/%2").arg(lat, lon));
 }
 
@@ -1045,7 +1055,18 @@ void QuickViewDialog::keyPressEvent(QKeyEvent *event)
 {
     // Video and sound: Space plays and pauses, Left and Right seek (Shift: an eighth of the length, as OneCommander), [ and ] step by frames.
     if (m_player->duration() > 0) {
-        const qint64 jump = (event->modifiers() & Qt::ShiftModifier) ? qMax<qint64>(1000, m_player->duration() / 8) : 5000;
+        qint64 jump = (event->modifiers() & Qt::ShiftModifier) ? qMax<qint64>(1000, m_player->duration() / 8) : 5000;
+        if (!(event->modifiers() & Qt::ShiftModifier)) {
+            // OneCommander's "Left and Right arrow control for media playback": a share of the length, or a number of seconds.
+            if (CommanderSettings::stringValue(QStringLiteral("MediaJumpUnit"), QStringLiteral("seconds")) == QLatin1String("percent")) {
+                jump = qMax<qint64>(1000, m_player->duration() * qBound(1, CommanderSettings::intValue(QStringLiteral("MediaJumpPercent"), 12), 50) / 100);
+            } else {
+                const bool back = event->key() == Qt::Key_Left;
+                jump =
+                    qint64(qMax(1, CommanderSettings::intValue(back ? QStringLiteral("MediaJumpSecondsBack") : QStringLiteral("MediaJumpSecondsForward"), 5)))
+                    * 1000;
+            }
+        }
         switch (event->key()) {
         case Qt::Key_Space:
             togglePlayback();

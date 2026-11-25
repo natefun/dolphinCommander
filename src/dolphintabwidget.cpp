@@ -6,6 +6,8 @@
 
 #include "dolphintabwidget.h"
 
+#include "commandersettings.h"
+
 #include "dolphin_generalsettings.h"
 #include "dolphintabbar.h"
 #include "dolphinviewcontainer.h"
@@ -253,6 +255,11 @@ DolphinTabPage *DolphinTabWidget::openNewTab(const QUrl &primaryUrl, const QUrl 
     tabPage->setActive(false);
     connectTabPage(tabPage);
 
+    // OneCommander's "Middle-click on a folder opens a new tab: after current / at the end".
+    const QString placement = CommanderSettings::stringValue(QStringLiteral("NewTabPlacement"));
+    if (position == NewTabPosition::FollowSetting && !placement.isEmpty()) {
+        position = placement == QLatin1String("end") ? NewTabPosition::AtEnd : NewTabPosition::AfterCurrent;
+    }
     if (position == NewTabPosition::FollowSetting) {
         if (GeneralSettings::openNewTabAfterLastTab()) {
             position = NewTabPosition::AtEnd;
@@ -695,6 +702,10 @@ QString DolphinTabWidget::tabName(DolphinTabPage *tabPage) const
         }
     } else {
         name = tabPage->activeViewContainer()->caption();
+        // OneCommander's "Tabs and favorites should show: folder only / full path".
+        if (CommanderSettings::stringValue(QStringLiteral("TabsShow")) == QLatin1String("full")) {
+            name = tabPage->activeViewContainer()->url().toDisplayString(QUrl::PreferLocalFile | QUrl::StripTrailingSlash);
+        }
     }
     // clang-format on
 
@@ -788,6 +799,13 @@ const std::optional<const DolphinTabWidget::ViewIndex> DolphinTabWidget::viewSho
     } while (i != currentIndex());
 
     return std::nullopt;
+}
+
+void DolphinTabWidget::refreshTabNames()
+{
+    for (int i = 0; i < count(); ++i) {
+        updateTabName(i);
+    }
 }
 
 void DolphinTabWidget::openNewTabFromButton()

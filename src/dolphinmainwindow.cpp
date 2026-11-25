@@ -2007,6 +2007,7 @@ void DolphinMainWindow::openCommanderSettings()
     if (QAction *hidden = actionCollection()->action(QStringLiteral("show_hidden_files"))) {
         CommanderSettings::setValue(QStringLiteral("ShowHidden"), hidden->isChecked());
     }
+    CommanderSettings::setValue(QStringLiteral("OnStart"), GeneralSettings::rememberOpenedTabs() ? QStringLiteral("restore") : QStringLiteral("path"));
     auto *dialog = new CommanderSettingsDialog(this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->show();
@@ -2097,6 +2098,12 @@ void DolphinMainWindow::applyCommanderSetting(const QString &key)
         setAction(QStringLiteral("folders_sorted_by_name"), on);
     } else if (key == QLatin1String("AutoThumbsDetails")) {
         setAction(QStringLiteral("auto_thumbs_details"), on);
+    } else if (key == QLatin1String("TabsShow")) {
+        m_leftTabs->refreshTabNames();
+        m_rightTabs->refreshTabNames();
+    } else if (key == QLatin1String("OnStart")) {
+        GeneralSettings::setRememberOpenedTabs(CommanderSettings::stringValue(key) != QLatin1String("path"));
+        GeneralSettings::self()->save();
     } else if (key == QLatin1String("ShowHidden")) {
         setAction(QStringLiteral("show_hidden_files"), on);
     } else if (key == QLatin1String("QuickViewSmoothChoice")) {
