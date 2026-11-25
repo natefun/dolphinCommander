@@ -505,6 +505,8 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "new_tab_from_clipboard",
                                "run_with_arguments",
                                "open_link_target",
+                               "browse_phone",
+                               "scan_network",
                                "copy_to_recent",
                                "move_to_recent",
                                "show_drives_card",

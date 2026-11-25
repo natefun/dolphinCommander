@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="68">
+<gui name="dolphin" version="69">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
@@ -134,6 +134,9 @@
         <Menu name="go">
             <Action name="bookmarks" />
             <Action name="closed_tabs" />
+            <Separator/>
+            <Action name="browse_phone" />
+            <Action name="scan_network" />
         </Menu>
         <Menu name="tools">
             <Action name="open_preferred_search_tool" />

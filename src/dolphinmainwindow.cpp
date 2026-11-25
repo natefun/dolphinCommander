@@ -4504,6 +4504,22 @@ void DolphinMainWindow::setupActions()
                                            started ? KMessageWidget::Positive : KMessageWidget::Error);
     });
 
+    // OneCommander's "Browse phone" and "Scan network".
+    QAction *browsePhone = actionCollection()->addAction(QStringLiteral("browse_phone"));
+    browsePhone->setText(i18nc("@action:inmenu", "Browse Phone"));
+    browsePhone->setToolTip(i18nc("@info:tooltip", "Show the phones and players that are connected by cable (MTP)."));
+    browsePhone->setIcon(QIcon::fromTheme(QStringLiteral("phone")));
+    connect(browsePhone, &QAction::triggered, this, [this]() {
+        changeUrl(QUrl(QStringLiteral("mtp:/")));
+    });
+    QAction *scanNetwork = actionCollection()->addAction(QStringLiteral("scan_network"));
+    scanNetwork->setText(i18nc("@action:inmenu", "Scan Network"));
+    scanNetwork->setToolTip(i18nc("@info:tooltip", "Show the computers and shares on the network."));
+    scanNetwork->setIcon(QIcon::fromTheme(QStringLiteral("network-workgroup")));
+    connect(scanNetwork, &QAction::triggered, this, [this]() {
+        changeUrl(QUrl(QStringLiteral("remote:/")));
+    });
+
     // OneCommander's "Show drives in sidebar" / "Hide drives from sidebar".
     QAction *showDrives = actionCollection()->addAction(QStringLiteral("show_drives_card"));
     showDrives->setText(i18nc("@action:inmenu", "Drives in Sidebar"));
