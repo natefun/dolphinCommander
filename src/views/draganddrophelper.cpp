@@ -7,6 +7,10 @@
 
 #include "draganddrophelper.h"
 
+#include "commandersettings.h"
+
+#include <QStorageInfo>
+
 #include <KIO/DropJob>
 #include <KJobWidgets>
 
@@ -56,8 +60,12 @@ KIO::DropJob *DragAndDropHelper::dropUrls(const QUrl &destUrl, QDropEvent *event
         Qt::KeyboardModifiers modifiers = event->modifiers();
         Qt::DropAction action = event->dropAction();
         if (!(modifiers & (Qt::ControlModifier | Qt::ShiftModifier | Qt::AltModifier))) {
-            modifiers |= Qt::ShiftModifier;
-            action = Qt::MoveAction;
+            action = defaultActionFor(event->mimeData()->urls(), destUrl);
+            if (action == Qt::MoveAction) {
+                modifiers |= Qt::ShiftModifier;
+            } else {
+                modifiers |= Qt::ControlModifier;
+            }
         } else if ((modifiers & Qt::ControlModifier) && !(modifiers & Qt::ShiftModifier)) {
             action = Qt::CopyAction;
         } else if (modifiers & Qt::ShiftModifier && !(modifiers & Qt::ControlModifier)) {
@@ -73,6 +81,23 @@ KIO::DropJob *DragAndDropHelper::dropUrls(const QUrl &destUrl, QDropEvent *event
     }
 
     return nullptr;
+}
+
+Qt::DropAction DragAndDropHelper::defaultActionFor(const QList<QUrl> &sources, const QUrl &destUrl)
+{
+    if (CommanderSettings::stringValue(QStringLiteral("DragDropBehavior")) != QLatin1String("inconsistent")) {
+        return Qt::MoveAction;
+    }
+    if (!destUrl.isLocalFile()) {
+        return Qt::CopyAction;
+    }
+    const QByteArray destDevice = QStorageInfo(destUrl.toLocalFile()).device();
+    for (const QUrl &source : sources) {
+        if (!source.isLocalFile() || QStorageInfo(source.toLocalFile()).device() != destDevice) {
+            return Qt::CopyAction;
+        }
+    }
+    return Qt::MoveAction;
 }
 
 bool DragAndDropHelper::supportsDropping(const KFileItem &destItem)

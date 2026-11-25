@@ -35,6 +35,7 @@
 #include "views/columnsstrip.h"
 #include "views/dolphincolumnsview.h"
 #include "views/dolphinview.h"
+#include "views/draganddrophelper.h"
 #include "views/filepreviewwidget.h"
 #include "views/itemdetailspane.h"
 #include "views/viewheader.h"
@@ -106,6 +107,7 @@ private Q_SLOTS:
     void testDatesAndSizesFollowTheirFormats();
     void testANewFolderStartsWithTheChosenViewAndSorting();
     void testClickingOutsideARenameRenamesOrCancels();
+    void testADropMovesOrCopiesByTheChosenBehavior();
     void testTheHeaderHasAMenuButton();
     void testDetailsIsTheDefaultViewMode();
     void testTheHeaderSwitchesToColumnsAndBack();
@@ -617,6 +619,25 @@ void DolphinCommanderFeaturesTest::testClickingOutsideARenameRenamesOrCancels()
     CommanderSettings::remove(QStringLiteral("RenameOnLostFocus"));
     QCOMPARE(finished.count(), 1);
     QCOMPARE(canceled.count(), 1);
+}
+
+void DolphinCommanderFeaturesTest::testADropMovesOrCopiesByTheChosenBehavior()
+{
+    TestDir dir;
+    dir.createFile("a.txt", "x");
+    const QList<QUrl> sources = {QUrl::fromLocalFile(dir.path() + QStringLiteral("/a.txt"))};
+    const QUrl sameDrive = QUrl::fromLocalFile(QDir::tempPath());
+    const QUrl otherDrive = QUrl::fromLocalFile(QStringLiteral("/proc"));
+    // Consistent, as the program has always done: always moving.
+    QCOMPARE(int(DragAndDropHelper::defaultActionFor(sources, otherDrive)), int(Qt::MoveAction));
+    // The Explorer way: moving on the same drive and copying to another.
+    CommanderSettings::setValue(QStringLiteral("DragDropBehavior"), QStringLiteral("inconsistent"));
+    const auto cleanUp = qScopeGuard([]() {
+        CommanderSettings::remove(QStringLiteral("DragDropBehavior"));
+    });
+    QCOMPARE(int(DragAndDropHelper::defaultActionFor(sources, sameDrive)), int(Qt::MoveAction));
+    QCOMPARE(int(DragAndDropHelper::defaultActionFor(sources, otherDrive)), int(Qt::CopyAction));
+    QCOMPARE(int(DragAndDropHelper::defaultActionFor(sources, QUrl(QStringLiteral("smb://server/share")))), int(Qt::CopyAction));
 }
 
 void DolphinCommanderFeaturesTest::testTheHeaderHasAMenuButton()

@@ -52,6 +52,12 @@ public:
      * @return          True if the destination is a directory and is writable, or it's a desktop file.
      *                  False otherwise.
      */
+    /**
+     * The action of a drop without a key held: moving, as the program always does, or, with OneCommander's "Inconsistent File Explorer way"
+     * for the setting "Drag and Drop behavior", moving when the folder is on the same drive as the files and copying when it is not.
+     */
+    static Qt::DropAction defaultActionFor(const QList<QUrl> &sources, const QUrl &destUrl);
+
     static bool supportsDropping(const KFileItem &destItem);
 
     /**

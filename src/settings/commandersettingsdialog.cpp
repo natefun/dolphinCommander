@@ -181,7 +181,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              i18nc("@label", "Drag and Drop behavior:"),
              {{QStringLiteral("consistent"), i18nc("@item:inlistbox", "Consistent: Drag always moves; Ctrl+Drag always copies")},
               {QStringLiteral("inconsistent"), i18nc("@item:inlistbox", "Drag moves if the same drive, otherwise copies. Ctrl+Drag always copies")}},
-             not_yet);
+             live);
         number(general,
                interaction,
                QStringLiteral("MouseDebounceTime"),
