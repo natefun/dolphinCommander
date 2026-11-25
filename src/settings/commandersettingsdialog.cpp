@@ -349,18 +349,18 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("ShowTemporary"),
              i18nc("@option:check", "Show temporary files"),
              false,
-             not_yet,
+             live,
              i18nc("@info", "Shows .tmp files, files that start with ~$, and files with the temporary attribute."));
-        flag(view, visibility, QStringLiteral("HideTemporary"), i18nc("@option:check", "Hide temporary files"), false, not_yet);
+        flag(view, visibility, QStringLiteral("HideTemporary"), i18nc("@option:check", "Hide temporary files"), false, live);
         flag(view, visibility, QStringLiteral("TreatDotFilesAsHidden"), i18nc("@option:check", "Files starting with dot"), true, not_yet);
-        text(view, visibility, QStringLiteral("HiddenFilesPrefixList"), i18nc("@label", "Prefixed files"), QString(), not_yet);
-        text(view, visibility, QStringLiteral("HiddenFilesList"), i18nc("@label", "Full names"), QString(), not_yet);
+        text(view, visibility, QStringLiteral("HiddenFilesPrefixList"), i18nc("@label", "Prefixed files"), QString(), live);
+        text(view, visibility, QStringLiteral("HiddenFilesList"), i18nc("@label", "Full names"), QString(), live);
         text(view,
              visibility,
              QStringLiteral("HiddenFilesExtList"),
              i18nc("@label", "Extensions"),
              QString(),
-             not_yet,
+             live,
              i18nc("@info", "Visibility is controlled by the checkbox above or the shortcut."));
         flag(view, visibility, QStringLiteral("ShowFileExtension"), i18nc("@option:check", "Show file extensions"), true, live);
         flag(view,

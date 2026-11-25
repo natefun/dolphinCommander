@@ -8,6 +8,8 @@
 
 #include "kfileitemmodel.h"
 
+#include "commandersettings.h"
+
 #include "config-dolphin.h"
 #include "dolphin_contentdisplaysettings.h"
 #include "dolphin_generalsettings.h"
@@ -420,6 +422,18 @@ KFileItemModel::KFileItemModel(QObject *parent)
     connect(GeneralSettings::self(), &GeneralSettings::sortingChoiceChanged, this, &KFileItemModel::slotSortingChoiceChanged);
 
     setShowTrashMime(m_dirLister->showHiddenFiles() || !GeneralSettings::hideXTrashFile());
+
+    // OneCommander's rules for files to treat as hidden apply while hidden files are not shown.
+    m_filter.reloadHiddenRules();
+    m_filter.setHiddenRulesActive(!m_dirLister->showHiddenFiles());
+    connect(CommanderSettings::notifier(), &CommanderSettings::Notifier::changed, this, [this](const QString &key) {
+        if (key == QLatin1String("HiddenFilesPrefixList") || key == QLatin1String("HiddenFilesList") || key == QLatin1String("HiddenFilesExtList")
+            || key == QLatin1String("HideTemporary") || key == QLatin1String("ShowTemporary")) {
+            dispatchPendingItemsToInsert();
+            m_filter.reloadHiddenRules();
+            applyFilters();
+        }
+    });
 }
 
 KFileItemModel::~KFileItemModel()
@@ -591,6 +605,8 @@ void KFileItemModel::scheduleResortAllItems()
 void KFileItemModel::setShowHiddenFiles(bool show)
 {
     m_dirLister->setShowHiddenFiles(show);
+    m_filter.setHiddenRulesActive(!show);
+    applyFilters();
     setShowTrashMime(show || !GeneralSettings::hideXTrashFile());
     m_dirLister->emitChanges();
     if (show) {

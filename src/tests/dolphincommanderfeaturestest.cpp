@@ -23,6 +23,7 @@
 #include "kitemviews/kitemlistcontroller.h"
 #include "kitemviews/kitemlistview.h"
 #include "kitemviews/kitemlistwidget.h"
+#include "kitemviews/private/kfileitemmodelfilter.h"
 #include "panels/favorites/favoritespanel.h"
 #include "panels/places/drivescard.h"
 #include "panels/places/foldercard.h"
@@ -97,6 +98,7 @@ private Q_SLOTS:
     void testTheNetworkCardOpensTheNetwork();
     void testTheSettingsWindowHasOneCommandersTabsAndSettings();
     void testSettingsChangeWhatTheProgramDoes();
+    void testFilesCanBeTreatedAsHidden();
     void testTheHeaderHasAMenuButton();
     void testDetailsIsTheDefaultViewMode();
     void testTheHeaderSwitchesToColumnsAndBack();
@@ -413,6 +415,38 @@ void DolphinCommanderFeaturesTest::testSettingsChangeWhatTheProgramDoes()
     CommanderSettings::setValue(QStringLiteral("AgeStripes"), !ageWas);
     QCOMPARE(age->isChecked(), !ageWas);
     CommanderSettings::setValue(QStringLiteral("AgeStripes"), ageWas);
+}
+
+void DolphinCommanderFeaturesTest::testFilesCanBeTreatedAsHidden()
+{
+    CommanderSettings::setValue(QStringLiteral("HiddenFilesPrefixList"), QStringLiteral("draft-, old_"));
+    CommanderSettings::setValue(QStringLiteral("HiddenFilesList"), QStringLiteral("Thumbs.db"));
+    CommanderSettings::setValue(QStringLiteral("HiddenFilesExtList"), QStringLiteral("bak,.log"));
+    CommanderSettings::setValue(QStringLiteral("HideTemporary"), true);
+    KFileItemModelFilter filter;
+    filter.reloadHiddenRules();
+    auto file = [](const QString &name) {
+        return KFileItem(QUrl::fromLocalFile(QStringLiteral("/tmp/") + name), QString(), KFileItem::Unknown);
+    };
+    // The rules are for the time hidden files are not shown.
+    filter.setHiddenRulesActive(false);
+    QVERIFY(filter.matches(file(QStringLiteral("draft-1.txt"))));
+    filter.setHiddenRulesActive(true);
+    QVERIFY(!filter.matches(file(QStringLiteral("draft-1.txt"))));
+    QVERIFY(!filter.matches(file(QStringLiteral("old_notes.txt"))));
+    QVERIFY(!filter.matches(file(QStringLiteral("Thumbs.db"))));
+    QVERIFY(!filter.matches(file(QStringLiteral("backup.BAK"))));
+    QVERIFY(!filter.matches(file(QStringLiteral("run.log"))));
+    QVERIFY(!filter.matches(file(QStringLiteral("work.tmp"))));
+    QVERIFY(!filter.matches(file(QStringLiteral("~$report.docx"))));
+    QVERIFY(filter.matches(file(QStringLiteral("report.docx"))));
+    QVERIFY(filter.matches(file(QStringLiteral("thumbs.png"))));
+    for (const QString &key :
+         {QStringLiteral("HiddenFilesPrefixList"), QStringLiteral("HiddenFilesList"), QStringLiteral("HiddenFilesExtList"), QStringLiteral("HideTemporary")}) {
+        CommanderSettings::remove(key);
+    }
+    filter.reloadHiddenRules();
+    QVERIFY(filter.matches(file(QStringLiteral("draft-1.txt"))));
 }
 
 void DolphinCommanderFeaturesTest::testTheHeaderHasAMenuButton()

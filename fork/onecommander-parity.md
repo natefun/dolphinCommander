@@ -138,3 +138,9 @@ Not done (and mostly Windows only): rename suggestions popup, mark recent files,
 ## The lower-left row of buttons
 
 One row, as in OneCommander's own window and with its tooltips (from its strings): Program settings, About/Help, Switch between Standard and Columns layouts (click cycles the layouts), Search files starting from currently opened folder, File Automator (the batch rename), Open new or saved window (a menu: Create new window, Saved windows = the workspaces, Center current window). The old Settings text button and the second row of buttons are gone. Not copied: the green dot on the Layout button, and a Scripts button (OneCommander shows it only when asked to; the scripts are in the Tools menu).
+
+## The settings window
+
+`Settings…` (Ctrl+comma, the gear in the lower left) opens a window with OneCommander's tabs (General, View, Columns, Preview, Theme, Window, Advanced, Other) and its groups and wording, built from the strings in its program. Every change is applied and saved at once; the settings live in the `Commander` group of the configuration, so a menu entry and its setting in the window are the same thing. Dolphin's own settings stay in `Configure dolphinCommander…`.
+
+Each setting is one of three kinds, and the table in `src/settings/commandersettingsdialog.cpp` says which: applied (the program does what it says), for Windows only (shown, cannot be changed: Mica, the registry, Explorer, OneDrive and so on), or kept but not applied yet (it is saved and shows a tooltip saying so). The counts are in the commit message of the latest settings commit.

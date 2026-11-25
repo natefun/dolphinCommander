@@ -6,6 +6,10 @@
 
 #include "kfileitemmodelfilter.h"
 
+#include "commandersettings.h"
+
+#include <QFileInfo>
+
 #include <QRegularExpression>
 
 #include <algorithm>
@@ -104,11 +108,62 @@ QStringList KFileItemModelFilter::excludeMimeTypes() const
 
 bool KFileItemModelFilter::hasSetFilters() const
 {
-    return (!m_pattern.isEmpty() || !m_mimeTypes.isEmpty() || !m_excludeMimeTypes.isEmpty());
+    return (!m_pattern.isEmpty() || !m_mimeTypes.isEmpty() || !m_excludeMimeTypes.isEmpty()
+            || (m_rulesActive && (m_hideTemporary || !m_hiddenPrefixes.isEmpty() || !m_hiddenNames.isEmpty() || !m_hiddenExtensions.isEmpty())));
+}
+
+void KFileItemModelFilter::setHiddenRulesActive(bool active)
+{
+    m_rulesActive = active;
+}
+
+void KFileItemModelFilter::reloadHiddenRules()
+{
+    auto list = [](const QString &key) {
+        QStringList items = CommanderSettings::stringValue(key).split(QLatin1Char(','), Qt::SkipEmptyParts);
+        for (QString &item : items) {
+            item = item.trimmed();
+        }
+        items.removeAll(QString());
+        return items;
+    };
+    m_hiddenPrefixes = list(QStringLiteral("HiddenFilesPrefixList"));
+    m_hiddenNames = list(QStringLiteral("HiddenFilesList"));
+    m_hiddenExtensions = list(QStringLiteral("HiddenFilesExtList"));
+    for (QString &extension : m_hiddenExtensions) {
+        extension = extension.startsWith(QLatin1Char('.')) ? extension.mid(1).toLower() : extension.toLower();
+    }
+    m_hideTemporary =
+        CommanderSettings::boolValue(QStringLiteral("HideTemporary"), false) && !CommanderSettings::boolValue(QStringLiteral("ShowTemporary"), false);
+}
+
+bool KFileItemModelFilter::hiddenByRules(const KFileItem &item) const
+{
+    const QString name = item.name();
+    for (const QString &prefix : m_hiddenPrefixes) {
+        if (name.startsWith(prefix)) {
+            return true;
+        }
+    }
+    if (m_hiddenNames.contains(name)) {
+        return true;
+    }
+    if (!m_hiddenExtensions.isEmpty() && !item.isDir() && m_hiddenExtensions.contains(QFileInfo(name).suffix().toLower())) {
+        return true;
+    }
+    if (m_hideTemporary && !item.isDir()) {
+        const QString suffix = QFileInfo(name).suffix().toLower();
+        return suffix == QLatin1String("tmp") || suffix == QLatin1String("temp") || name.startsWith(QLatin1String("~$")) || name.endsWith(QLatin1Char('~'));
+    }
+    return false;
 }
 
 bool KFileItemModelFilter::matches(const KFileItem &item) const
 {
+    if (m_rulesActive && hiddenByRules(item)) {
+        return false;
+    }
+
     const bool hasPatternFilter = !m_pattern.isEmpty();
     const bool hasMimeTypesFilter = !m_mimeTypes.isEmpty() || !m_excludeMimeTypes.isEmpty();
 

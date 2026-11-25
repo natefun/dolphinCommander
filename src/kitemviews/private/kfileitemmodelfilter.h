@@ -85,6 +85,15 @@ public:
      */
     bool matches(const KFileItem &item) const;
 
+    /**
+     * OneCommander's rules for files to treat as hidden (by prefix, by full name, by extension, and temporary files). They apply
+     * while hidden files are not shown: the model switches them on and off with that.
+     */
+    void setHiddenRulesActive(bool active);
+    /** Reads the rules from the settings again. */
+    void reloadHiddenRules();
+    bool hiddenByRules(const KFileItem &item) const;
+
 private:
     /**
      * @return True if item matches pattern set by @ref setPattern.
@@ -110,5 +119,10 @@ private:
     QString m_pattern; // Property set by setPattern().
     QStringList m_mimeTypes; // Property set by setMimeTypes()
     QStringList m_excludeMimeTypes; // Property set by setExcludeMimeTypes()
+    bool m_rulesActive = false; // Property set by setHiddenRulesActive()
+    QStringList m_hiddenPrefixes;
+    QStringList m_hiddenNames;
+    QStringList m_hiddenExtensions;
+    bool m_hideTemporary = false;
 };
 #endif
