@@ -415,6 +415,19 @@ DolphinMainWindow::DolphinMainWindow()
         }
     });
 
+    // OneCommander has no menu bar: hide it once. It stays hidden unless the user shows it again with Ctrl+M.
+    {
+        KConfigGroup commander(KSharedConfig::openConfig(), QStringLiteral("Commander"));
+        if (!commander.readEntry("MenuBarHiddenOnce", false)) {
+            commander.writeEntry("MenuBarHiddenOnce", true);
+            commander.sync();
+            showMenuBarAction->setChecked(false);
+            QTimer::singleShot(0, this, [this]() {
+                menuBar()->setVisible(false);
+            });
+        }
+    }
+
     auto hamburgerMenu = static_cast<KHamburgerMenu *>(actionCollection()->action(KStandardAction::name(KStandardAction::HamburgerMenu)));
     hamburgerMenu->setMenuBar(menuBar());
     hamburgerMenu->setShowMenuBarAction(showMenuBarAction);
@@ -2877,10 +2890,11 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
     if (theme == QLatin1String("dark") || theme == QLatin1String("light") || theme == QLatin1String("custom") || theme == QLatin1String("nord")) {
         const bool dark = theme == QLatin1String("dark") || theme == QLatin1String("nord");
         QPalette palette;
-        QColor window = dark ? QColor(37, 39, 43) : QColor(244, 244, 246);
-        QColor base = dark ? QColor(27, 29, 33) : QColor(255, 255, 255);
+        // The dark colors are the ones measured in OneCommander's own window: panels, lists and the alternate row.
+        QColor window = dark ? QColor(43, 41, 46) : QColor(244, 244, 246);
+        QColor base = dark ? QColor(32, 31, 34) : QColor(255, 255, 255);
         QColor text = dark ? QColor(230, 232, 236) : QColor(30, 32, 36);
-        QColor highlight = dark ? QColor(61, 132, 220) : QColor(42, 110, 200);
+        QColor highlight = dark ? QColor(13, 66, 110) : QColor(42, 110, 200);
         if (theme == QLatin1String("nord")) {
             // The Nord palette, as OneCommander's Nord theme uses it: polar night for the windows, snow storm for the text, frost for the highlight.
             window = QColor(59, 66, 82);
@@ -2901,7 +2915,7 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
         palette.setColor(QPalette::Window, window);
         palette.setColor(QPalette::WindowText, text);
         palette.setColor(QPalette::Base, base);
-        palette.setColor(QPalette::AlternateBase, dark ? QColor(33, 35, 39) : QColor(248, 248, 250));
+        palette.setColor(QPalette::AlternateBase, dark ? QColor(35, 34, 37) : QColor(248, 248, 250));
         palette.setColor(QPalette::Text, text);
         palette.setColor(QPalette::Button, window);
         palette.setColor(QPalette::ButtonText, text);
