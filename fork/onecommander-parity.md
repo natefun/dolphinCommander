@@ -1,8 +1,12 @@
 # OneCommander parity: where dolphinCommander stands
 
-Wine was tried for a side-by-side run (Wine 11.22, .NET 4.8 installed by the user with winetricks): OneCommander 3.108 starts, shows its cloud-folder
-warning (a false alarm: Wine has no NTFS transactions) and then dies with an unhandled .NET exception (0xe0434352) while it loads its ModernWpf theme.
-It reports "Windows 7 or 8 detected" when the prefix says Windows 7 and crashes at the same point on Windows 10, so no window of it was seen. The look below comes from OneCommander's own screenshots and help instead.
+OneCommander 3.108 runs under Wine 11.22 (prefix `~/.local/share/wineprefixes/onecommander`, launcher `~/.local/bin/onecommander`). It needed winetricks
+dotnet48, d3dcompiler_47, corefonts and win10, WPF software rendering (`HKCU\Software\Microsoft\Avalon.Graphics` DisableHWAcceleration=1) and Wine's X11
+driver, since the Wayland driver draws its windows blank. The old crash (0xe0434352 while loading the ModernWpf theme) was a TypeLoadException for the
+WinRT type `Windows.UI.ViewManagement.UISettings`: ModernWpf.dll is patched with Mono.Cecil so the 8 ColorsHelper/UISettingsResources methods that
+use it do nothing (original kept as `ModernWpf.dll.orig`). It still shows a cloud-folder warning at start (a false alarm: Wine has no NTFS transactions),
+and its icon glyphs need Segoe MDL2 Assets (plus Segoe UI for text), which Wine lacks: they come from Microsoft's design downloads
+(aka.ms/SegoeFonts, aka.ms/SegoeFluentIcons), copied into the prefix's `windows/Fonts` and registered under `HKLM\...\CurrentVersion\Fonts`.
 Compiled from OneCommander's own help (onecommander.com/help2: Folder Columns and Navigation Pane,
 Folder Pane, File Views, Browsers and Layouts, Sidebar, Details Pane, Main Window, Settings, Search,
 Favorites, File Automator). Its Shortcut keys page (Shortcutkeys.html) has been read.
@@ -100,3 +104,18 @@ schemes recolor them in a real desktop session is not verified.
 ## How this was tested
 `build/bin/dolphincommanderfeaturestest` (84 tests, 1 skipped unless asked for screenshots). Each run starts from clean settings. A test of the whole suite with
 `fork/check-tests.py` shows one test of Dolphin's columns view (`testTheContentWidthFollowsInsertedAndRemovedNames`) that fails under load and passes alone.
+
+## Seen in the real OneCommander 3.108 (Wine, 2026-11-24)
+
+First side-by-side look. Things the real window has that dolphincommander does not match yet:
+
+- No menu bar at all. Each pane has a hamburger button (with a green dot) at the left of its path bar; the menus live there. (I could not open it by synthetic click under Wine, so its entries are still from the help pages.)
+- Left column is a stack of rounded cards: Drives (letter, usage bar, "used / total GB"), Network, user groups ("..." and "+" buttons, then a "New group" button), and History. No Dolphin-style Places list.
+- Window title strip shows the app name and a small button; tabs sit above each pane, each pane with its own "+" button.
+- Pane header: path as `This PC \C: \users \nate` with backslashes, then the folder name in large grey type, "12 items" under it, then a row: back, forward, up, a folder button, history up/down chevrons, and four view-mode buttons (details, details with preview, list, tiles).
+- Top right of each pane: sort, columns, "+", clipboard and lightning buttons, and the selection size ("0 B").
+- Rows are compact, with a [DIR] marker, an age badge (colored by age: 15', 3d, 15d, 1y) and the date, and a checkbox at the right edge.
+- Bottom-left toolbar: Settings, About, Layout (green dot), Search, File Automator, New Window. Item count at the bottom of each pane.
+- Default look is a dark grey theme with blue folder icons.
+
+Whole-screen captures show other windows; only the OneCommander window was captured, with `import -window <id>`.
