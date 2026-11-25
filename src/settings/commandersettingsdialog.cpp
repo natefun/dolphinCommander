@@ -173,7 +173,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("ClipboardCheckText"),
              i18nc("@option:check", "Check and notify when there is text on clipboard"),
              false,
-             not_yet,
+             live,
              i18nc("@info", "Shows notifications offering to create a file from text by pressing Ctrl+V."));
         pick(general,
              interaction,

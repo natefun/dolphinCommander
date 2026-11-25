@@ -381,6 +381,15 @@ DolphinMainWindow::DolphinMainWindow()
 
     QClipboard *clipboard = QApplication::clipboard();
     connect(clipboard, &QClipboard::dataChanged, this, &DolphinMainWindow::updatePasteAction);
+    // OneCommander's "Check and notify when there is text on clipboard": Ctrl+V can make a file of it.
+    connect(clipboard, &QClipboard::dataChanged, this, [this]() {
+        const QMimeData *data = QApplication::clipboard()->mimeData();
+        if (m_activeViewContainer && data && CommanderSettings::boolValue(QStringLiteral("ClipboardCheckText"), false) && !data->hasUrls() && data->hasText()
+            && !data->text().trimmed().isEmpty()) {
+            m_activeViewContainer->showMessage(i18nc("@info:status", "There is text on the clipboard. Press Ctrl+V to make a file of it."),
+                                               KMessageWidget::Information);
+        }
+    });
 
     QAction *toggleFilterBarAction = actionCollection()->action(QStringLiteral("toggle_filter"));
     toggleFilterBarAction->setChecked(GeneralSettings::filterBar());

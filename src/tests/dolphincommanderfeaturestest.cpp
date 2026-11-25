@@ -475,6 +475,14 @@ void DolphinCommanderFeaturesTest::testSettingsChangeWhatTheProgramDoes()
     CommanderSettings::remove(QStringLiteral("FolderIconOverride"));
     QVERIFY(KFileItemModel::customIcon(folderItem) != QStringLiteral("folder-red"));
 
+    // "Check and notify when there is text on clipboard".
+    CommanderSettings::setValue(QStringLiteral("ClipboardCheckText"), true);
+    const int notesBeforeText = int(DolphinViewContainer::recentMessages().size());
+    QApplication::clipboard()->setText(QStringLiteral("some text worth a file"));
+    QTRY_VERIFY_WITH_TIMEOUT(int(DolphinViewContainer::recentMessages().size()) > notesBeforeText, 3000);
+    QVERIFY(DolphinViewContainer::recentMessages().first().contains(QStringLiteral("Ctrl+V")));
+    CommanderSettings::remove(QStringLiteral("ClipboardCheckText"));
+
     // A menu entry and its setting in the window are the same thing.
     QAction *age = window.actionCollection()->action(QStringLiteral("age_stripes"));
     QVERIFY(age);
