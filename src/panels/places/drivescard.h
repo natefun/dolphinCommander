@@ -32,11 +32,14 @@ public:
 
 Q_SIGNALS:
     void driveActivated(const QUrl &url);
+    /** The "Hide drives from sidebar" entry of the context menu was chosen. */
+    void hideRequested();
 
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void showEvent(QShowEvent *event) override;
+    void contextMenuEvent(QContextMenuEvent *event) override;
 
 private:
     struct Drive {

@@ -6,7 +6,10 @@
 
 #include <KLocalizedString>
 
+#include <QContextMenuEvent>
+#include <QIcon>
 #include <QLocale>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QSet>
@@ -150,6 +153,13 @@ void DrivesCard::paintEvent(QPaintEvent *)
         painter.setBrush(fraction > 0.9 ? QColor(200, 70, 60) : colors.color(QPalette::Highlight));
         painter.drawRect(QRect(bar.left(), bar.top(), int(bar.width() * qBound(0.0, fraction, 1.0)), bar.height()));
     }
+}
+
+void DrivesCard::contextMenuEvent(QContextMenuEvent *event)
+{
+    QMenu menu(this);
+    menu.addAction(QIcon::fromTheme(QStringLiteral("view-hidden")), i18nc("@action:inmenu", "Hide Drives from Sidebar"), this, &DrivesCard::hideRequested);
+    menu.exec(event->globalPos());
 }
 
 void DrivesCard::mousePressEvent(QMouseEvent *event)

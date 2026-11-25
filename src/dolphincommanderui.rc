@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="66">
+<gui name="dolphin" version="67">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
@@ -92,6 +92,7 @@
                 <Action name="center_window" />
                 <Action name="dock_window" />
                 <Action name="thin_scrollbars" />
+                <Action name="show_drives_card" />
                 <Action name="auto_thumbs_details" />
                 <Separator/>
                 <Action name="make_default_file_manager" />

@@ -4465,6 +4465,19 @@ void DolphinMainWindow::setupActions()
                                            started ? KMessageWidget::Positive : KMessageWidget::Error);
     });
 
+    // OneCommander's "Show drives in sidebar" / "Hide drives from sidebar".
+    QAction *showDrives = actionCollection()->addAction(QStringLiteral("show_drives_card"));
+    showDrives->setText(i18nc("@action:inmenu", "Drives in Sidebar"));
+    showDrives->setIcon(QIcon::fromTheme(QStringLiteral("drive-harddisk")));
+    showDrives->setCheckable(true);
+    showDrives->setChecked(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ShowDrivesCard", true));
+    connect(showDrives, &QAction::toggled, this, [this](bool on) {
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ShowDrivesCard", on);
+        if (auto *card = findChild<DrivesCard *>()) {
+            card->setVisible(on);
+        }
+    });
+
     QAction *thinScrollbars = actionCollection()->addAction(QStringLiteral("thin_scrollbars"));
     thinScrollbars->setText(i18nc("@action:inmenu", "Thin Scrollbars"));
     thinScrollbars->setIcon(QIcon::fromTheme(QStringLiteral("view-list-details")));
@@ -5159,6 +5172,12 @@ void DolphinMainWindow::setupDockWidgets()
     drivesCard->setObjectName(QStringLiteral("commanderDrivesCard"));
     connect(drivesCard, &DrivesCard::driveActivated, this, &DolphinMainWindow::changeUrl);
     placesLayout->addWidget(drivesCard);
+    drivesCard->setVisible(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ShowDrivesCard", true));
+    connect(drivesCard, &DrivesCard::hideRequested, this, [this]() {
+        if (QAction *action = actionCollection()->action(QStringLiteral("show_drives_card"))) {
+            action->setChecked(false);
+        }
+    });
 
     m_placesPanel = new PlacesPanel(placesContainer);
     m_placesPanel->setCustomContextMenuActions({lockLayoutAction});

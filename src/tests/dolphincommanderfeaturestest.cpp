@@ -444,6 +444,19 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
     DolphinMainWindow window;
     closer.stop();
     KActionCollection *actions = window.actionCollection();
+
+    // The Drives card goes away with "Drives in Sidebar" and comes back with it.
+    auto *card = window.findChild<DrivesCard *>();
+    QVERIFY(card);
+    QAction *drivesAction = actions->action(QStringLiteral("show_drives_card"));
+    QVERIFY(drivesAction);
+    const bool drivesWereOn = drivesAction->isChecked();
+    drivesAction->setChecked(false);
+    QVERIFY(card->isHidden());
+    drivesAction->setChecked(true);
+    QVERIFY(!card->isHidden());
+    drivesAction->setChecked(drivesWereOn);
+
     QMultiHash<QKeySequence, QString> owners;
     for (QAction *action : actions->actions()) {
         for (const QKeySequence &key : action->shortcuts()) {
@@ -492,6 +505,7 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "new_tab_from_clipboard",
                                "run_with_arguments",
                                "open_link_target",
+                               "show_drives_card",
                                "paste_as_hard_links",
                                "regenerate_thumbnails",
                                "run_as_different_user",
