@@ -325,6 +325,13 @@ Qt::strong_ordering decimalAwareNaturalCompare(QStringView a, QStringView b, con
 
 QString KFileItemModel::customIcon(const KFileItem &item)
 {
+    // OneCommander's "Override all folder icons with:" (the name of an icon of the theme or the path of a picture).
+    if (item.isDir()) {
+        const QString override = CommanderSettings::stringValue(QStringLiteral("FolderIconOverride")).trimmed();
+        if (!override.isEmpty()) {
+            return override;
+        }
+    }
     static QHash<QString, QString> pictures; // lower-case name without the suffix -> path
     static QDateTime scannedState;
     const QDir dir(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/dolphincommander/icons"));

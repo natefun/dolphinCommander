@@ -5,6 +5,8 @@
  */
 
 #include "dolphinitemlistview.h"
+
+#include "commandersettings.h"
 #include <QFile>
 #include <QPainter>
 
@@ -248,7 +250,9 @@ void DolphinItemListView::updateGridSize()
         const auto margin = IconsModeSettings::compactSpacing() ? padding * 2 : style()->pixelMetric(QStyle::PM_SizeGripSize);
         horizontalMargin = margin;
         verticalMargin = margin;
-        maxTextLines = IconsModeSettings::maximumTextLines();
+        // OneCommander's "File name maximum lines".
+        maxTextLines = CommanderSettings::has(QStringLiteral("FileNameMaxLines")) ? qMax(1, CommanderSettings::intValue(QStringLiteral("FileNameMaxLines"), 2))
+                                                                                  : IconsModeSettings::maximumTextLines();
         break;
     }
     case KFileItemListView::CompactLayout: {

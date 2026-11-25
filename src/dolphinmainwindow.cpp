@@ -2123,7 +2123,7 @@ void DolphinMainWindow::applyCommanderSetting(const QString &key)
         setAction(QStringLiteral("folders_sorted_by_name"), on);
     } else if (key == QLatin1String("AutoThumbsDetails")) {
         setAction(QStringLiteral("auto_thumbs_details"), on);
-    } else if (key == QLatin1String("ShowFileExtension")) {
+    } else if (key == QLatin1String("ShowFileExtension") || key == QLatin1String("FileNameMaxLines") || key == QLatin1String("FolderIconOverride")) {
         refreshViews();
     } else if (key == QLatin1String("FileNameTrimming")) {
         ContentDisplaySettings::setElidingMode(CommanderSettings::stringValue(key) == QLatin1String("middle") ? ContentDisplaySettings::ElidingMode::Middle

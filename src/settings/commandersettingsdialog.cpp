@@ -462,7 +462,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
                1,
                10,
                QString(),
-               not_yet,
+               live,
                i18nc("@info", "For the thumbnail view. Only when the thumbnail is larger than 96 pixels."));
         pick(view,
              itemProps,
@@ -535,7 +535,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
         const QString icons = i18nc("@title:group", "Icons");
         text(view, icons, QStringLiteral("FileIconsPack"), i18nc("@label", "File icons pack"), QString(), not_yet);
         text(view, icons, QStringLiteral("FolderIconsPack"), i18nc("@label", "Folder icons pack"), QString(), not_yet);
-        text(view, icons, QStringLiteral("FolderIconOverride"), i18nc("@label", "Override all folder icons with:"), QString(), not_yet);
+        text(view, icons, QStringLiteral("FolderIconOverride"), i18nc("@label", "Override all folder icons with:"), QString(), live);
         button(view, icons, QStringLiteral("DownloadIconPacks"), i18nc("@action:button", "Download icon packs"), win);
 
         // ---- Columns ----

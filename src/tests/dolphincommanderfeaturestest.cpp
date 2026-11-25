@@ -446,6 +446,15 @@ void DolphinCommanderFeaturesTest::testSettingsChangeWhatTheProgramDoes()
     CommanderSettings::remove(QStringLiteral("ShowFilesViewToolbar"));
     QVERIFY(!detailsButton->isHidden());
 
+    // "Override all folder icons with:" names the icon of every folder, and not of a file.
+    const KFileItem folderItem(QUrl::fromLocalFile(QDir::tempPath()), QStringLiteral("inode/directory"), S_IFDIR);
+    const KFileItem fileItem(QUrl::fromLocalFile(QDir::tempPath() + QStringLiteral("/nothing.zzzz")), QString(), KFileItem::Unknown);
+    CommanderSettings::setValue(QStringLiteral("FolderIconOverride"), QStringLiteral("folder-red"));
+    QCOMPARE(KFileItemModel::customIcon(folderItem), QStringLiteral("folder-red"));
+    QVERIFY(KFileItemModel::customIcon(fileItem) != QStringLiteral("folder-red"));
+    CommanderSettings::remove(QStringLiteral("FolderIconOverride"));
+    QVERIFY(KFileItemModel::customIcon(folderItem) != QStringLiteral("folder-red"));
+
     // A menu entry and its setting in the window are the same thing.
     QAction *age = window.actionCollection()->action(QStringLiteral("age_stripes"));
     QVERIFY(age);
