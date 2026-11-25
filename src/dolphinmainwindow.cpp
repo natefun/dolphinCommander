@@ -32,11 +32,14 @@
 #include "jobqueue.h"
 #include "middleclickactioneventfilter.h"
 #include "panels/favorites/favoritespanel.h"
+#include "panels/places/drivescard.h"
+#include "panels/places/foldercard.h"
 #include "panels/places/placespanel.h"
 #include "panels/terminal/terminalpanel.h"
 #include "search/dolphinquery.h"
 #include "selectionmode/actiontexthelper.h"
 #include "views/columnsstrip.h"
+#include "views/viewheader.h"
 #include "views/zoomlevelinfo.h"
 #if KIO_VERSION >= QT_VERSION_CHECK(6, 24, 0)
 #include "servicemenushortcutmanager.h"
@@ -107,6 +110,7 @@
 #include <QCloseEvent>
 #include <QColorDialog>
 #include <QComboBox>
+#include <QCryptographicHash>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -394,6 +398,37 @@ DolphinMainWindow::DolphinMainWindow()
     QTimer::singleShot(0, this, [this, showMenuBarAction]() {
         menuBar()->setVisible(showMenuBarAction->isChecked());
     });
+
+    // Each pane has a menu button, as in OneCommander, which has no menu bar: it shows every menu of the menu bar.
+    ViewHeader::setMenuHandler([this](QWidget *button) {
+        QMenu menu(this);
+        const auto barActions = menuBar()->actions();
+        for (QAction *barAction : barActions) {
+            if (barAction->menu()) {
+                menu.addAction(barAction);
+            }
+        }
+        menu.exec(button->mapToGlobal(QPoint(0, button->height())));
+        // The menus belong to the menu bar: give them back.
+        for (QAction *barAction : barActions) {
+            if (barAction->menu()) {
+                menu.removeAction(barAction);
+            }
+        }
+    });
+
+    // OneCommander has no menu bar: hide it once. It stays hidden unless the user shows it again with Ctrl+M.
+    {
+        KConfigGroup commander(KSharedConfig::openConfig(), QStringLiteral("Commander"));
+        if (!commander.readEntry("MenuBarHiddenOnce", false)) {
+            commander.writeEntry("MenuBarHiddenOnce", true);
+            commander.sync();
+            showMenuBarAction->setChecked(false);
+            QTimer::singleShot(0, this, [this]() {
+                menuBar()->setVisible(false);
+            });
+        }
+    }
 
     auto hamburgerMenu = static_cast<KHamburgerMenu *>(actionCollection()->action(KStandardAction::name(KStandardAction::HamburgerMenu)));
     hamburgerMenu->setMenuBar(menuBar());
@@ -1814,10 +1849,14 @@ void DolphinMainWindow::openPreferredSearchTool()
     }
 }
 
-bool DolphinMainWindow::runAsAdministrator(const QString &program, const QStringList &arguments)
+bool DolphinMainWindow::runAsAdministrator(const QString &program, const QStringList &arguments, const QString &user)
 {
     // pkexec asks for the password itself; the display variables let a graphical program start as root.
-    QStringList args{QStringLiteral("env")};
+    QStringList args;
+    if (!user.isEmpty()) {
+        args << QStringLiteral("--user") << user;
+    }
+    args << QStringLiteral("env");
     for (const char *name : {"DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "XAUTHORITY"}) {
         if (qEnvironmentVariableIsSet(name)) {
             args << QString::fromLatin1(name) + QLatin1Char('=') + qEnvironmentVariable(name);
@@ -2857,10 +2896,11 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
     if (theme == QLatin1String("dark") || theme == QLatin1String("light") || theme == QLatin1String("custom") || theme == QLatin1String("nord")) {
         const bool dark = theme == QLatin1String("dark") || theme == QLatin1String("nord");
         QPalette palette;
-        QColor window = dark ? QColor(37, 39, 43) : QColor(244, 244, 246);
-        QColor base = dark ? QColor(27, 29, 33) : QColor(255, 255, 255);
+        // The dark colors are the ones measured in OneCommander's own window: panels, lists and the alternate row.
+        QColor window = dark ? QColor(43, 41, 46) : QColor(244, 244, 246);
+        QColor base = dark ? QColor(32, 31, 34) : QColor(255, 255, 255);
         QColor text = dark ? QColor(230, 232, 236) : QColor(30, 32, 36);
-        QColor highlight = dark ? QColor(61, 132, 220) : QColor(42, 110, 200);
+        QColor highlight = dark ? QColor(13, 66, 110) : QColor(42, 110, 200);
         if (theme == QLatin1String("nord")) {
             // The Nord palette, as OneCommander's Nord theme uses it: polar night for the windows, snow storm for the text, frost for the highlight.
             window = QColor(59, 66, 82);
@@ -2881,7 +2921,7 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
         palette.setColor(QPalette::Window, window);
         palette.setColor(QPalette::WindowText, text);
         palette.setColor(QPalette::Base, base);
-        palette.setColor(QPalette::AlternateBase, dark ? QColor(33, 35, 39) : QColor(248, 248, 250));
+        palette.setColor(QPalette::AlternateBase, dark ? QColor(35, 34, 37) : QColor(248, 248, 250));
         palette.setColor(QPalette::Text, text);
         palette.setColor(QPalette::Button, window);
         palette.setColor(QPalette::ButtonText, text);
@@ -3928,6 +3968,59 @@ void DolphinMainWindow::setupActions()
     actionCollection()->setDefaultShortcut(runWithArgs, Qt::CTRL | Qt::SHIFT | Qt::Key_Return);
     connect(runWithArgs, &QAction::triggered, this, &DolphinMainWindow::runWithArguments);
 
+    // From OneCommander's context menu: "Open shortcut destination", "Run as different user" and "Regenerate thumbnail".
+    QAction *openLinkTarget = actionCollection()->addAction(QStringLiteral("open_link_target"));
+    openLinkTarget->setText(i18nc("@action:inmenu", "Open Link Destination"));
+    openLinkTarget->setToolTip(i18nc("@info:tooltip", "Go to the folder the selected link points to and select what it points to."));
+    openLinkTarget->setIcon(QIcon::fromTheme(QStringLiteral("emblem-symbolic-link")));
+    connect(openLinkTarget, &QAction::triggered, this, [this]() {
+        const auto items = m_activeViewContainer->view()->selectedItems();
+        for (const KFileItem &item : items) {
+            if (item.isLink() && !item.linkDest().isEmpty()) {
+                const QString target = QFileInfo(item.url().adjusted(QUrl::RemoveFilename).toLocalFile(), item.linkDest()).absoluteFilePath();
+                const QString clean = QDir::cleanPath(target);
+                changeUrl(QUrl::fromLocalFile(QFileInfo(clean).absolutePath()));
+                m_activeViewContainer->view()->markUrlsAsSelected({QUrl::fromLocalFile(clean)});
+                m_activeViewContainer->view()->markUrlAsCurrent(QUrl::fromLocalFile(clean));
+                return;
+            }
+        }
+        m_activeViewContainer->showMessage(i18nc("@info:status", "Select a link first."), KMessageWidget::Information);
+    });
+
+    QAction *runAsUser = actionCollection()->addAction(QStringLiteral("run_as_different_user"));
+    runAsUser->setText(i18nc("@action:inmenu", "Run as Different User…"));
+    runAsUser->setIcon(QIcon::fromTheme(QStringLiteral("user-identity")));
+    connect(runAsUser, &QAction::triggered, this, [this]() {
+        bool ok = false;
+        const QString user = QInputDialog::getText(this,
+                                                   i18nc("@title:window", "Run as Different User"),
+                                                   i18nc("@label:textbox", "User name:"),
+                                                   QLineEdit::Normal,
+                                                   QString(),
+                                                   &ok);
+        if (ok && !user.trimmed().isEmpty()) {
+            runAsAdministrator(QCoreApplication::applicationFilePath(), {m_activeViewContainer->url().toString()}, user.trimmed());
+        }
+    });
+
+    QAction *regenerateThumbs = actionCollection()->addAction(QStringLiteral("regenerate_thumbnails"));
+    regenerateThumbs->setText(i18nc("@action:inmenu", "Regenerate Thumbnails"));
+    regenerateThumbs->setToolTip(i18nc("@info:tooltip", "Forget the saved thumbnails of the selected files and make them again."));
+    regenerateThumbs->setIcon(QIcon::fromTheme(QStringLiteral("view-refresh")));
+    connect(regenerateThumbs, &QAction::triggered, this, [this]() {
+        const auto items = m_activeViewContainer->view()->selectedItems();
+        const QString cache = QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation) + QStringLiteral("/thumbnails/");
+        for (const KFileItem &item : items) {
+            const QByteArray name =
+                QCryptographicHash::hash(item.url().adjusted(QUrl::StripTrailingSlash).toEncoded(), QCryptographicHash::Md5).toHex() + ".png";
+            for (const QString &size : {QStringLiteral("normal"), QStringLiteral("large"), QStringLiteral("x-large"), QStringLiteral("xx-large")}) {
+                QFile::remove(cache + size + QLatin1Char('/') + QString::fromLatin1(name));
+            }
+        }
+        m_activeViewContainer->view()->reload();
+    });
+
     QAction *queueJobs = actionCollection()->addAction(QStringLiteral("queue_jobs"));
     queueJobs->setText(i18nc("@action:inmenu", "Queue Copy and Move Jobs"));
     queueJobs->setToolTip(i18nc("@info:tooltip", "Run copies, moves and pastes one after another instead of all at once."));
@@ -3995,6 +4088,68 @@ void DolphinMainWindow::setupActions()
         }
         m_activeViewContainer->view()->markUrlsAsSelected(madeUrls);
     });
+
+    // OneCommander's drop menu also offers a hard link.
+    QAction *pasteAsHardLinks = actionCollection()->addAction(QStringLiteral("paste_as_hard_links"));
+    pasteAsHardLinks->setText(i18nc("@action:inmenu", "Paste as Hard Links"));
+    pasteAsHardLinks->setToolTip(
+        i18nc("@info:tooltip", "Make a hard link in this folder to each file on the clipboard. Folders and files on another file system cannot be linked."));
+    pasteAsHardLinks->setIcon(QIcon::fromTheme(QStringLiteral("edit-paste")));
+    connect(pasteAsHardLinks, &QAction::triggered, this, [this]() {
+        const QUrl folder = m_activeViewContainer->url();
+        const QList<QUrl> urls = QApplication::clipboard()->mimeData() ? QApplication::clipboard()->mimeData()->urls() : QList<QUrl>();
+        const QStringList made = folder.isLocalFile() ? CommanderTools::pasteAsLinks(urls, folder.toLocalFile(), true) : QStringList();
+        if (made.isEmpty()) {
+            m_activeViewContainer->showMessage(
+                i18nc("@info", "No hard link could be made: it needs files on the clipboard, on the same file system as this folder."),
+                KMessageWidget::Information);
+            return;
+        }
+        QList<QUrl> madeUrls;
+        for (const QString &path : made) {
+            madeUrls << QUrl::fromLocalFile(path);
+        }
+        m_activeViewContainer->view()->markUrlsAsSelected(madeUrls);
+    });
+
+    // OneCommander's "Copy/Move to recent destination": the folders the last copies and moves went to.
+    for (const bool move : {false, true}) {
+        auto *recentMenu = actionCollection()->add<KActionMenu>(move ? QStringLiteral("move_to_recent") : QStringLiteral("copy_to_recent"));
+        recentMenu->setText(move ? i18nc("@action:inmenu", "Move to Recent Destination") : i18nc("@action:inmenu", "Copy to Recent Destination"));
+        recentMenu->setIcon(QIcon::fromTheme(move ? QStringLiteral("edit-cut") : QStringLiteral("edit-copy")));
+        connect(recentMenu->menu(), &QMenu::aboutToShow, this, [this, recentMenu, move]() {
+            QMenu *menu = recentMenu->menu();
+            menu->clear();
+            const QStringList folders = JobQueue::recentDestinations();
+            for (const QString &folder : folders) {
+                if (!QFileInfo(folder).isDir()) {
+                    continue;
+                }
+                menu->addAction(QIcon::fromTheme(QStringLiteral("folder")), folder, this, [this, folder, move]() {
+                    QList<QUrl> urls;
+                    const auto items = m_activeViewContainer->view()->selectedItems();
+                    for (const KFileItem &item : items) {
+                        urls << item.url();
+                    }
+                    if (urls.isEmpty()) {
+                        return;
+                    }
+                    const QUrl destination = QUrl::fromLocalFile(folder);
+                    KIO::CopyJob *job = move ? KIO::move(urls, destination) : KIO::copy(urls, destination);
+                    JobQueue::add(job);
+                    job->setUiDelegate(KIO::createDefaultJobUiDelegate(KJobUiDelegate::AutoHandlingEnabled, this));
+                    if (move) {
+                        KIO::FileUndoManager::self()->recordJob(KIO::FileUndoManager::Move, urls, destination, job);
+                    } else {
+                        KIO::FileUndoManager::self()->recordCopyJob(job);
+                    }
+                });
+            }
+            if (menu->isEmpty()) {
+                menu->addAction(i18nc("@item:inmenu", "No recent destinations"))->setEnabled(false);
+            }
+        });
+    }
 
     QAction *closeOtherTabs = actionCollection()->addAction(QStringLiteral("close_other_tabs"));
     closeOtherTabs->setText(i18nc("@action:inmenu", "Close All Tabs but This One"));
@@ -4348,6 +4503,35 @@ void DolphinMainWindow::setupActions()
         m_activeViewContainer->showMessage(started ? i18nc("@info", "dolphinCommander now opens the folders that other programs ask for.")
                                                    : i18nc("@info", "The default file manager could not be set (xdg-mime is needed)."),
                                            started ? KMessageWidget::Positive : KMessageWidget::Error);
+    });
+
+    // OneCommander's "Browse phone" and "Scan network".
+    QAction *browsePhone = actionCollection()->addAction(QStringLiteral("browse_phone"));
+    browsePhone->setText(i18nc("@action:inmenu", "Browse Phone"));
+    browsePhone->setToolTip(i18nc("@info:tooltip", "Show the phones and players that are connected by cable (MTP)."));
+    browsePhone->setIcon(QIcon::fromTheme(QStringLiteral("phone")));
+    connect(browsePhone, &QAction::triggered, this, [this]() {
+        changeUrl(QUrl(QStringLiteral("mtp:/")));
+    });
+    QAction *scanNetwork = actionCollection()->addAction(QStringLiteral("scan_network"));
+    scanNetwork->setText(i18nc("@action:inmenu", "Scan Network"));
+    scanNetwork->setToolTip(i18nc("@info:tooltip", "Show the computers and shares on the network."));
+    scanNetwork->setIcon(QIcon::fromTheme(QStringLiteral("network-workgroup")));
+    connect(scanNetwork, &QAction::triggered, this, [this]() {
+        changeUrl(QUrl(QStringLiteral("remote:/")));
+    });
+
+    // OneCommander's "Show drives in sidebar" / "Hide drives from sidebar".
+    QAction *showDrives = actionCollection()->addAction(QStringLiteral("show_drives_card"));
+    showDrives->setText(i18nc("@action:inmenu", "Drives in Sidebar"));
+    showDrives->setIcon(QIcon::fromTheme(QStringLiteral("drive-harddisk")));
+    showDrives->setCheckable(true);
+    showDrives->setChecked(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ShowDrivesCard", true));
+    connect(showDrives, &QAction::toggled, this, [this](bool on) {
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ShowDrivesCard", on);
+        if (auto *card = findChild<DrivesCard *>()) {
+            card->setVisible(on);
+        }
     });
 
     QAction *thinScrollbars = actionCollection()->addAction(QStringLiteral("thin_scrollbars"));
@@ -5039,6 +5223,29 @@ void DolphinMainWindow::setupDockWidgets()
     placesLayout->setContentsMargins(0, 0, 0, 0);
     placesLayout->setSpacing(0);
 
+    // OneCommander's Drives card, above the places.
+    auto *drivesCard = new DrivesCard(placesContainer);
+    drivesCard->setObjectName(QStringLiteral("commanderDrivesCard"));
+    connect(drivesCard, &DrivesCard::driveActivated, this, &DolphinMainWindow::changeUrl);
+    placesLayout->addWidget(drivesCard);
+
+    // OneCommander's Network card: its title opens the network.
+    auto *networkCard = new FolderCard(placesContainer);
+    networkCard->setObjectName(QStringLiteral("commanderNetworkCard"));
+    networkCard->setTitle(i18nc("@title:group", "Network"));
+    networkCard->setTitleClickable(true);
+    networkCard->setVisible(true);
+    connect(networkCard, &FolderCard::titleClicked, this, [this]() {
+        changeUrl(QUrl(QStringLiteral("remote:/")));
+    });
+    placesLayout->addWidget(networkCard);
+    drivesCard->setVisible(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ShowDrivesCard", true));
+    connect(drivesCard, &DrivesCard::hideRequested, this, [this]() {
+        if (QAction *action = actionCollection()->action(QStringLiteral("show_drives_card"))) {
+            action->setChecked(false);
+        }
+    });
+
     m_placesPanel = new PlacesPanel(placesContainer);
     m_placesPanel->setCustomContextMenuActions({lockLayoutAction});
     placesLayout->addWidget(m_placesPanel, 1);
@@ -5100,6 +5307,50 @@ void DolphinMainWindow::setupDockWidgets()
     favoritesDock->setWidget(m_favoritesPanel);
     connect(m_favoritesPanel, &FavoritesPanel::urlActivated, this, &DolphinMainWindow::slotPlaceActivated);
     connect(this, &DolphinMainWindow::urlChanged, m_favoritesPanel, &FavoritesPanel::addHistory);
+
+    // OneCommander's favorite groups, a card for each, under the places. The "+" adds the current folder to the group.
+    auto *groupCards = new QWidget(m_placesDock->widget());
+    groupCards->setObjectName(QStringLiteral("commanderGroupCards"));
+    auto *groupCardsLayout = new QVBoxLayout(groupCards);
+    groupCardsLayout->setContentsMargins(0, 0, 0, 0);
+    groupCardsLayout->setSpacing(0);
+    if (auto *placesBox = qobject_cast<QBoxLayout *>(m_placesDock->widget()->layout())) {
+        placesBox->insertWidget(placesBox->indexOf(m_placesPanel) + 1, groupCards);
+    }
+    auto rebuildGroupCards = [this, groupCards, groupCardsLayout]() {
+        while (QLayoutItem *item = groupCardsLayout->takeAt(0)) {
+            delete item->widget();
+            delete item;
+        }
+        const QStringList groups = m_favoritesPanel->groups();
+        for (const QString &name : groups) {
+            auto *card = new FolderCard(groupCards);
+            card->setMaxEntries(12);
+            card->setTitle(name);
+            card->setPlusShown(true);
+            card->setUrls(m_favoritesPanel->favorites(name));
+            card->setVisible(true);
+            connect(card, &FolderCard::urlActivated, this, &DolphinMainWindow::changeUrl);
+            connect(card, &FolderCard::plusClicked, this, [this, name]() {
+                m_favoritesPanel->addFavorite(m_activeViewContainer->url(), name);
+            });
+            groupCardsLayout->addWidget(card);
+        }
+    };
+    rebuildGroupCards();
+    connect(m_favoritesPanel, &FavoritesPanel::changed, this, rebuildGroupCards);
+
+    // OneCommander's History card, under the places: the folders opened last.
+    auto *historyCard = new FolderCard(m_placesDock->widget());
+    historyCard->setObjectName(QStringLiteral("commanderFolderCard"));
+    if (auto *placesBox = qobject_cast<QBoxLayout *>(m_placesDock->widget()->layout())) {
+        placesBox->insertWidget(placesBox->indexOf(m_placesPanel) + 1, historyCard);
+    }
+    historyCard->setUrls(m_favoritesPanel->history());
+    connect(historyCard, &FolderCard::urlActivated, this, &DolphinMainWindow::changeUrl);
+    connect(this, &DolphinMainWindow::urlChanged, historyCard, [this, historyCard]() {
+        historyCard->setUrls(m_favoritesPanel->history());
+    });
     connect(m_favoritesPanel, &FavoritesPanel::urlActivatedInNewTab, this, &DolphinMainWindow::openNewTab);
     createPanelAction(QIcon::fromTheme(QStringLiteral("folder-favorites")),
                       Qt::CTRL | Qt::ALT | Qt::Key_F,

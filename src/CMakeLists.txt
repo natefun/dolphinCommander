@@ -321,6 +321,8 @@ target_sources(dolphinstatic PRIVATE
     filterbar/filterbar.cpp
     kitemviews/kfileitemlisttostring.cpp
     panels/places/placespanel.cpp
+    panels/places/drivescard.cpp
+    panels/places/foldercard.cpp
     panels/panel.cpp
     panels/terminal/terminalpanel.cpp
     search/bar.cpp
@@ -392,6 +394,8 @@ target_sources(dolphinstatic PRIVATE
     filterbar/filterbar.h
     kitemviews/kfileitemlisttostring.h
     panels/places/placespanel.h
+    panels/places/drivescard.h
+    panels/places/foldercard.h
     panels/panel.h
     panels/terminal/terminalpanel.h
     search/bar.h

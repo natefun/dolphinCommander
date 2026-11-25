@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="64">
+<gui name="dolphin" version="69">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
@@ -32,6 +32,9 @@
             </Menu>
             <Action name="paste_clipboard_as_file" />
             <Action name="paste_as_links" />
+            <Action name="paste_as_hard_links" />
+            <Action name="copy_to_recent" />
+            <Action name="move_to_recent" />
             <Separator/>
             <Action name="properties" />
         </Menu>
@@ -91,6 +94,7 @@
                 <Action name="center_window" />
                 <Action name="dock_window" />
                 <Action name="thin_scrollbars" />
+                <Action name="show_drives_card" />
                 <Action name="auto_thumbs_details" />
                 <Separator/>
                 <Action name="make_default_file_manager" />
@@ -130,6 +134,9 @@
         <Menu name="go">
             <Action name="bookmarks" />
             <Action name="closed_tabs" />
+            <Separator/>
+            <Action name="browse_phone" />
+            <Action name="scan_network" />
         </Menu>
         <Menu name="tools">
             <Action name="open_preferred_search_tool" />
@@ -151,7 +158,11 @@
             <Action name="run_with_arguments" />
             <Action name="scripts_menu" />
             <Separator/>
+            <Action name="open_link_target" />
+            <Action name="regenerate_thumbnails" />
+            <Separator/>
             <Action name="open_terminal_as_administrator" />
+            <Action name="run_as_different_user" />
             <Action name="restart_as_administrator" />
             <Separator/>
             <Action name="recent_notifications" />

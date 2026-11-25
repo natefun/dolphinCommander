@@ -84,7 +84,7 @@ void FavoritesPanel::load()
     m_loading = false;
 }
 
-void FavoritesPanel::save() const
+void FavoritesPanel::save()
 {
     if (m_loading) {
         return;
@@ -107,6 +107,7 @@ void FavoritesPanel::save() const
         group.writeEntry("Group " + name, urls);
     }
     group.sync();
+    Q_EMIT changed();
 }
 
 QTreeWidgetItem *FavoritesPanel::groupItem(const QString &group, bool create)

@@ -86,7 +86,7 @@ QString saveLinkAsFile(const QUrl &url, const QString &folder);
 
 /** Makes a symbolic link in @p folder to each of @p urls (local files and folders), named after its target, under a free name if that is taken.
  * Returns the paths of the links. */
-QStringList pasteAsLinks(const QList<QUrl> &urls, const QString &folder);
+QStringList pasteAsLinks(const QList<QUrl> &urls, const QString &folder, bool hardLinks = false);
 
 /** Where a photo was taken, from its metadata: x is the longitude and y the latitude. Empty if the file has no position. */
 std::optional<QPointF> photoLocation(const QString &path);

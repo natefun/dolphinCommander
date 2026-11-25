@@ -22,6 +22,8 @@
 #include "kitemviews/kitemlistview.h"
 #include "kitemviews/kitemlistwidget.h"
 #include "panels/favorites/favoritespanel.h"
+#include "panels/places/drivescard.h"
+#include "panels/places/foldercard.h"
 #include "panels/places/placespanel.h"
 #include "testdir.h"
 #include "views/columnsstrip.h"
@@ -87,6 +89,10 @@ private Q_SLOTS:
     void init();
     void cleanup();
 
+    void testTheDrivesCardListsTheDrives();
+    void testTheFolderCardListsTheLastFolders();
+    void testTheNetworkCardOpensTheNetwork();
+    void testTheHeaderHasAMenuButton();
     void testDetailsIsTheDefaultViewMode();
     void testTheHeaderSwitchesToColumnsAndBack();
     void testTheMillerColumnsFollowASwappedView();
@@ -139,6 +145,7 @@ private Q_SLOTS:
     void testJobsRunOneAfterAnother();
     void testTheMainToolbarHasOneCommandersButtons();
     void testNewFilesComeFromTemplates();
+    void testThePreviewScalesSmoothlyOrPixelated();
     void testThePreviewGuessesHowToShowAPicture();
     void testFilesDroppedOnAFavoriteAreMovedIntoIt();
     void testTheFavoritesPanelKeepsAHistoryAndAliases();
@@ -229,6 +236,84 @@ QToolButton *DolphinCommanderFeaturesTest::headerModeButton(DolphinView::Mode mo
         }
     }
     return nullptr;
+}
+
+void DolphinCommanderFeaturesTest::testTheDrivesCardListsTheDrives()
+{
+    QCOMPARE(DrivesCard::usageText(1204'000'000'000, 1991'000'000'000),
+             QLocale().toString(1204) + QLatin1String(" / ") + QLocale().toString(1991) + QLatin1String(" GB"));
+    DrivesCard card;
+    QVERIFY(!card.mountPoints().isEmpty());
+    QVERIFY(card.mountPoints().contains(QStringLiteral("/")) || card.mountPoints().contains(QStringLiteral("/home")));
+    QVERIFY(card.sizeHint().height() > 30);
+
+    // A click on the first line opens that drive.
+    QSignalSpy spy(&card, &DrivesCard::driveActivated);
+    card.resize(card.sizeHint());
+    QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, QPoint(30, 8 + 28 + 10));
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(spy.at(0).at(0).toUrl(), QUrl::fromLocalFile(card.mountPoints().first()));
+}
+
+void DolphinCommanderFeaturesTest::testTheFolderCardListsTheLastFolders()
+{
+    FolderCard card;
+    card.show();
+    QVERIFY(card.isHidden() || card.urls().isEmpty()); // nothing opened yet: nothing to show
+    QList<QUrl> urls;
+    for (int i = 0; i < 9; ++i) {
+        urls << QUrl::fromLocalFile(QStringLiteral("/tmp/folder%1").arg(i));
+    }
+    card.setUrls(urls);
+    QCOMPARE(card.urls().size(), int(FolderCard::MaxEntries)); // only the newest ones
+    QCOMPARE(card.urls().first(), urls.first());
+    QVERIFY(!card.isHidden());
+
+    QSignalSpy spy(&card, &FolderCard::urlActivated);
+    card.resize(card.sizeHint());
+    QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, QPoint(30, 8 + 28 + 30)); // the second line
+    QCOMPARE(spy.count(), 1);
+    QCOMPARE(spy.at(0).at(0).toUrl(), urls.at(1));
+    card.setUrls({});
+    QVERIFY(card.isHidden());
+}
+
+void DolphinCommanderFeaturesTest::testTheNetworkCardOpensTheNetwork()
+{
+    FolderCard card;
+    card.setTitle(QStringLiteral("Network"));
+    card.setTitleClickable(true);
+    card.setVisible(true);
+    card.resize(card.sizeHint());
+    QSignalSpy spy(&card, &FolderCard::titleClicked);
+    QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, QPoint(30, 20));
+    QCOMPARE(spy.count(), 1);
+    // A card whose title is not clickable stays quiet.
+    card.setTitleClickable(false);
+    QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, QPoint(30, 20));
+    QCOMPARE(spy.count(), 1);
+}
+
+void DolphinCommanderFeaturesTest::testTheHeaderHasAMenuButton()
+{
+    // OneCommander has no menu bar: the pane's menu button calls the handler the main window sets.
+    int calls = 0;
+    ViewHeader::setMenuHandler([&calls](QWidget *) {
+        ++calls;
+    });
+    auto *header = m_container->findChild<ViewHeader *>();
+    QVERIFY(header);
+    QToolButton *menuButton = nullptr;
+    const auto buttons = header->findChildren<QToolButton *>();
+    for (QToolButton *button : buttons) {
+        if (button->toolTip() == QLatin1String("Menu")) {
+            menuButton = button;
+        }
+    }
+    QVERIFY(menuButton);
+    menuButton->click();
+    QCOMPARE(calls, 1);
+    ViewHeader::setMenuHandler(nullptr);
 }
 
 void DolphinCommanderFeaturesTest::testDetailsIsTheDefaultViewMode()
@@ -401,6 +486,30 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
     DolphinMainWindow window;
     closer.stop();
     KActionCollection *actions = window.actionCollection();
+
+    // Every favorite group has a card under the places, and a new group gets one.
+    auto *favoritesPanel = window.findChild<FavoritesPanel *>(QStringLiteral("favoritesPanel"));
+    auto *groupCards = window.findChild<QWidget *>(QStringLiteral("commanderGroupCards"));
+    QVERIFY(favoritesPanel);
+    QVERIFY(groupCards);
+    const int cardsBefore = int(groupCards->findChildren<FolderCard *>().size());
+    favoritesPanel->addGroup(QStringLiteral("Test group for cards"));
+    QCOMPARE(int(groupCards->findChildren<FolderCard *>().size()), cardsBefore + 1);
+    favoritesPanel->removeGroup(QStringLiteral("Test group for cards"));
+    QCOMPARE(int(groupCards->findChildren<FolderCard *>().size()), cardsBefore);
+
+    // The Drives card goes away with "Drives in Sidebar" and comes back with it.
+    auto *card = window.findChild<DrivesCard *>();
+    QVERIFY(card);
+    QAction *drivesAction = actions->action(QStringLiteral("show_drives_card"));
+    QVERIFY(drivesAction);
+    const bool drivesWereOn = drivesAction->isChecked();
+    drivesAction->setChecked(false);
+    QVERIFY(card->isHidden());
+    drivesAction->setChecked(true);
+    QVERIFY(!card->isHidden());
+    drivesAction->setChecked(drivesWereOn);
+
     QMultiHash<QKeySequence, QString> owners;
     for (QAction *action : actions->actions()) {
         for (const QKeySequence &key : action->shortcuts()) {
@@ -448,6 +557,15 @@ void DolphinCommanderFeaturesTest::testTheMainWindowHasTheOneCommanderActions()
                                "paste_clipboard_as_file",
                                "new_tab_from_clipboard",
                                "run_with_arguments",
+                               "open_link_target",
+                               "browse_phone",
+                               "scan_network",
+                               "copy_to_recent",
+                               "move_to_recent",
+                               "show_drives_card",
+                               "paste_as_hard_links",
+                               "regenerate_thumbnails",
+                               "run_as_different_user",
                                "lock_column_resizing",
                                "show_details_pane",
                                "colored_badges",
@@ -563,6 +681,14 @@ void DolphinCommanderFeaturesTest::testNewFilesComeFromTemplates()
 
     QFile::remove(saved);
     QFile::remove(second);
+}
+
+void DolphinCommanderFeaturesTest::testThePreviewScalesSmoothlyOrPixelated()
+{
+    FilePreviewWidget widget;
+    QVERIFY(widget.smoothScaling()); // smooth is the default, as in OneCommander
+    widget.setSmoothScaling(false);
+    QVERIFY(!widget.smoothScaling());
 }
 
 void DolphinCommanderFeaturesTest::testThePreviewGuessesHowToShowAPicture()
@@ -847,6 +973,21 @@ void DolphinCommanderFeaturesTest::testLinksAreMadeFromTheClipboard()
     QCOMPARE(second.size(), 1);
     QVERIFY(second.first() != first.first());
     QVERIFY(QFileInfo(second.first()).isSymLink());
+
+    // A hard link is a second name for the same file; a folder cannot have one.
+    dir.createDir("hard");
+    const QString hardFolder = dir.path() + QStringLiteral("/hard");
+    const QStringList hard =
+        CommanderTools::pasteAsLinks({QUrl::fromLocalFile(dir.path() + QStringLiteral("/a.txt")), QUrl::fromLocalFile(target)}, hardFolder, true);
+    QCOMPARE(hard, QStringList({hardFolder + QStringLiteral("/a.txt")}));
+    QVERIFY(!QFileInfo(hard.first()).isSymLink());
+    QFile original(dir.path() + QStringLiteral("/a.txt"));
+    QVERIFY(original.open(QIODevice::Append));
+    original.write("more");
+    original.close();
+    QFile linked(hard.first());
+    QVERIFY(linked.open(QIODevice::ReadOnly));
+    QCOMPARE(linked.readAll(), QByteArray("xmore")); // the same data
 }
 
 void DolphinCommanderFeaturesTest::testAFileTellsItsMetadata()
@@ -1184,6 +1325,9 @@ void DolphinCommanderFeaturesTest::testJobsRunOneAfterAnother()
         KIO::copy(QUrl::fromLocalFile(dir.path() + QStringLiteral("/b")), QUrl::fromLocalFile(dir.path() + QStringLiteral("/out2")), KIO::HideProgressInfo);
     JobQueue::add(second);
     QCOMPARE(JobQueue::count(), 2);
+    // The folders the copies went to are remembered, newest first, for "Copy/Move to Recent Destination".
+    QCOMPARE(JobQueue::recentDestinations().value(0), dir.path() + QStringLiteral("/out2"));
+    QCOMPARE(JobQueue::recentDestinations().value(1), dir.path() + QStringLiteral("/out1"));
 
     bool secondStartedBeforeFirstEnded = false;
     bool firstEnded = false;

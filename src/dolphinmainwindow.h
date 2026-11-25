@@ -688,7 +688,7 @@ private Q_SLOTS:
     void applyFileView(const QString &name);
     /** The layouts: Standard (both sides), Columns (Miller columns) and Classic (one side with the information panel). */
     void setCommanderLayout(CommanderLayout layout);
-    static bool runAsAdministrator(const QString &program, const QStringList &arguments);
+    static bool runAsAdministrator(const QString &program, const QStringList &arguments, const QString &user = QString());
     /** Pops up the messages shown lately. */
     void showRecentNotifications();
     /** Makes a to-do (a .2do file) in the folder, or marks the selected to-dos done or open again. */

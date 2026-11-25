@@ -44,6 +44,8 @@ Q_SIGNALS:
     void urlActivated(const QUrl &url);
     /** A favorite was asked to open on the other side or in a new tab. */
     void urlActivatedInNewTab(const QUrl &url);
+    /** The favorites, their groups or the aliases were changed. */
+    void changed();
 
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
@@ -53,7 +55,7 @@ protected:
 
 private:
     void load();
-    void save() const;
+    void save();
     QTreeWidgetItem *groupItem(const QString &group, bool create);
     void populate(QTreeWidgetItem *group, const QList<QUrl> &urls);
 

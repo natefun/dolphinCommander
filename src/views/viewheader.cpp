@@ -18,6 +18,8 @@
 
 namespace
 {
+std::function<void(QWidget *)> s_menuHandler;
+
 QToolButton *createButton(QWidget *parent, const QString &iconName, const QString &toolTip)
 {
     auto *button = new QToolButton(parent);
@@ -52,6 +54,15 @@ ViewHeader::ViewHeader(DolphinView *view, DolphinUrlNavigator *navigator, QWidge
     auto *row = new QHBoxLayout;
     row->setSpacing(0);
     layout->addLayout(row);
+
+    auto *menuButton = createButton(this, QStringLiteral("application-menu"), i18nc("@info:tooltip", "Menu"));
+    row->addWidget(menuButton);
+    row->addSpacing(4);
+    connect(menuButton, &QToolButton::clicked, this, [menuButton]() {
+        if (s_menuHandler) {
+            s_menuHandler(menuButton);
+        }
+    });
 
     m_back = createButton(this, QStringLiteral("go-previous"), i18nc("@info:tooltip", "Back"));
     m_forward = createButton(this, QStringLiteral("go-next"), i18nc("@info:tooltip", "Forward"));
@@ -212,4 +223,9 @@ void ViewHeader::sortBy(const QByteArray &role)
         m_view->setSortRole(role);
         m_view->setSortOrder(m_view->preferredSortOrder(role));
     }
+}
+
+void ViewHeader::setMenuHandler(std::function<void(QWidget *)> handler)
+{
+    s_menuHandler = std::move(handler);
 }

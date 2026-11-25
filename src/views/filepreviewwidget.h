@@ -50,6 +50,9 @@ public:
     /** Picks the mode that suits the picture that is shown (OneCommander guesses it too) and returns it. */
     ImageMode guessImageMode();
     void setImageMode(ImageMode mode);
+    /** Scale pictures smoothly (the default) or pixelated, as OneCommander's "Image scaling interpolation" setting does. */
+    void setSmoothScaling(bool smooth);
+    bool smoothScaling() const;
     ImageMode imageMode() const;
     /** True while a picture is shown. */
     bool showsImage() const;
@@ -72,6 +75,7 @@ private:
     QPixmap m_pixmap;
     qreal m_zoom = 1;
     ImageMode m_imageMode = ImageMode::Fit;
+    bool m_smooth = true;
     QPoint m_dragFrom;
     QPlainTextEdit *m_text;
     QString m_shownName;
