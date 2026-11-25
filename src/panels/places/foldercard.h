@@ -27,6 +27,8 @@ public:
     /** Shows the "+" button at the right of the title. */
     void setPlusShown(bool shown);
     void setMaxEntries(int count);
+    /** Makes a click on the title emit @c titleClicked, as the Network card opens the network. */
+    void setTitleClickable(bool clickable);
 
     /** The folders shown: the first entries of @p urls, as many as the card allows. */
     void setUrls(const QList<QUrl> &urls);
@@ -37,6 +39,7 @@ public:
 Q_SIGNALS:
     void urlActivated(const QUrl &url);
     void plusClicked();
+    void titleClicked();
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -48,6 +51,7 @@ private:
     QList<QUrl> m_urls;
     QString m_title;
     bool m_plusShown = false;
+    bool m_titleClickable = false;
     int m_maxEntries = MaxEntries;
 };
 

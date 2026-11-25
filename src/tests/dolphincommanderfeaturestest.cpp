@@ -91,6 +91,7 @@ private Q_SLOTS:
 
     void testTheDrivesCardListsTheDrives();
     void testTheFolderCardListsTheLastFolders();
+    void testTheNetworkCardOpensTheNetwork();
     void testTheHeaderHasAMenuButton();
     void testDetailsIsTheDefaultViewMode();
     void testTheHeaderSwitchesToColumnsAndBack();
@@ -275,6 +276,22 @@ void DolphinCommanderFeaturesTest::testTheFolderCardListsTheLastFolders()
     QCOMPARE(spy.at(0).at(0).toUrl(), urls.at(1));
     card.setUrls({});
     QVERIFY(card.isHidden());
+}
+
+void DolphinCommanderFeaturesTest::testTheNetworkCardOpensTheNetwork()
+{
+    FolderCard card;
+    card.setTitle(QStringLiteral("Network"));
+    card.setTitleClickable(true);
+    card.setVisible(true);
+    card.resize(card.sizeHint());
+    QSignalSpy spy(&card, &FolderCard::titleClicked);
+    QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, QPoint(30, 20));
+    QCOMPARE(spy.count(), 1);
+    // A card whose title is not clickable stays quiet.
+    card.setTitleClickable(false);
+    QTest::mouseClick(&card, Qt::LeftButton, Qt::NoModifier, QPoint(30, 20));
+    QCOMPARE(spy.count(), 1);
 }
 
 void DolphinCommanderFeaturesTest::testTheHeaderHasAMenuButton()

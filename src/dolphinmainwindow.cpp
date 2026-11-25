@@ -5228,6 +5228,17 @@ void DolphinMainWindow::setupDockWidgets()
     drivesCard->setObjectName(QStringLiteral("commanderDrivesCard"));
     connect(drivesCard, &DrivesCard::driveActivated, this, &DolphinMainWindow::changeUrl);
     placesLayout->addWidget(drivesCard);
+
+    // OneCommander's Network card: its title opens the network.
+    auto *networkCard = new FolderCard(placesContainer);
+    networkCard->setObjectName(QStringLiteral("commanderNetworkCard"));
+    networkCard->setTitle(i18nc("@title:group", "Network"));
+    networkCard->setTitleClickable(true);
+    networkCard->setVisible(true);
+    connect(networkCard, &FolderCard::titleClicked, this, [this]() {
+        changeUrl(QUrl(QStringLiteral("remote:/")));
+    });
+    placesLayout->addWidget(networkCard);
     drivesCard->setVisible(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ShowDrivesCard", true));
     connect(drivesCard, &DrivesCard::hideRequested, this, [this]() {
         if (QAction *action = actionCollection()->action(QStringLiteral("show_drives_card"))) {

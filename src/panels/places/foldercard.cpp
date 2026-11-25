@@ -41,6 +41,11 @@ void FolderCard::setPlusShown(bool shown)
     update();
 }
 
+void FolderCard::setTitleClickable(bool clickable)
+{
+    m_titleClickable = clickable;
+}
+
 void FolderCard::setMaxEntries(int count)
 {
     m_maxEntries = count;
@@ -113,6 +118,10 @@ void FolderCard::mousePressEvent(QMouseEvent *event)
     if (event->button() == Qt::LeftButton) {
         if (m_plusShown && QRect(width() - Margin * 2 - 24, Margin, 24, TitleHeight).contains(event->position().toPoint())) {
             Q_EMIT plusClicked();
+            return;
+        }
+        if (m_titleClickable && QRect(0, 0, width(), Margin + TitleHeight).contains(event->position().toPoint())) {
+            Q_EMIT titleClicked();
             return;
         }
         for (int i = 0; i < m_urls.size(); ++i) {
