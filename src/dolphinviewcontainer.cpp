@@ -286,6 +286,31 @@ void DolphinViewContainer::connectViewSignals()
     }
 
     connect(ContentDisplaySettings::self(), &KCoreConfigSkeleton::configChanged, m_view, &DolphinView::reload);
+    updatePaneColors();
+}
+
+void DolphinViewContainer::updatePaneColors()
+{
+    const bool own = qApp->property("commanderPaneColors").toBool();
+    setAutoFillBackground(own);
+    if (own) {
+        QPalette colors = QApplication::palette();
+        colors.setColor(QPalette::Window, colors.color(QPalette::Base));
+        if (palette().color(QPalette::Window) != colors.color(QPalette::Window) || palette().color(QPalette::Button) != colors.color(QPalette::Button)) {
+            setPalette(colors);
+        }
+    } else if (testAttribute(Qt::WA_SetPalette)) {
+        setPalette(QPalette());
+    }
+}
+
+void DolphinViewContainer::changeEvent(QEvent *event)
+{
+    QWidget::changeEvent(event);
+    // A palette set for the application reaches the widgets as a change of their own palette.
+    if (event->type() == QEvent::ApplicationPaletteChange || event->type() == QEvent::PaletteChange) {
+        updatePaneColors();
+    }
 }
 
 void DolphinViewContainer::setDetailsPaneShown(bool shown)

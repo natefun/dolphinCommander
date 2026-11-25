@@ -1674,6 +1674,10 @@ void DolphinCommanderFeaturesTest::testTheNordThemeHasItsColors()
     closer.start();
     DolphinMainWindow window;
     closer.stop();
+    QMetaObject::invokeMethod(&window,
+                              "applyColorTheme",
+                              Qt::DirectConnection,
+                              Q_ARG(QString, QStringLiteral("system"))); // an earlier test may have left a theme on
     const QColor before = QApplication::palette().color(QPalette::Base);
     QMetaObject::invokeMethod(&window, "applyColorTheme", Qt::DirectConnection, Q_ARG(QString, QStringLiteral("nord")));
     QCOMPARE(QApplication::palette().color(QPalette::Base), QColor(46, 52, 64));
@@ -3656,7 +3660,7 @@ void DolphinCommanderFeaturesTest::testALostWindowCanBeCenteredAndTheThemeReload
     group.writeEntry("StyleSheet", QStringLiteral("QLabel#reloaded { color: #00ff00; }"));
     window.actionCollection()->action(QStringLiteral("reload_theme"))->trigger();
     QVERIFY(QApplication::palette().color(QPalette::Base).lightnessF() < 0.3);
-    QCOMPARE(qApp->styleSheet(), QStringLiteral("QLabel#reloaded { color: #00ff00; }"));
+    QVERIFY(qApp->styleSheet().contains(QStringLiteral("QLabel#reloaded { color: #00ff00; }"))); // after the flat look that goes with the dark colors
     QVERIFY(window.actionCollection()->action(QStringLiteral("reload_theme"))->shortcuts().contains(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F5)));
 
     group.writeEntry("ColorTheme", QStringLiteral("system"));

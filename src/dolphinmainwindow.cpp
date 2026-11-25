@@ -3120,6 +3120,7 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
 {
     systemIconThemeName();
     static const QPalette systemPalette = QApplication::palette();
+    qApp->setProperty("commanderPaneColors", theme == QLatin1String("dark") || theme == QLatin1String("nord") || theme == QLatin1String("custom"));
     // The views take their background from the program's palette while one of the fork's themes is on.
     DolphinView::setUsesApplicationPalette(theme == QLatin1String("dark") || theme == QLatin1String("light") || theme == QLatin1String("custom")
                                            || theme == QLatin1String("nord"));
@@ -3135,13 +3136,14 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
         }
         return false;
     };
-    const QString schemeId =
-        theme == QLatin1String("dark") ? QStringLiteral("BreezeDark") : (theme == QLatin1String("light") ? QStringLiteral("BreezeLight") : QString());
+    // Dark is OneCommander's own measured palette, not the desktop's Breeze Dark.
+    const QString schemeId = theme == QLatin1String("light") ? QStringLiteral("BreezeLight") : QString();
     if (!schemeId.isEmpty() && installedScheme(schemeId)) {
         KColorSchemeManager::instance()->activateSchemeId(schemeId);
         m_schemeThemeActive = true;
         KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ColorTheme", theme);
         QPixmapCache::clear();
+        applyStyleSheet(KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("StyleSheet", QString()));
         return;
     }
     if (theme == QLatin1String("system") && m_schemeThemeActive) {
@@ -3152,13 +3154,13 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
         const bool dark = theme == QLatin1String("dark") || theme == QLatin1String("nord");
         QPalette palette;
         // The dark colors are the ones measured in OneCommander's own window: panels, lists and the alternate row.
-        QColor window = dark ? QColor(43, 41, 46) : QColor(244, 244, 246);
+        QColor window = dark ? QColor(13, 11, 14) : QColor(244, 244, 246);
         QColor base = dark ? QColor(32, 31, 34) : QColor(255, 255, 255);
         QColor text = dark ? QColor(230, 232, 236) : QColor(30, 32, 36);
         QColor highlight = dark ? QColor(13, 66, 110) : QColor(42, 110, 200);
         if (theme == QLatin1String("nord")) {
             // The Nord palette, as OneCommander's Nord theme uses it: polar night for the windows, snow storm for the text, frost for the highlight.
-            window = QColor(59, 66, 82);
+            window = QColor(46, 52, 64);
             base = QColor(46, 52, 64);
             text = QColor(216, 222, 233);
             highlight = QColor(94, 129, 172);
@@ -3183,7 +3185,9 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
         palette.setColor(QPalette::Base, base);
         palette.setColor(QPalette::AlternateBase, dark ? QColor(35, 34, 37) : QColor(248, 248, 250));
         palette.setColor(QPalette::Text, text);
-        palette.setColor(QPalette::Button, window);
+        // The panels (path bar, cards, the tab in front) are one step lighter than the window that shows between them.
+        palette.setColor(QPalette::Button, dark ? QColor(43, 41, 46) : window);
+        palette.setColor(QPalette::Mid, dark ? QColor(70, 68, 74) : QColor(190, 192, 198));
         palette.setColor(QPalette::ButtonText, text);
         palette.setColor(QPalette::ToolTipBase, base);
         palette.setColor(QPalette::ToolTipText, text);
@@ -3202,6 +3206,8 @@ void DolphinMainWindow::applyColorTheme(const QString &theme)
     QPixmapCache::clear();
 
     KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("ColorTheme", theme);
+    applyStyleSheet(
+        KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("StyleSheet", QString())); // the flat look goes with the theme
 }
 
 void DolphinMainWindow::applyTextAndIcons(int fontPointSize, const QString &iconTheme)
@@ -3281,7 +3287,37 @@ void DolphinMainWindow::applyStyleSheet(const QString &styleSheet)
         "QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }"
         "QScrollBar::add-page, QScrollBar::sub-page { background: none; }");
     const bool thin = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ThinScrollbars", false);
-    qApp->setStyleSheet(thin ? styleSheet + QLatin1Char('\n') + thinScrollbars : styleSheet);
+    // OneCommander's flat look comes with its own colors only: the desktop's theme keeps its own look.
+    static const QString flatLook = QStringLiteral(
+        "QTabBar { background: palette(window); }"
+        "KUrlNavigator { background: palette(button); }"
+        "QTabBar::tab { background: transparent; border: none; padding: 4px 12px; min-height: 18px; border-top-left-radius: 4px; border-top-right-radius: 4px; "
+        "}"
+        "QTabBar::tab:selected { background: palette(button); }"
+        "QTabBar::tab:hover:!selected { background: rgba(255, 255, 255, 18); }"
+        "QToolButton { border: none; background: transparent; border-radius: 2px; padding: 2px; }"
+        "QToolButton:hover { background: rgba(255, 255, 255, 24); }"
+        "QToolButton:checked, QToolButton:pressed { background: palette(highlight); }"
+        "QMenu { background: palette(button); border: 1px solid palette(mid); padding: 2px; }"
+        "QMenu::item { padding: 4px 22px; }"
+        "QMenu::item:selected { background: palette(highlight); }"
+        "QMenu::separator { height: 1px; background: palette(mid); margin: 3px 6px; }"
+        "QToolTip { background: palette(button); color: palette(window-text); border: 1px solid palette(mid); }"
+        "QSplitter::handle { background: palette(window); }"
+        "QAbstractItemView, QGraphicsView { border: none; }"
+        "QScrollBar:vertical { width: 8px; background: transparent; margin: 0; }"
+        "QScrollBar:horizontal { height: 8px; background: transparent; margin: 0; }"
+        "QScrollBar::handle:vertical { background: palette(mid); border-radius: 3px; min-height: 24px; }"
+        "QScrollBar::handle:horizontal { background: palette(mid); border-radius: 3px; min-width: 24px; }"
+        "QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }"
+        "QScrollBar::add-page, QScrollBar::sub-page { background: none; }");
+    const QString theme = KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).readEntry("ColorTheme", QStringLiteral("system"));
+    const bool ownLook = theme == QLatin1String("dark") || theme == QLatin1String("nord") || theme == QLatin1String("custom");
+    QString sheet = ownLook ? flatLook + QLatin1Char('\n') + styleSheet : styleSheet;
+    if (thin) {
+        sheet += QLatin1Char('\n') + thinScrollbars;
+    }
+    qApp->setStyleSheet(sheet);
     KConfigGroup(KSharedConfig::openConfig(), QStringLiteral("Commander")).writeEntry("StyleSheet", styleSheet);
 }
 

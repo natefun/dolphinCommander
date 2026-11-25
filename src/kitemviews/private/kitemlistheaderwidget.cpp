@@ -13,6 +13,12 @@
 #include <QPainter>
 #include <QStyleOptionHeader>
 
+// With OneCommander's colors the header is in the color of the list it belongs to.
+static QColor paneColor(const QPalette &palette)
+{
+    return qApp->property("commanderPaneColors").toBool() ? palette.color(QPalette::Base) : palette.color(QPalette::Window);
+}
+
 namespace
 {
 /**
@@ -203,7 +209,7 @@ void KItemListHeaderWidget::paint(QPainter *painter, const QStyleOptionGraphicsI
         return;
     }
 
-    painter->fillRect(QRectF(QPointF(0, 0), size()), palette().window());
+    painter->fillRect(QRectF(QPointF(0, 0), size()), paneColor(palette()));
 
     // Draw roles
     painter->setFont(font());
@@ -447,7 +453,7 @@ void KItemListHeaderWidget::paintRole(QPainter *painter, const QByteArray &role,
     // No label: a pair of chevrons at the start of the column sorts by it, the upper one upwards and the lower one downwards.
     // The tooltip tells which column it is.
     painter->save();
-    painter->fillRect(rect, palette().window());
+    painter->fillRect(rect, paneColor(palette()));
     if (m_hoveredIndex == orderIndex || m_pressedRoleIndex == orderIndex) {
         painter->setOpacity(0.15);
         painter->fillRect(rect, palette().color(QPalette::Highlight));
