@@ -124,5 +124,7 @@ private:
     QStringList m_hiddenNames;
     QStringList m_hiddenExtensions;
     bool m_hideTemporary = false;
+    /** Whether a name that starts with a dot makes a file hidden. When not, only the other hidden files are. */
+    bool m_dotFilesAreHidden = true;
 };
 #endif

@@ -111,6 +111,8 @@ private Q_SLOTS:
     void testALongNameIsCutShortAndKeepsItsExtension();
     void testOpeningItemsFollowsTheSetting();
     void testFolderSizesFollowTheSetting();
+    void testDotFilesCanBeLeftShown();
+    void testTheColumnsKeepTheWidthsOfTheSettings();
     void testAFolderCanInheritItsParentsViewAndShowTheCreationDate();
     void testTheHeaderHasAMenuButton();
     void testDetailsIsTheDefaultViewMode();
@@ -508,6 +510,23 @@ void DolphinCommanderFeaturesTest::testSettingsChangeWhatTheProgramDoes()
     CommanderSettings::setValue(QStringLiteral("AgeStripes"), !ageWas);
     QCOMPARE(age->isChecked(), !ageWas);
     CommanderSettings::setValue(QStringLiteral("AgeStripes"), ageWas);
+    CommanderSettings::setValue(QStringLiteral("FileAge"), QStringLiteral("color"));
+    QVERIFY(age->isChecked());
+    CommanderSettings::setValue(QStringLiteral("FileAge"), QStringLiteral("none"));
+    QVERIFY(!age->isChecked());
+    CommanderSettings::remove(QStringLiteral("FileAge"));
+    CommanderSettings::setValue(QStringLiteral("AgeStripes"), ageWas);
+
+    // The space bar opens the preview when asked to, and selects otherwise.
+    QAction *quickView = window.actionCollection()->action(QStringLiteral("quick_view"));
+    QAction *selectionMode = window.actionCollection()->action(QStringLiteral("toggle_selection_mode"));
+    CommanderSettings::setValue(QStringLiteral("PreviewShortcut"), true);
+    QVERIFY(quickView->shortcuts().contains(QKeySequence(Qt::Key_Space)));
+    QVERIFY(!selectionMode->shortcuts().contains(QKeySequence(Qt::Key_Space)));
+    CommanderSettings::setValue(QStringLiteral("PreviewShortcut"), false);
+    QVERIFY(!quickView->shortcuts().contains(QKeySequence(Qt::Key_Space)));
+    QVERIFY(selectionMode->shortcuts().contains(QKeySequence(Qt::Key_Space)));
+    CommanderSettings::remove(QStringLiteral("PreviewShortcut"));
 }
 
 void DolphinCommanderFeaturesTest::testFilesCanBeTreatedAsHidden()
@@ -1719,6 +1738,51 @@ void DolphinCommanderFeaturesTest::testTheDetailsPaneDescribesTheSelectedFile()
     QCOMPARE(ItemDetailsPane::ageText(now.addDays(-7), now), QStringLiteral("7 d"));
     QCOMPARE(ItemDetailsPane::ageText(now.addDays(-270), now), QStringLiteral("9 M"));
     QCOMPARE(ItemDetailsPane::ageText(now.addDays(-800), now), QStringLiteral("2 y"));
+}
+
+void DolphinCommanderFeaturesTest::testDotFilesCanBeLeftShown()
+{
+    const auto cleanUp = qScopeGuard([]() {
+        CommanderSettings::remove(QStringLiteral("TreatDotFilesAsHidden"));
+    });
+    m_testDir->createFile(".dotfile");
+    KFileItemModel *model = static_cast<KFileItemModel *>(m_container->view()->findChild<KItemListContainer *>()->controller()->model());
+    const QUrl dot = QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/.dotfile"));
+    m_container->view()->reload();
+    QTRY_VERIFY_WITH_TIMEOUT(model->count() >= 3, 5000);
+    QVERIFY(model->index(dot) < 0);
+    CommanderSettings::setValue(QStringLiteral("TreatDotFilesAsHidden"), false);
+    QTRY_VERIFY_WITH_TIMEOUT(model->index(dot) >= 0, 5000);
+    CommanderSettings::setValue(QStringLiteral("TreatDotFilesAsHidden"), true);
+    QTRY_VERIFY_WITH_TIMEOUT(model->index(dot) < 0, 5000);
+}
+
+void DolphinCommanderFeaturesTest::testTheColumnsKeepTheWidthsOfTheSettings()
+{
+    const auto cleanUp = qScopeGuard([]() {
+        CommanderSettings::remove(QStringLiteral("ColumnWidthCurrentColumnsLayout"));
+        CommanderSettings::remove(QStringLiteral("ColumnWidthOther"));
+        CommanderSettings::remove(QStringLiteral("ColumnParentWidth"));
+    });
+    CommanderSettings::setValue(QStringLiteral("ColumnWidthCurrentColumnsLayout"), 300);
+    CommanderSettings::setValue(QStringLiteral("ColumnWidthOther"), 120);
+    ColumnsStrip strip;
+    strip.resize(1800, 300);
+    strip.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&strip));
+    strip.setUrl(QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/subdir")));
+    QTRY_VERIFY(strip.count() >= 3);
+    // The sizes are the labels, then the columns, then what is left over.
+    const int columns = (strip.count() - 1) / 2;
+    QList<int> sizes = strip.sizes();
+    QCOMPARE(sizes.at(columns + columns - 1), 300);
+    QCOMPARE(sizes.at(columns + columns - 2), 120);
+    CommanderSettings::setValue(QStringLiteral("ColumnWidthOther"), 300);
+    CommanderSettings::setValue(QStringLiteral("ColumnParentWidth"), 200);
+    strip.setUrl(QUrl::fromLocalFile(m_testDir->path()));
+    strip.setUrl(QUrl::fromLocalFile(m_testDir->path() + QStringLiteral("/subdir")));
+    sizes = strip.sizes();
+    QCOMPARE(sizes.at(columns + columns - 2), 200); // the parent has a width of its own
 }
 
 void DolphinCommanderFeaturesTest::testLockedColumnDividersCannotBeDragged()

@@ -109,7 +109,8 @@ QStringList KFileItemModelFilter::excludeMimeTypes() const
 bool KFileItemModelFilter::hasSetFilters() const
 {
     return (!m_pattern.isEmpty() || !m_mimeTypes.isEmpty() || !m_excludeMimeTypes.isEmpty()
-            || (m_rulesActive && (m_hideTemporary || !m_hiddenPrefixes.isEmpty() || !m_hiddenNames.isEmpty() || !m_hiddenExtensions.isEmpty())));
+            || (m_rulesActive
+                && (!m_dotFilesAreHidden || m_hideTemporary || !m_hiddenPrefixes.isEmpty() || !m_hiddenNames.isEmpty() || !m_hiddenExtensions.isEmpty())));
 }
 
 void KFileItemModelFilter::setHiddenRulesActive(bool active)
@@ -133,6 +134,7 @@ void KFileItemModelFilter::reloadHiddenRules()
     for (QString &extension : m_hiddenExtensions) {
         extension = extension.startsWith(QLatin1Char('.')) ? extension.mid(1).toLower() : extension.toLower();
     }
+    m_dotFilesAreHidden = CommanderSettings::boolValue(QStringLiteral("TreatDotFilesAsHidden"), true);
     m_hideTemporary =
         CommanderSettings::boolValue(QStringLiteral("HideTemporary"), false) && !CommanderSettings::boolValue(QStringLiteral("ShowTemporary"), false);
 }
@@ -140,6 +142,10 @@ void KFileItemModelFilter::reloadHiddenRules()
 bool KFileItemModelFilter::hiddenByRules(const KFileItem &item) const
 {
     const QString name = item.name();
+    // The lister lists the files that start with a dot when they are not to be treated as hidden, so the other hidden files are held back here.
+    if (!m_dotFilesAreHidden && item.isHidden() && !name.startsWith(QLatin1Char('.'))) {
+        return true;
+    }
     for (const QString &prefix : m_hiddenPrefixes) {
         if (name.startsWith(prefix)) {
             return true;

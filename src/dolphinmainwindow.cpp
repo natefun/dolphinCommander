@@ -1459,6 +1459,9 @@ void DolphinMainWindow::updateSearchAction()
 
 void DolphinMainWindow::updatePasteAction()
 {
+    if (!m_activeViewContainer) {
+        return; // a window that has not opened a folder yet
+    }
     QAction *pasteAction = actionCollection()->action(KStandardAction::name(KStandardAction::Paste));
     const std::pair<bool, QString> pasteInfo = m_activeViewContainer->view()->pasteInfo();
     pasteAction->setEnabled(pasteInfo.first);
@@ -2061,6 +2064,21 @@ void DolphinMainWindow::openCommanderSettings()
     m_commanderSettingsDialog = dialog;
 }
 
+void DolphinMainWindow::applyPreviewShortcut()
+{
+    // OneCommander's "Pressing Spacebar key opens file preview window": the key goes to the quick view instead of the selection mode.
+    QAction *quickView = actionCollection()->action(QStringLiteral("quick_view"));
+    QAction *selectionMode = actionCollection()->action(QStringLiteral("toggle_selection_mode"));
+    if (!quickView || !selectionMode || !CommanderSettings::has(QStringLiteral("PreviewShortcut"))) {
+        return;
+    }
+    const bool spaceOpensPreview = CommanderSettings::boolValue(QStringLiteral("PreviewShortcut"), true);
+    actionCollection()->setDefaultShortcuts(quickView,
+                                            spaceOpensPreview ? QList<QKeySequence>{Qt::ALT | Qt::Key_F3, Qt::Key_Space}
+                                                              : QList<QKeySequence>{Qt::ALT | Qt::Key_F3});
+    actionCollection()->setDefaultShortcuts(selectionMode, spaceOpensPreview ? QList<QKeySequence>{} : QList<QKeySequence>{Qt::Key_Space});
+}
+
 void DolphinMainWindow::applyCommanderSetting(const QString &key)
 {
     auto setAction = [this](const QString &name, bool on) {
@@ -2144,13 +2162,19 @@ void DolphinMainWindow::applyCommanderSetting(const QString &key)
         setAction(QStringLiteral("thin_scrollbars"), on);
     } else if (key == QLatin1String("AgeStripes")) {
         setAction(QStringLiteral("age_stripes"), on);
+    } else if (key == QLatin1String("PreviewShortcut")) {
+        applyPreviewShortcut();
+    } else if (key == QLatin1String("FileAge")) {
+        // "Color" marks the files by their age, "None" leaves them plain.
+        setAction(QStringLiteral("age_stripes"), CommanderSettings::stringValue(key) == QLatin1String("color"));
     } else if (key == QLatin1String("ColoredBadges")) {
         setAction(QStringLiteral("colored_badges"), on);
     } else if (key == QLatin1String("FoldersSortedByName")) {
         setAction(QStringLiteral("folders_sorted_by_name"), on);
     } else if (key == QLatin1String("AutoThumbsDetails")) {
         setAction(QStringLiteral("auto_thumbs_details"), on);
-    } else if (key == QLatin1String("ShowFileExtension") || key == QLatin1String("FileNameMaxLines") || key == QLatin1String("FolderIconOverride")) {
+    } else if (key == QLatin1String("ShowFileExtension") || key == QLatin1String("FileNameMaxLines") || key == QLatin1String("FolderIconOverride")
+               || key == QLatin1String("Padding")) {
         refreshViews();
     } else if (key == QLatin1String("FileNameTrimming")) {
         ContentDisplaySettings::setElidingMode(CommanderSettings::stringValue(key) == QLatin1String("middle") ? ContentDisplaySettings::ElidingMode::Middle
@@ -4770,6 +4794,7 @@ void DolphinMainWindow::setupActions()
     connect(commanderSettings, &QAction::triggered, this, &DolphinMainWindow::openCommanderSettings);
     connect(CommanderSettings::notifier(), &CommanderSettings::Notifier::changed, this, &DolphinMainWindow::applyCommanderSetting);
     QApplication::setDoubleClickInterval(CommanderSettings::intValue(QStringLiteral("MouseDebounceTime"), QApplication::doubleClickInterval()));
+    QTimer::singleShot(0, this, &DolphinMainWindow::applyPreviewShortcut); // the quick view action is made after this
 
     // OneCommander's "Browse phone" and "Scan network".
     QAction *browsePhone = actionCollection()->addAction(QStringLiteral("browse_phone"));

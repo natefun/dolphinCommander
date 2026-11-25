@@ -428,17 +428,24 @@ KFileItemModel::KFileItemModel(QObject *parent)
 
     connect(GeneralSettings::self(), &GeneralSettings::sortingChoiceChanged, this, &KFileItemModel::slotSortingChoiceChanged);
 
-    setShowTrashMime(m_dirLister->showHiddenFiles() || !GeneralSettings::hideXTrashFile());
+    setShowTrashMime(m_showHiddenFiles || !GeneralSettings::hideXTrashFile());
+    m_dirLister->setShowHiddenFiles(!CommanderSettings::boolValue(QStringLiteral("TreatDotFilesAsHidden"), true));
 
     // OneCommander's rules for files to treat as hidden apply while hidden files are not shown.
     m_filter.reloadHiddenRules();
-    m_filter.setHiddenRulesActive(!m_dirLister->showHiddenFiles());
+    m_filter.setHiddenRulesActive(!m_showHiddenFiles);
     connect(CommanderSettings::notifier(), &CommanderSettings::Notifier::changed, this, [this](const QString &key) {
         if (key == QLatin1String("HiddenFilesPrefixList") || key == QLatin1String("HiddenFilesList") || key == QLatin1String("HiddenFilesExtList")
             || key == QLatin1String("HideTemporary") || key == QLatin1String("ShowTemporary")) {
             dispatchPendingItemsToInsert();
             m_filter.reloadHiddenRules();
             applyFilters();
+        } else if (key == QLatin1String("TreatDotFilesAsHidden")) {
+            m_dirLister->setShowHiddenFiles(m_showHiddenFiles || !CommanderSettings::boolValue(key, true));
+            m_filter.reloadHiddenRules();
+            applyFilters();
+            m_dirLister->emitChanges();
+            dispatchPendingItemsToInsert();
         }
     });
 }
@@ -611,7 +618,9 @@ void KFileItemModel::scheduleResortAllItems()
 
 void KFileItemModel::setShowHiddenFiles(bool show)
 {
-    m_dirLister->setShowHiddenFiles(show);
+    m_showHiddenFiles = show;
+    // OneCommander's "Files starting with dot": when they are not hidden, the lister lists them even while hidden files are not shown.
+    m_dirLister->setShowHiddenFiles(show || !CommanderSettings::boolValue(QStringLiteral("TreatDotFilesAsHidden"), true));
     m_filter.setHiddenRulesActive(!show);
     applyFilters();
     setShowTrashMime(show || !GeneralSettings::hideXTrashFile());
@@ -623,7 +632,7 @@ void KFileItemModel::setShowHiddenFiles(bool show)
 
 bool KFileItemModel::showHiddenFiles() const
 {
-    return m_dirLister->showHiddenFiles();
+    return m_showHiddenFiles;
 }
 
 void KFileItemModel::setShowDirectoriesOnly(bool enabled)

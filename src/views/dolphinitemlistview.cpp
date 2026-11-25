@@ -220,7 +220,8 @@ void DolphinItemListView::updateGridSize()
     m_zoomLevel = ZoomLevelInfo::zoomLevelForIconSize(QSize(iconSize, iconSize));
     KItemListStyleOption option = styleOption();
 
-    const int padding = 2;
+    // OneCommander's "Padding" adds room around every item.
+    const int padding = 2 + qBound(0, CommanderSettings::intValue(QStringLiteral("Padding"), 0), 20);
     int horizontalMargin = 0;
     int verticalMargin = 0;
 

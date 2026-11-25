@@ -527,6 +527,7 @@ private Q_SLOTS:
     void openCommanderSettings();
     /** Does what the setting @p key says now that it has changed, or what its button says. */
     void applyCommanderSetting(const QString &key);
+    void applyPreviewShortcut();
 
     /** Updates the state of the 'Show Full Location' action. */
     void slotEditableStateChanged(bool editable);

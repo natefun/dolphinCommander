@@ -50,6 +50,19 @@ int defaultColumnWidth()
     // OneCommander's "Current (rightmost) column pane width in Columns layout".
     return qBound(80, CommanderSettings::intValue(QStringLiteral("ColumnWidthCurrentColumnsLayout"), 170), 1000);
 }
+/** The widest a column may be once another has opened after it. */
+int widestOtherColumnWidth()
+{
+    // OneCommander's "Maximum non-current column width".
+    return qBound(80, CommanderSettings::intValue(QStringLiteral("ColumnWidthOther"), 1000), 1000);
+}
+/** The width the folder before the last column is given. */
+int parentColumnWidth(int fallback)
+{
+    // OneCommander's "Parent column width".
+    return CommanderSettings::has(QStringLiteral("ColumnParentWidth")) ? qBound(40, CommanderSettings::intValue(QStringLiteral("ColumnParentWidth"), 170), 600)
+                                                                       : fallback;
+}
 constexpr int StripHeight = 224;
 /** The width of the strip that stands for a column that is hidden. */
 constexpr int CollapsedLabelWidth = 14;
@@ -273,9 +286,17 @@ void ColumnsStrip::updateColumnLayout()
     // Every column gets the width that was asked for, or less if they do not all fit. What is
     // left over goes to the filler behind the last column.
     const int available = width() - visibleCount * handleWidth() - m_firstVisibleColumn * (CollapsedLabelWidth + handleWidth());
+    // The columns before the last are held to the widest other width, and the one right before it can have its own.
+    const auto askedWidth = [&](int i) {
+        int asked = m_columnWidths.at(i);
+        if (i == count - 2) {
+            asked = parentColumnWidth(asked);
+        }
+        return i < count - 1 ? qMin(asked, widestOtherColumnWidth()) : asked;
+    };
     int wanted = 0;
     for (int i = m_firstVisibleColumn; i < count; ++i) {
-        wanted += m_columnWidths.at(i);
+        wanted += askedWidth(i);
     }
     const double scale = wanted > available ? double(available) / wanted : 1.0;
     QList<int> newSizes;
@@ -288,7 +309,7 @@ void ColumnsStrip::updateColumnLayout()
     for (int i = 0; i < count; ++i) {
         const bool visible = i >= m_firstVisibleColumn;
         m_columns.at(i).widget->setVisible(visible);
-        const int columnWidth = visible ? qMax(minimumColumnWidth(), int(m_columnWidths.at(i) * scale)) : 0;
+        const int columnWidth = visible ? qMax(minimumColumnWidth(), int(askedWidth(i) * scale)) : 0;
         newSizes.append(columnWidth);
         used += columnWidth;
     }

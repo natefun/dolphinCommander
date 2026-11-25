@@ -352,7 +352,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              live,
              i18nc("@info", "Shows .tmp files, files that start with ~$, and files with the temporary attribute."));
         flag(view, visibility, QStringLiteral("HideTemporary"), i18nc("@option:check", "Hide temporary files"), false, live);
-        flag(view, visibility, QStringLiteral("TreatDotFilesAsHidden"), i18nc("@option:check", "Files starting with dot"), true, not_yet);
+        flag(view, visibility, QStringLiteral("TreatDotFilesAsHidden"), i18nc("@option:check", "Files starting with dot"), true, live);
         text(view, visibility, QStringLiteral("HiddenFilesPrefixList"), i18nc("@label", "Prefixed files"), QString(), live);
         text(view, visibility, QStringLiteral("HiddenFilesList"), i18nc("@label", "Full names"), QString(), live);
         text(view,
@@ -390,7 +390,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              i18nc("@option:check", "Show file attributes and synchronization state icons"),
              false,
              win);
-        flag(view, visibility, QStringLiteral("SkipSearchingReparsePoints"), i18nc("@option:check", "Skip searching within reparse points"), false, not_yet);
+        flag(view, visibility, QStringLiteral("SkipSearchingReparsePoints"), i18nc("@option:check", "Skip searching within reparse points"), false, win);
         text(view,
              visibility,
              QStringLiteral("ExcludedWatcherKeywords"),
@@ -427,7 +427,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("FileAge"),
              i18nc("@label", "File age / relative date"),
              {{QStringLiteral("color"), i18nc("@item:inlistbox", "Color")}, {QStringLiteral("none"), i18nc("@item:inlistbox", "None")}},
-             not_yet);
+             live);
         flag(view,
              itemProps,
              QStringLiteral("AgeStripes"),
@@ -568,7 +568,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
                40,
                600,
                QStringLiteral(" px"),
-               not_yet,
+               live,
                i18nc("@info", "When space is limited, the parent folder column will try to expand to this size."));
         number(columns,
                widths,
@@ -596,7 +596,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
                80,
                1000,
                QStringLiteral(" px"),
-               not_yet);
+               live);
         const QString alignment = i18nc("@title:group", "Alignment");
         const QList<Choice> aligns = {{QStringLiteral("left"), i18nc("@item:inlistbox", "Left")},
                                       {QStringLiteral("right"), i18nc("@item:inlistbox", "Right")},
@@ -667,7 +667,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("PreviewShortcut"),
              i18nc("@option:check", "Pressing Spacebar key opens file preview window"),
              true,
-             not_yet,
+             live,
              i18nc("@info", "(Pressing Esc or Spacebar again closes it)"));
         flag(preview, previewWindow, QStringLiteral("QuickViewAutoplay"), i18nc("@option:check", "Autoplay video/audio files in preview window"), false, live);
         pick(preview,
@@ -756,7 +756,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
               {QStringLiteral("contracted"), i18nc("@item:inlistbox", "Contracted")},
               {QStringLiteral("expanded"), i18nc("@item:inlistbox", "Expanded")}},
              live);
-        number(theme, ui, QStringLiteral("Padding"), i18nc("@label", "Padding"), 0, 0, 20, QStringLiteral(" px"), not_yet);
+        number(theme, ui, QStringLiteral("Padding"), i18nc("@label", "Padding"), 0, 0, 20, QStringLiteral(" px"), live);
         number(theme,
                ui,
                QStringLiteral("ContextMenuItemPadding"),
@@ -857,7 +857,7 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              i18nc("@label", "If program has a window open, double-clicking its shortcut should:"),
              {{QStringLiteral("switch"), i18nc("@item:inlistbox", "Switch to the existing window")},
               {QStringLiteral("create"), i18nc("@item:inlistbox", "Prompt to create another window")}},
-             not_yet);
+             win);
 
         // ---- Advanced ----
         const QString advancedHeader = i18nc("@title:group", "Advanced");

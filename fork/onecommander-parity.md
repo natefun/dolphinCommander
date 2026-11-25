@@ -144,3 +144,79 @@ One row, as in OneCommander's own window and with its tooltips (from its strings
 `Settings…` (Ctrl+comma, the gear in the lower left) opens a window with OneCommander's tabs (General, View, Columns, Preview, Theme, Window, Advanced, Other) and its groups and wording, built from the strings in its program. Every change is applied and saved at once; the settings live in the `Commander` group of the configuration, so a menu entry and its setting in the window are the same thing. Dolphin's own settings stay in `Configure dolphinCommander…`.
 
 Each setting is one of three kinds, and the table in `src/settings/commandersettingsdialog.cpp` says which: applied (the program does what it says), for Windows only (shown, cannot be changed: Mica, the registry, Explorer, OneDrive and so on), or kept but not applied yet (it is saved and shows a tooltip saying so). The counts are in the commit message of the latest settings commit.
+
+## Settings that are Windows only (shown, cannot be changed)
+
+- ShowSystem: Show protected system files and folders
+- ShowFileAttributes: Show file attributes and synchronization state icons
+- SkipSearchingReparsePoints: Skip searching within reparse points
+- UseLocalThumbsDb: Use local thumbnails database (faster)
+- UsePDFThumbs: Custom .pdf and .ai thumbnail extraction
+- GetCloudThumbs: Get thumbnails of cloud files
+- RegisterMaxThumbs: Register 3ds Max thumbnail handler
+- RegistryOfficeThumbs: Force Microsoft 365/Office to save thumbnails in files
+- DownloadIconPacks: Download icon packs
+- PreviewWindow: Preview window
+- PreviewDownloadsCloudFiles: Download cloud files when previewing
+- EnableSFP: Enable Explorer Preview (Shell File Preview)
+- UseSystemAccentColor: Use system accent color
+- UseAcrylicWindow: Use Acrylic window
+- UseMicaWindow: Use Mica window effect
+- UseAcrylicMenu: Use acrylic effect in menu
+- UseLayoutRounding: Pixel-perfect layout
+- TextRendering: Text rendering
+- Rendering: Rendering
+- ShowEjectOnSubstDrives: Show Eject button on Subst drives (folders mounted as drives)
+- ImportFavoritesFromV2: Import Favorites from V2
+- ShowWindowNameInTaskbar: Show window name in Taskbar
+- ShortcutClick: If program has a window open, double-clicking its shortcut should:
+- ShowErrorReportDialog: Show error report dialog on crash
+- UseOldDragAndDropSystem: Use old Drag&Drop system
+- FixStylusLag: Fix Stylus lag (breaks touchscreen double-tap to open)
+- FileOperationsHandler: File operations handler
+- UseShellContextMenuSyncCascadeMenu: Wait for all items before showing context menu
+- ShowOverlayOnShellContextMenu: Block window when Shell Context Menu is open
+- GetRecentMenuItems: Get recent menu items
+- OpenOfficeFilesThroughExplorer: Open Office files through Explorer
+- ExcludedShellContextMenuItems: Excluded Shell Context Menu items
+- WinERegister: Register Win+E hotkey
+- DialogConnector: Dialog connector
+- UpdateToVersionAhead: Update to version ahead (less stable)
+- UseOneCommanderUpdater: Use external updater program instead of PowerShell script
+- AddToEnvironmentPath: Add to user PATH variable
+- CreatePSAlias: Create PowerShell alias 'oc'
+- RegistryAddOpenInOC: Add \
+- EmailNamingFormat: Email naming format (drag from Outlook)
+- OneDriveFolderPath: Path to OneDrive folder
+
+## Settings kept but not applied yet
+
+- ShowRenameSuggestions: Show rename suggestions popup
+- UseHighResScrolling: Use high-resolution touchpad scrolling
+- RemoveDuplicatesFromTabsHistory: Remove duplicates from tab's path history
+- UseSingleNewItemButton: Show a single New Item button instead of 3 buttons for New File/Folder/Note
+- ShowKeepFoldersOnTopToggle: Show toggle for listing folders above files
+- LiveSort: After renaming or updating file:
+- ShowFolderSizeOnNetwork: Show Folder size on network folders
+- ShowMetadataOnNetwork: Show Metadata on network files
+- ExcludedWatcherKeywords: Excluded watcher keywords
+- ItemBackgroundColorSource: Item coloring
+- GridViewFileNamePosition: File name position in Grid view
+- MetadataLineCount: Lines of text
+- MetadataExcerpts: Show text excerpts for these file types
+- FolderThumbnailStyle: Folder thumbnail style
+- FileIconsPack: File icons pack
+- FolderIconsPack: Folder icons pack
+- ColumnWidthCurrentStandardLayout: Current (rightmost) column pane width in Standard layout
+- ColumnAlignStandardLayout: Column Pane alignment in Standard Layout
+- ColumnAlignColumnsLayout: Column Pane alignment in Columns Layout
+- ColumnAutoExpandStandardLayout: Expand Column when cursor enters it (Standard layout)
+- ColumnAutoExpandColumnsLayout: Expand Column when cursor enters it (Columns layout)
+- ColumnAdvancedExpandTriggerWidth: Trigger width
+- ColumnAdvancedDelay: Expand delay (ms)
+- ColumnAdvancedDuration: Expand duration (ms)
+- CreateNewColumnsWithoutAnimating: Create New Columns without animating
+- ContextMenuItemPadding: Context Menu Item padding
+- FocusedElementStyle: Keyboard-focused element display style
+- HotkeyVizor: Use global hotkey Ctrl+` to show docked program window
+- ExtensionsExecutable: File types (executable)
