@@ -413,13 +413,15 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              {{QStringLiteral("system"), i18nc("@item:inlistbox", "Default")},
               {QStringLiteral("iso"), QStringLiteral("2026-11-24")},
               {QStringLiteral("long"), i18nc("@item:inlistbox", "Long date")}},
-             not_yet);
+             live);
         pick(view,
              itemProps,
              QStringLiteral("TimeFormat"),
              i18nc("@label", "Time format"),
-             {{QStringLiteral("24h"), QStringLiteral("24h")}, {QStringLiteral("12h"), i18nc("@item:inlistbox", "12h with AM/PM")}},
-             not_yet);
+             {{QStringLiteral("system"), i18nc("@item:inlistbox", "Default")},
+              {QStringLiteral("24h"), QStringLiteral("24h")},
+              {QStringLiteral("12h"), i18nc("@item:inlistbox", "12h with AM/PM")}},
+             live);
         pick(view,
              itemProps,
              QStringLiteral("FileAge"),
@@ -439,13 +441,13 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("SizeFormat"),
              i18nc("@label", "Size format"),
              {{QStringLiteral("auto"), i18nc("@item:inlistbox", "Automatic")}, {QStringLiteral("mb"), QStringLiteral("MB")}},
-             not_yet);
+             live);
         flag(view,
              itemProps,
              QStringLiteral("UseOldDefinitionOfMegabyte"),
              i18nc("@option:check", "Use old definition of Megabyte (as in Windows Explorer)"),
              false,
-             not_yet);
+             live);
         pick(view,
              itemProps,
              QStringLiteral("ItemBackgroundColorSource"),

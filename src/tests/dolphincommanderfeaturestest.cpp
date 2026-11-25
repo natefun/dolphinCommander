@@ -18,6 +18,7 @@
 #include "dolphintabwidget.h"
 #include "dolphinviewcontainer.h"
 #include "jobqueue.h"
+#include "kitemviews/kfileitemlistwidget.h"
 #include "kitemviews/kfileitemmodel.h"
 #include "kitemviews/kitemlistcontainer.h"
 #include "kitemviews/kitemlistcontroller.h"
@@ -79,6 +80,7 @@
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTimeZone>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
@@ -99,6 +101,7 @@ private Q_SLOTS:
     void testTheSettingsWindowHasOneCommandersTabsAndSettings();
     void testSettingsChangeWhatTheProgramDoes();
     void testFilesCanBeTreatedAsHidden();
+    void testDatesAndSizesFollowTheirFormats();
     void testTheHeaderHasAMenuButton();
     void testDetailsIsTheDefaultViewMode();
     void testTheHeaderSwitchesToColumnsAndBack();
@@ -470,6 +473,44 @@ void DolphinCommanderFeaturesTest::testFilesCanBeTreatedAsHidden()
     }
     filter.reloadHiddenRules();
     QVERIFY(filter.matches(file(QStringLiteral("draft-1.txt"))));
+}
+
+namespace
+{
+// roleText() is protected: this is a way in for the test.
+class OpenInformant : public KFileItemListWidgetInformant
+{
+public:
+    using KFileItemListWidgetInformant::roleText;
+};
+}
+
+void DolphinCommanderFeaturesTest::testDatesAndSizesFollowTheirFormats()
+{
+    OpenInformant informant;
+    const QDateTime when(QDate(2026, 11, 24), QTime(15, 7), QTimeZone::systemTimeZone());
+    SmallHash values;
+    values.insert("modificationtime", qint64(when.toSecsSinceEpoch()));
+    values.insert("size", qulonglong(5 * 1000 * 1000));
+
+    // Nothing changes until a format is chosen.
+    const QString original = informant.roleText("modificationtime", values);
+    CommanderSettings::setValue(QStringLiteral("DateFormat"), QStringLiteral("iso"));
+    CommanderSettings::setValue(QStringLiteral("TimeFormat"), QStringLiteral("24h"));
+    QCOMPARE(informant.roleText("modificationtime", values), QStringLiteral("2026-11-24 15:07"));
+    CommanderSettings::setValue(QStringLiteral("TimeFormat"), QStringLiteral("12h"));
+    QVERIFY(informant.roleText("modificationtime", values).startsWith(QStringLiteral("2026-11-24 3:07")));
+    CommanderSettings::remove(QStringLiteral("DateFormat"));
+    CommanderSettings::remove(QStringLiteral("TimeFormat"));
+    QCOMPARE(informant.roleText("modificationtime", values), original);
+
+    // Sizes in megabytes only, with the decimal or the old definition of a megabyte.
+    CommanderSettings::setValue(QStringLiteral("SizeFormat"), QStringLiteral("mb"));
+    QCOMPARE(informant.roleText("size", values), QLocale().toString(5.0, 'f', 2));
+    CommanderSettings::setValue(QStringLiteral("UseOldDefinitionOfMegabyte"), true);
+    QCOMPARE(informant.roleText("size", values), QLocale().toString(5000000.0 / (1024 * 1024), 'f', 2));
+    CommanderSettings::remove(QStringLiteral("SizeFormat"));
+    CommanderSettings::remove(QStringLiteral("UseOldDefinitionOfMegabyte"));
 }
 
 void DolphinCommanderFeaturesTest::testTheHeaderHasAMenuButton()

@@ -5,6 +5,8 @@
  */
 
 #include "kfileitemlistwidget.h"
+
+#include "commandersettings.h"
 #include "kfileitemlistview.h"
 #include "kfileitemmodel.h"
 #include "kitemlistview.h"
@@ -53,7 +55,27 @@ QString KFileItemListWidgetInformant::roleText(const QByteArray &role, const Sma
     // Implementation note: In case if more roles require a custom handling
     // use a hash + switch for a linear runtime.
 
-    auto formatDate = [formatter, local, forUsageAs](const QDateTime &time) {
+    // OneCommander's "Date format", "Time format" and "Size format": only what was chosen in the settings window changes the text.
+    const QString dateChoice = CommanderSettings::stringValue(QStringLiteral("DateFormat"), QStringLiteral("system"));
+    const QString timeChoice = CommanderSettings::stringValue(QStringLiteral("TimeFormat"), QStringLiteral("system"));
+    const bool oldMegabyte = CommanderSettings::boolValue(QStringLiteral("UseOldDefinitionOfMegabyte"), false);
+    const bool sizeInMegabytes = CommanderSettings::stringValue(QStringLiteral("SizeFormat")) == QLatin1String("mb");
+    auto formatSize = [formatter, oldMegabyte, sizeInMegabytes, local](KIO::filesize_t size) -> QString {
+        if (sizeInMegabytes) {
+            return local.toString(double(size) / (oldMegabyte ? 1024.0 * 1024.0 : 1000.0 * 1000.0), 'f', 2);
+        }
+        return formatter.formatByteSize(size, 1, oldMegabyte ? KFormat::JEDECBinaryDialect : KFormat::DefaultBinaryDialect);
+    };
+    auto formatDate = [formatter, local, forUsageAs, dateChoice, timeChoice](const QDateTime &time) -> QString {
+        if (dateChoice != QLatin1String("system") || timeChoice != QLatin1String("system")) {
+            const QString datePart = dateChoice == QLatin1String("iso") ? time.date().toString(Qt::ISODate)
+                : dateChoice == QLatin1String("long")                   ? local.toString(time.date(), QLocale::LongFormat)
+                                                                        : local.toString(time.date(), QLocale::ShortFormat);
+            const QString timePart = timeChoice == QLatin1String("12h") ? local.toString(time.time(), QStringLiteral("h:mm AP"))
+                : timeChoice == QLatin1String("24h")                    ? local.toString(time.time(), QStringLiteral("HH:mm"))
+                                                                        : local.toString(time.time(), QLocale::ShortFormat);
+            return QString(datePart + QLatin1Char(' ') + timePart);
+        }
         if (ContentDisplaySettings::useShortRelativeDates()) {
             return formatter.formatRelativeDateTime(time,
                                                     forUsageAs == KStandardItemListWidgetInformant::ForUsageAs::DisplayedText ? QLocale::ShortFormat
@@ -75,12 +97,12 @@ QString KFileItemListWidgetInformant::roleText(const QByteArray &role, const Sma
                 } else {
                     // if we have directory size available
                     const KIO::filesize_t size = roleValue.value<KIO::filesize_t>();
-                    text = formatter.formatByteSize(size);
+                    text = formatSize(size);
                 }
             }
         } else {
             const KIO::filesize_t size = roleValue.value<KIO::filesize_t>();
-            text = formatter.formatByteSize(size);
+            text = formatSize(size);
         }
     } else if (role == "modificationtime" || role == "creationtime" || role == "accesstime") {
         bool ok;
