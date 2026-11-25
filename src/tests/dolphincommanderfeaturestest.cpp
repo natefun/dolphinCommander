@@ -108,6 +108,7 @@ private Q_SLOTS:
     void testANewFolderStartsWithTheChosenViewAndSorting();
     void testClickingOutsideARenameRenamesOrCancels();
     void testADropMovesOrCopiesByTheChosenBehavior();
+    void testALongNameIsCutShortAndKeepsItsExtension();
     void testTheHeaderHasAMenuButton();
     void testDetailsIsTheDefaultViewMode();
     void testTheHeaderSwitchesToColumnsAndBack();
@@ -650,6 +651,31 @@ void DolphinCommanderFeaturesTest::testADropMovesOrCopiesByTheChosenBehavior()
     QCOMPARE(int(DragAndDropHelper::defaultActionFor(sources, sameDrive)), int(Qt::MoveAction));
     QCOMPARE(int(DragAndDropHelper::defaultActionFor(sources, otherDrive)), int(Qt::CopyAction));
     QCOMPARE(int(DragAndDropHelper::defaultActionFor(sources, QUrl(QStringLiteral("smb://server/share")))), int(Qt::CopyAction));
+}
+
+void DolphinCommanderFeaturesTest::testALongNameIsCutShortAndKeepsItsExtension()
+{
+    KItemListRoleEditor editor(nullptr);
+    editor.setRole("text");
+    const QString longName = QString(60, QLatin1Char('a')) + QStringLiteral(".txt");
+    editor.setPlainText(longName);
+    QSignalSpy finished(&editor, &KItemListRoleEditor::roleEditingFinished);
+    auto finish = [&]() {
+        QApplication::sendEvent(&editor, new QFocusEvent(QEvent::FocusOut, Qt::MouseFocusReason));
+        return finished.takeLast().at(1).value<EditResult>().newName;
+    };
+    QCOMPARE(finish(), longName); // nothing changes until the limit is asked for
+    CommanderSettings::setValue(QStringLiteral("LimitFileNameLength"), true);
+    CommanderSettings::setValue(QStringLiteral("MaximumFilenameLength"), 20);
+    const auto cleanUp = qScopeGuard([]() {
+        CommanderSettings::remove(QStringLiteral("LimitFileNameLength"));
+        CommanderSettings::remove(QStringLiteral("MaximumFilenameLength"));
+    });
+    const QString shortened = finish();
+    QCOMPARE(int(shortened.size()), 20);
+    QVERIFY(shortened.endsWith(QStringLiteral(".txt")));
+    editor.setPlainText(QStringLiteral("short.txt"));
+    QCOMPARE(finish(), QStringLiteral("short.txt"));
 }
 
 void DolphinCommanderFeaturesTest::testTheHeaderHasAMenuButton()

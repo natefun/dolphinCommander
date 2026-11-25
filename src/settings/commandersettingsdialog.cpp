@@ -490,8 +490,8 @@ const QList<CommanderSettingsDialog::Setting> &CommanderSettingsDialog::settings
              QStringLiteral("LimitFileNameLength"),
              i18nc("@option:check", "Limit file name length for maximum compatibility with other software"),
              false,
-             not_yet);
-        number(view, itemProps, QStringLiteral("MaximumFilenameLength"), i18nc("@label", "Maximum file name length"), 255, 16, 255, QString(), not_yet);
+             live);
+        number(view, itemProps, QStringLiteral("MaximumFilenameLength"), i18nc("@label", "Maximum file name length"), 255, 16, 255, QString(), live);
         flag(view,
              itemProps,
              QStringLiteral("ShowFolderBackgroundImage"),
